@@ -32,6 +32,10 @@ import { CustomGeneratorModal } from "./CustomGeneratorModal";
 import { SaveCustomTextModal } from "./SaveCustomTextModal";
 import { SavedTextsModal } from "./SavedTextsModal";
 import { WordFilterModal } from "./WordFilterModal";
+import {
+  getSettings as getEnVnTranslationSettings,
+  setSettings as setEnVnTranslationSettings,
+} from "../../custom/en-vn-translation/store";
 
 export type CustomTextIncomingData =
   | ({ set?: boolean; long?: boolean } & (
@@ -76,6 +80,9 @@ export function CustomTextModal(): JSXElement {
       limitTime: "",
       limitSection: "",
       pipeDelimiter: false,
+      translationEnabled: true,
+      translationDictionary: "",
+      translationDuration: "3000",
     },
     onSubmit: ({ value }) => {
       if (value.text === "") {
@@ -149,6 +156,16 @@ export function CustomTextModal(): JSXElement {
         CustomText.setLimitMode("section");
         CustomText.setLimitValue(parseInt(value.limitSection));
       }
+
+      const translationDuration = Math.min(
+        10000,
+        Math.max(500, parseInt(value.translationDuration) || 3000),
+      );
+      setEnVnTranslationSettings({
+        enabled: value.translationEnabled,
+        dictionary: value.translationDictionary,
+        durationMs: translationDuration,
+      });
 
       if (getLoadedChallenge() !== null) {
         showNoticeNotification("Challenge cleared");
@@ -264,6 +281,8 @@ export function CustomTextModal(): JSXElement {
       }
     }
 
+    const translationSettings = getEnVnTranslationSettings();
+
     const text = CustomText.getText()
       .join(pipeDelimiter ? "|" : " ")
       .replace(/^ +/gm, "");
@@ -276,6 +295,18 @@ export function CustomTextModal(): JSXElement {
         form.setFieldValue("limitSection", limitSection);
         form.setFieldValue("pipeDelimiter", pipeDelimiter);
         form.setFieldValue("text", text);
+        form.setFieldValue(
+          "translationEnabled",
+          translationSettings.enabled,
+        );
+        form.setFieldValue(
+          "translationDictionary",
+          translationSettings.dictionary,
+        );
+        form.setFieldValue(
+          "translationDuration",
+          `${translationSettings.durationMs}`,
+        );
       });
     });
 
@@ -491,6 +522,27 @@ export function CustomTextModal(): JSXElement {
                 )}
               </form.Field>
             </div>
+
+            <div class="grid gap-2">
+              <div>
+                <div class="text-xs text-sub lowercase">
+                  EN-VN translation dictionary
+                </div>
+                <div class="mt-1 text-xs text-text">
+                  One entry per line. Examples: cache = bộ nhớ đệm, parent block = block cha.
+                </div>
+              </div>
+              <form.Field name="translationDictionary">
+                {(field) => (
+                  <TextareaField
+                    field={field}
+                    placeholder={"cache = bộ nhớ đệm\nparent block = block cha"}
+                    class="min-h-40 self-start overflow-x-hidden overflow-y-scroll p-4 text-base font-(--font) text-text"
+                  />
+                )}
+              </form.Field>
+            </div>
+
             <SubmitButton
               form={form}
               skipUnchangedCheck
@@ -612,6 +664,43 @@ export function CustomTextModal(): JSXElement {
                 </For>
               </div>
             </SettingsGroup>
+
+            <SettingsGroup
+              title="EN-VN translation"
+              icon="fa-language"
+              sub="Show the Vietnamese meaning above a correctly typed matching word or phrase."
+            >
+              <div class="grid gap-2">
+                <form.Field name="translationEnabled">
+                  {(field) => (
+                    <Button
+                      variant="button"
+                      text={field().state.value ? "enabled" : "disabled"}
+                      active={field().state.value}
+                      onClick={() =>
+                        field().handleChange(!field().state.value)
+                      }
+                    />
+                  )}
+                </form.Field>
+                <form.Field name="translationDuration">
+                  {(field) => (
+                    <input
+                      type="number"
+                      min="500"
+                      max="10000"
+                      step="100"
+                      placeholder="duration (ms)"
+                      value={field().state.value}
+                      onInput={(e) =>
+                        field().handleChange(e.currentTarget.value)
+                      }
+                    />
+                  )}
+                </form.Field>
+              </div>
+            </SettingsGroup>
+
             <Separator />
             <div class="grid gap-2">
               <input
