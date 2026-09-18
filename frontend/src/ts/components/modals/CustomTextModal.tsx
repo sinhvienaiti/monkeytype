@@ -64,6 +64,7 @@ const delimiterOptions = [
 ];
 
 const translationStyleOptions = [
+  { value: "bubble", label: "bubble" },
   { value: "pill", label: "pill" },
   { value: "soft", label: "soft" },
   { value: "minimal", label: "minimal" },
@@ -108,8 +109,8 @@ export function CustomTextModal(): JSXElement {
       translationEnabled: true,
       translationDictionary: "",
       translationDuration: "3000",
-      translationPopupStyle: "pill" as TranslationPopupStyle,
-      translationPopupSize: "medium" as TranslationPopupSize,
+      translationPopupStyle: "bubble" as TranslationPopupStyle,
+      translationPopupSize: "large" as TranslationPopupSize,
       translationPopupColor: "blue" as TranslationPopupColor,
     },
     onSubmit: ({ value }) => {
@@ -731,7 +732,7 @@ export function CustomTextModal(): JSXElement {
                   <div class="text-sub">style</div>
                   <form.Field name="translationPopupStyle">
                     {(field) => (
-                      <div class="grid grid-cols-3 gap-1">
+                      <div class="grid grid-cols-2 gap-1">
                         <For each={translationStyleOptions}>
                           {(opt) => (
                             <Button
