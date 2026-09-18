@@ -3,7 +3,8 @@ import * as TestUI from "../../test/test-ui";
 import * as TestWords from "../../test/test-words";
 import { getInputForWord } from "../../test/events/data";
 
-import { normalizePhrase, parseDictionary, ParsedDictionary } from "./dictionary";
+import { normalizePhrase, parseDictionary } from "./dictionary";
+import type { ParsedDictionary } from "./dictionary";
 import { getSettings } from "./store";
 
 let cachedDictionarySource = "";
@@ -68,29 +69,18 @@ function showTranslation(
   completedWordIndex: number,
   durationMs: number,
 ): void {
-  const anchor = TestUI.getWordElement(completedWordIndex) as HTMLElement | null;
+  const anchor = TestUI.getWordElement(completedWordIndex);
   if (anchor === null) return;
 
-  const rect = anchor.getBoundingClientRect();
+  const rect = anchor.native.getBoundingClientRect();
   const popup = document.createElement("div");
   popup.dataset.personalEnVnTranslation = "true";
   popup.textContent = translation;
 
-  Object.assign(popup.style, {
-    position: "fixed",
-    left: `${rect.left + rect.width / 2}px`,
-    top: `${rect.top - 8}px`,
-    zIndex: "9999",
-    pointerEvents: "none",
-    color: "var(--main-color)",
-    fontFamily: "var(--font)",
-    fontSize: "1rem",
-    fontWeight: "600",
-    lineHeight: "1.2",
-    whiteSpace: "nowrap",
-    textShadow: "0 1px 4px var(--bg-color)",
-    transform: "translate(-50%, -100%)",
-  });
+  popup.className =
+    "pointer-events-none fixed z-50 whitespace-nowrap font-(--font) text-base font-semibold leading-tight text-main";
+  popup.style.left = `${rect.left + rect.width / 2}px`;
+  popup.style.top = `${rect.top - 8}px`;
 
   document.body.append(popup);
 
