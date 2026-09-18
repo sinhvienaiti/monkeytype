@@ -36,6 +36,11 @@ import {
   getSettings as getEnVnTranslationSettings,
   setSettings as setEnVnTranslationSettings,
 } from "../../custom/en-vn-translation/store";
+import type {
+  TranslationPopupColor,
+  TranslationPopupSize,
+  TranslationPopupStyle,
+} from "../../custom/en-vn-translation/store";
 
 export type CustomTextIncomingData =
   | ({ set?: boolean; long?: boolean } & (
@@ -57,6 +62,26 @@ const delimiterOptions = [
   { value: "true", label: "pipe" },
   { value: "false", label: "space" },
 ];
+
+const translationStyleOptions = [
+  { value: "pill", label: "pill" },
+  { value: "soft", label: "soft" },
+  { value: "minimal", label: "minimal" },
+] as const;
+
+const translationSizeOptions = [
+  { value: "small", label: "small" },
+  { value: "medium", label: "medium" },
+  { value: "large", label: "large" },
+] as const;
+
+const translationColorOptions = [
+  { value: "auto", label: "auto" },
+  { value: "blue", label: "blue" },
+  { value: "green", label: "green" },
+  { value: "amber", label: "amber" },
+  { value: "purple", label: "purple" },
+] as const;
 
 export function CustomTextModal(): JSXElement {
   const [longTextWarning, setLongTextWarning] = createSignal(false);
@@ -83,6 +108,9 @@ export function CustomTextModal(): JSXElement {
       translationEnabled: true,
       translationDictionary: "",
       translationDuration: "3000",
+      translationPopupStyle: "pill" as TranslationPopupStyle,
+      translationPopupSize: "medium" as TranslationPopupSize,
+      translationPopupColor: "blue" as TranslationPopupColor,
     },
     onSubmit: ({ value }) => {
       if (value.text === "") {
@@ -165,6 +193,9 @@ export function CustomTextModal(): JSXElement {
         enabled: value.translationEnabled,
         dictionary: value.translationDictionary,
         durationMs: translationDuration,
+        popupStyle: value.translationPopupStyle,
+        popupSize: value.translationPopupSize,
+        popupColor: value.translationPopupColor,
       });
 
       if (getLoadedChallenge() !== null) {
@@ -306,6 +337,18 @@ export function CustomTextModal(): JSXElement {
         form.setFieldValue(
           "translationDuration",
           `${translationSettings.durationMs}`,
+        );
+        form.setFieldValue(
+          "translationPopupStyle",
+          translationSettings.popupStyle,
+        );
+        form.setFieldValue(
+          "translationPopupSize",
+          translationSettings.popupSize,
+        );
+        form.setFieldValue(
+          "translationPopupColor",
+          translationSettings.popupColor,
         );
       });
     });
