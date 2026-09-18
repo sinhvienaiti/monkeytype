@@ -32,6 +32,7 @@ import { getCommitCharacterType, normalizeData } from "../helpers/util";
 import { areAllWordsGenerated } from "../../test/words-generator";
 import { getActiveWordIndex, isTestActive } from "../../states/test";
 import { DeleteInputType } from "../helpers/input-type";
+import { handleStartedWord as handleEnVnTranslationStart } from "../../custom/en-vn-translation";
 
 const charOverrides = new Map<string, string>([
   ["…", "..."],
@@ -228,6 +229,10 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     targetWord: currentWord,
     correctShiftUsed,
   });
+
+  if (testInput.length === 0 && correct && automatic !== true) {
+    handleEnVnTranslationStart(wordIndex);
+  }
 
   // handing cases where last char needs to be removed
   // this is here and not in beforeInsertText because we want to penalize for incorrect spaces
