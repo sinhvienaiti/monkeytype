@@ -74,7 +74,7 @@ function showTranslation(
 
   const rect = anchor.native.getBoundingClientRect();
   const popup = document.createElement("div");
-  popup.dataset.personalEnVnTranslation = "true";
+  popup.dataset["personalEnVnTranslation"] = "true";
   popup.textContent = translation;
 
   popup.className =
