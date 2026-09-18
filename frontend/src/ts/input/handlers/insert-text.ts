@@ -222,6 +222,14 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     targetWord: currentWord,
   });
 
+  if (
+    testInput.length === 0 &&
+    commitCharacterType === false &&
+    automatic !== true
+  ) {
+    handleEnVnTranslationStart(wordIndex);
+  }
+
   // is char correct
   const correct = isCharCorrect({
     data,
@@ -229,10 +237,6 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     targetWord: currentWord,
     correctShiftUsed,
   });
-
-  if (testInput.length === 0 && correct && automatic !== true) {
-    handleEnVnTranslationStart(wordIndex);
-  }
 
   // handing cases where last char needs to be removed
   // this is here and not in beforeInsertText because we want to penalize for incorrect spaces
