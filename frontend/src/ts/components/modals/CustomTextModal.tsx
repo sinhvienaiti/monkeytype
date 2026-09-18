@@ -713,7 +713,7 @@ export function CustomTextModal(): JSXElement {
               icon="fa-language"
               sub="Show the Vietnamese meaning above a correctly typed matching word or phrase."
             >
-              <div class="grid gap-2">
+              <div class="grid gap-3">
                 <form.Field name="translationEnabled">
                   {(field) => (
                     <Button
@@ -726,21 +726,85 @@ export function CustomTextModal(): JSXElement {
                     />
                   )}
                 </form.Field>
-                <form.Field name="translationDuration">
-                  {(field) => (
-                    <input
-                      type="number"
-                      min="500"
-                      max="10000"
-                      step="100"
-                      placeholder="duration (ms)"
-                      value={field().state.value}
-                      onInput={(e) =>
-                        field().handleChange(e.currentTarget.value)
-                      }
-                    />
-                  )}
-                </form.Field>
+
+                <div class="grid gap-1">
+                  <div class="text-sub">style</div>
+                  <form.Field name="translationPopupStyle">
+                    {(field) => (
+                      <div class="grid grid-cols-3 gap-1">
+                        <For each={translationStyleOptions}>
+                          {(opt) => (
+                            <Button
+                              variant="button"
+                              text={opt.label}
+                              active={field().state.value === opt.value}
+                              onClick={() => field().handleChange(opt.value)}
+                            />
+                          )}
+                        </For>
+                      </div>
+                    )}
+                  </form.Field>
+                </div>
+
+                <div class="grid gap-1">
+                  <div class="text-sub">size</div>
+                  <form.Field name="translationPopupSize">
+                    {(field) => (
+                      <div class="grid grid-cols-3 gap-1">
+                        <For each={translationSizeOptions}>
+                          {(opt) => (
+                            <Button
+                              variant="button"
+                              text={opt.label}
+                              active={field().state.value === opt.value}
+                              onClick={() => field().handleChange(opt.value)}
+                            />
+                          )}
+                        </For>
+                      </div>
+                    )}
+                  </form.Field>
+                </div>
+
+                <div class="grid gap-1">
+                  <div class="text-sub">color</div>
+                  <form.Field name="translationPopupColor">
+                    {(field) => (
+                      <div class="grid grid-cols-2 gap-1">
+                        <For each={translationColorOptions}>
+                          {(opt) => (
+                            <Button
+                              variant="button"
+                              text={opt.label}
+                              active={field().state.value === opt.value}
+                              onClick={() => field().handleChange(opt.value)}
+                            />
+                          )}
+                        </For>
+                      </div>
+                    )}
+                  </form.Field>
+                </div>
+
+                <div class="grid gap-1">
+                  <div class="text-sub">duration (ms)</div>
+                  <form.Field name="translationDuration">
+                    {(field) => (
+                      <input
+                        type="number"
+                        min="500"
+                        max="10000"
+                        step="100"
+                        placeholder="duration (ms)"
+                        value={field().state.value}
+                        onInput={(e) =>
+                          field().handleChange(e.currentTarget.value)
+                        }
+                      />
+                    )}
+                  </form.Field>
+                </div>
               </div>
             </SettingsGroup>
 
