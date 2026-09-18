@@ -19,7 +19,6 @@ import { setAwaitingNextWord } from "../state";
 import { DeleteInputType } from "./input-type";
 import { getWordBurst } from "../../test/events/stats";
 import { buildEventLog, getInputForWord } from "../../test/events/data";
-import { handleCompletedWord as handleEnVnTranslation } from "../../custom/en-vn-translation";
 
 type GoToNextWordParams = {
   correctInsert: boolean;
@@ -70,7 +69,6 @@ export async function goToNextWord({
     void TestLogic.addWord();
   }
 
-  handleEnVnTranslation(getActiveWordIndex());
 
   if (
     getActiveWordIndex() < TestWords.words.length - 1 ||
