@@ -8,12 +8,12 @@ function normalizeWord(word: string): string {
     .normalize("NFKC")
     .trim()
     .toLocaleLowerCase("en-US")
-    .replace(/^[^\\p{L}\\p{N}+#-]+|[^\\p{L}\\p{N}+#-]+$/gu, "");
+    .replace(/^[^\p{L}\p{N}+#-]+|[^\p{L}\p{N}+#-]+$/gu, "");
 }
 
 export function normalizePhrase(phrase: string): string {
   return phrase
-    .split(/\\s+/)
+    .split(/\s+/)
     .map(normalizeWord)
     .filter((word) => word !== "")
     .join(" ");
@@ -22,7 +22,7 @@ export function normalizePhrase(phrase: string): string {
 function splitDictionaryLine(
   line: string,
 ): { source: string; translation: string } | null {
-  const separators = ["=>", "\\t", "="];
+  const separators = ["=>", "\t", "="];
 
   for (const separator of separators) {
     const index = line.indexOf(separator);
@@ -43,7 +43,7 @@ export function parseDictionary(raw: string): ParsedDictionary {
   const translations = new Map<string, string>();
   let maxWordCount = 1;
 
-  for (const rawLine of raw.split(/\\r?\\n/)) {
+  for (const rawLine of raw.split(/\r?\n/)) {
     const line = rawLine.trim();
     if (line === "") continue;
 
