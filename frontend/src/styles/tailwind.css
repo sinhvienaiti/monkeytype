@@ -16,6 +16,8 @@
   --color-translation-green: #86efac;
   --color-translation-amber: #fcd34d;
   --color-translation-purple: #c4b5fd;
+  --color-translation-surface: #111827;
+  --color-translation-text: #f8fafc;
 
   /* decide on rem or em */
   --spacing: 0.25rem;
