@@ -12,6 +12,10 @@
   --color-error-extra: var(--error-extra-color);
   --color-colorful-error: var(--colorful-error-color);
   --color-colorful-error-extra: var(--colorful-error-extra-color);
+  --color-translation-blue: #93c5fd;
+  --color-translation-green: #86efac;
+  --color-translation-amber: #fcd34d;
+  --color-translation-purple: #c4b5fd;
 
   /* decide on rem or em */
   --spacing: 0.25rem;
