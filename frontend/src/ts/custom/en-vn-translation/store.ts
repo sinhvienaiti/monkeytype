@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { LocalStorageWithSchema } from "../../utils/local-storage-with-schema";
 
-const TranslationPopupStyleSchema = z.enum(["pill", "soft", "minimal"]);
+const TranslationPopupStyleSchema = z.enum(["bubble", "pill", "soft", "minimal"]);
 const TranslationPopupSizeSchema = z.enum(["small", "medium", "large"]);
 const TranslationPopupColorSchema = z.enum([
   "auto",
@@ -36,8 +36,8 @@ const defaultSettings: EnVnTranslationSettings = {
   enabled: true,
   dictionary: "",
   durationMs: 3000,
-  popupStyle: "pill",
-  popupSize: "medium",
+  popupStyle: "bubble",
+  popupSize: "large",
   popupColor: "blue",
 };
 
