@@ -6,11 +6,40 @@ import { getInputForWord } from "../../test/events/data";
 import { normalizePhrase, parseDictionary } from "./dictionary";
 import type { ParsedDictionary } from "./dictionary";
 import { getSettings } from "./store";
+import type {
+  EnVnTranslationSettings,
+  TranslationPopupColor,
+  TranslationPopupSize,
+  TranslationPopupStyle,
+} from "./store";
 
 let cachedDictionarySource = "";
 let cachedDictionary: ParsedDictionary = {
   translations: new Map(),
   maxWordCount: 1,
+};
+
+const popupSizeClasses: Record<TranslationPopupSize, string> = {
+  small: "text-base",
+  medium: "text-xl",
+  large: "text-2xl",
+};
+
+const popupStyleClasses: Record<TranslationPopupStyle, string> = {
+  pill: "rounded-full border px-3 py-1.5 shadow-lg backdrop-blur-sm",
+  soft: "rounded border px-3 py-1.5 shadow-md backdrop-blur-sm",
+  minimal: "px-1 font-bold drop-shadow-md",
+};
+
+const popupColorClasses: Record<TranslationPopupColor, string> = {
+  auto: "border-sub/50 bg-sub-alt/95 text-text",
+  blue: "border-translation-blue/40 bg-translation-blue/15 text-translation-blue",
+  green:
+    "border-translation-green/40 bg-translation-green/15 text-translation-green",
+  amber:
+    "border-translation-amber/40 bg-translation-amber/15 text-translation-amber",
+  purple:
+    "border-translation-purple/40 bg-translation-purple/15 text-translation-purple",
 };
 
 function getParsedDictionary(source: string): ParsedDictionary {
@@ -67,7 +96,7 @@ function findTranslation(
 function showTranslation(
   translation: string,
   completedWordIndex: number,
-  durationMs: number,
+  settings: EnVnTranslationSettings,
 ): void {
   const anchor = TestUI.getWordElement(completedWordIndex);
   if (anchor === null) return;
@@ -77,10 +106,15 @@ function showTranslation(
   popup.dataset["personalEnVnTranslation"] = "true";
   popup.textContent = translation;
 
-  popup.className =
-    "pointer-events-none fixed z-50 whitespace-nowrap font-(--font) text-base font-semibold leading-tight text-main";
+  popup.className = [
+    "pointer-events-none fixed z-50 whitespace-nowrap font-(--font) font-semibold leading-tight tracking-wide",
+    popupSizeClasses[settings.popupSize],
+    popupStyleClasses[settings.popupStyle],
+    popupColorClasses[settings.popupColor],
+  ].join(" ");
+
   popup.style.left = `${rect.left + rect.width / 2}px`;
-  popup.style.top = `${rect.top - 8}px`;
+  popup.style.top = `${rect.top - 12}px`;
 
   document.body.append(popup);
 
@@ -88,25 +122,25 @@ function showTranslation(
     [
       {
         opacity: 0,
-        transform: "translate(-50%, -100%) translateY(6px)",
+        transform: "translate(-50%, -100%) translateY(8px) scale(0.96)",
       },
       {
         opacity: 1,
-        transform: "translate(-50%, -100%) translateY(0)",
+        transform: "translate(-50%, -100%) translateY(0) scale(1)",
         offset: 0.1,
       },
       {
         opacity: 1,
-        transform: "translate(-50%, -100%) translateY(-10px)",
-        offset: 0.8,
+        transform: "translate(-50%, -100%) translateY(-10px) scale(1)",
+        offset: 0.82,
       },
       {
         opacity: 0,
-        transform: "translate(-50%, -100%) translateY(-24px)",
+        transform: "translate(-50%, -100%) translateY(-28px) scale(0.98)",
       },
     ],
     {
-      duration: durationMs,
+      duration: settings.durationMs,
       easing: "ease-out",
       fill: "forwards",
     },
@@ -127,5 +161,5 @@ export function handleCompletedWord(completedWordIndex: number): void {
   const translation = findTranslation(completedWordIndex, dictionary);
   if (translation === null) return;
 
-  showTranslation(translation, completedWordIndex, settings.durationMs);
+  showTranslation(translation, completedWordIndex, settings);
 }
