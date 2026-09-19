@@ -39,6 +39,8 @@ import {
 import type {
   PronunciationAccent,
   PronunciationRate,
+  TranslationDisplayMode,
+  TranslationLineSpacing,
   TranslationPopupColor,
   TranslationPopupSize,
   TranslationPopupStyle,
@@ -86,6 +88,18 @@ const translationColorOptions = [
   { value: "purple", label: "purple" },
 ] as const;
 
+const translationDisplayOptions = [
+  { value: "tooltip", label: "tooltip" },
+  { value: "top", label: "top" },
+  { value: "both", label: "both" },
+] as const;
+
+const translationLineSpacingOptions = [
+  { value: "normal", label: "normal" },
+  { value: "comfortable", label: "comfortable" },
+  { value: "wide", label: "wide" },
+] as const;
+
 const pronunciationAccentOptions = [
   { value: "en-US", label: "US" },
   { value: "en-GB", label: "UK" },
@@ -123,8 +137,10 @@ export function CustomTextModal(): JSXElement {
       translationDictionary: "",
       translationDuration: "3000",
       translationPopupStyle: "bubble" as TranslationPopupStyle,
-      translationPopupSize: "large" as TranslationPopupSize,
+      translationPopupSize: "medium" as TranslationPopupSize,
       translationPopupColor: "blue" as TranslationPopupColor,
+      translationDisplayMode: "both" as TranslationDisplayMode,
+      translationLineSpacing: "comfortable" as TranslationLineSpacing,
       pronunciationEnabled: true,
       pronunciationAccent: "en-US" as PronunciationAccent,
       pronunciationRate: "normal" as PronunciationRate,
@@ -214,6 +230,8 @@ export function CustomTextModal(): JSXElement {
         popupStyle: value.translationPopupStyle,
         popupSize: value.translationPopupSize,
         popupColor: value.translationPopupColor,
+        displayMode: value.translationDisplayMode,
+        lineSpacing: value.translationLineSpacing,
         pronunciationEnabled: value.pronunciationEnabled,
         pronunciationAccent: value.pronunciationAccent,
         pronunciationRate: value.pronunciationRate,
@@ -374,6 +392,14 @@ export function CustomTextModal(): JSXElement {
         form.setFieldValue(
           "translationPopupColor",
           translationSettings.popupColor,
+        );
+        form.setFieldValue(
+          "translationDisplayMode",
+          translationSettings.displayMode,
+        );
+        form.setFieldValue(
+          "translationLineSpacing",
+          translationSettings.lineSpacing,
         );
         form.setFieldValue(
           "pronunciationEnabled",
@@ -752,7 +778,7 @@ export function CustomTextModal(): JSXElement {
             <SettingsGroup
               title="EN-VN translation"
               icon="fa-language"
-              sub="Show the Vietnamese meaning above a correctly typed matching word or phrase."
+              sub="Show the Vietnamese meaning and pronounce the English text when you start typing a matching word or phrase."
             >
               <div class="grid gap-3">
                 <form.Field name="translationEnabled">
@@ -814,6 +840,46 @@ export function CustomTextModal(): JSXElement {
                     {(field) => (
                       <div class="grid grid-cols-2 gap-1">
                         <For each={translationColorOptions}>
+                          {(opt) => (
+                            <Button
+                              variant="button"
+                              text={opt.label}
+                              active={field().state.value === opt.value}
+                              onClick={() => field().handleChange(opt.value)}
+                            />
+                          )}
+                        </For>
+                      </div>
+                    )}
+                  </form.Field>
+                </div>
+
+                <div class="grid gap-1">
+                  <div class="text-sub">display</div>
+                  <form.Field name="translationDisplayMode">
+                    {(field) => (
+                      <div class="grid grid-cols-3 gap-1">
+                        <For each={translationDisplayOptions}>
+                          {(opt) => (
+                            <Button
+                              variant="button"
+                              text={opt.label}
+                              active={field().state.value === opt.value}
+                              onClick={() => field().handleChange(opt.value)}
+                            />
+                          )}
+                        </For>
+                      </div>
+                    )}
+                  </form.Field>
+                </div>
+
+                <div class="grid gap-1">
+                  <div class="text-sub">line spacing</div>
+                  <form.Field name="translationLineSpacing">
+                    {(field) => (
+                      <div class="grid grid-cols-3 gap-1">
+                        <For each={translationLineSpacingOptions}>
                           {(opt) => (
                             <Button
                               variant="button"
