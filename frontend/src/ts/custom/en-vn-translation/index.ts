@@ -22,8 +22,9 @@ let cachedDictionary: ParsedDictionary = {
 };
 
 const shownTranslationMatches = new Set<string>();
-let activeTooltip: HTMLDivElement | null = null;
-let activeTooltipAnimation: Animation | null = null;
+const heldTooltips = new Set<HTMLDivElement>();
+let floatingTooltip: HTMLDivElement | null = null;
+let floatingTooltipAnimation: Animation | null = null;
 
 const popupSizeClasses: Record<TranslationPopupSize, string> = {
   small: "text-[0.9rem]",
@@ -107,11 +108,18 @@ function findTranslationStartingAt(
   return null;
 }
 
-function removeActiveTooltip(): void {
-  activeTooltipAnimation?.cancel();
-  activeTooltipAnimation = null;
-  activeTooltip?.remove();
-  activeTooltip = null;
+function removeFloatingTooltip(): void {
+  floatingTooltipAnimation?.cancel();
+  floatingTooltipAnimation = null;
+  floatingTooltip?.remove();
+  floatingTooltip = null;
+}
+
+function clearHeldTooltips(): void {
+  for (const tooltip of heldTooltips) {
+    tooltip.remove();
+  }
+  heldTooltips.clear();
 }
 
 function createTooltipContent(
@@ -158,14 +166,12 @@ function showTranslationTooltip(
   const anchor = TestUI.getWordElement(wordIndex);
   if (anchor === null) return;
 
-  removeActiveTooltip();
-
-  const rect = anchor.native.getBoundingClientRect();
   const popup = document.createElement("div");
-  popup.dataset["personalEnVnTranslation"] = "true";
+  popup.dataset["personalEnVnTranslation"] =
+    settings.tooltipBehavior === "hold" ? "held" : "floating";
 
   popup.className = [
-    "pointer-events-none fixed z-50 max-w-[min(24rem,calc(100vw-2rem))] whitespace-normal font-(--font)",
+    "pointer-events-none z-50 max-w-[min(24rem,calc(100vw-2rem))] whitespace-normal font-(--font)",
     popupSizeClasses[settings.popupSize],
     popupStyleClasses[settings.popupStyle],
     popupAccentClasses[settings.popupColor],
@@ -177,6 +183,44 @@ function showTranslationTooltip(
     settings.popupColor,
     settings.popupStyle,
   );
+
+  if (settings.tooltipBehavior === "hold") {
+    popup.classList.add("absolute");
+    popup.style.left = "50%";
+    popup.style.bottom = "calc(100% + 0.55rem)";
+    popup.style.transform = "translateX(-50%)";
+
+    anchor.native.append(popup);
+    heldTooltips.add(popup);
+
+    const animation = popup.animate(
+      [
+        {
+          opacity: 0,
+          transform: "translateX(-50%) translateY(4px) scale(0.97)",
+        },
+        {
+          opacity: 1,
+          transform: "translateX(-50%) translateY(0) scale(1)",
+        },
+      ],
+      {
+        duration: 180,
+        easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+      },
+    );
+
+    animation.onfinish = () => {
+      popup.style.opacity = "1";
+      popup.style.transform = "translateX(-50%)";
+    };
+    return;
+  }
+
+  removeFloatingTooltip();
+
+  const rect = anchor.native.getBoundingClientRect();
+  popup.classList.add("fixed");
   document.body.append(popup);
 
   const popupRect = popup.getBoundingClientRect();
@@ -191,35 +235,7 @@ function showTranslationTooltip(
   popup.style.top = `${rect.top - 8}px`;
   popup.style.transform = "translate(-50%, -100%)";
 
-  activeTooltip = popup;
-
-  if (settings.tooltipBehavior === "hold") {
-    const animation = popup.animate(
-      [
-        {
-          opacity: 0,
-          transform: "translate(-50%, -100%) translateY(4px) scale(0.97)",
-        },
-        {
-          opacity: 1,
-          transform: "translate(-50%, -100%) translateY(0) scale(1)",
-        },
-      ],
-      {
-        duration: 180,
-        easing: "cubic-bezier(0.22, 1, 0.36, 1)",
-      },
-    );
-    activeTooltipAnimation = animation;
-
-    animation.onfinish = () => {
-      if (activeTooltip === popup) {
-        activeTooltipAnimation = null;
-      }
-    };
-    return;
-  }
-
+  floatingTooltip = popup;
   const animation = popup.animate(
     [
       {
@@ -247,12 +263,12 @@ function showTranslationTooltip(
       fill: "forwards",
     },
   );
-  activeTooltipAnimation = animation;
+  floatingTooltipAnimation = animation;
 
   animation.onfinish = () => {
-    if (activeTooltip === popup) {
-      activeTooltip = null;
-      activeTooltipAnimation = null;
+    if (floatingTooltip === popup) {
+      floatingTooltip = null;
+      floatingTooltipAnimation = null;
     }
     popup.remove();
   };
@@ -303,7 +319,8 @@ export function applyLearningAppearance(
   settings: EnVnTranslationSettings = getSettings(),
 ): void {
   const words = document.getElementById("words");
-  if (words === null) return;
+  const wordsWrapper = document.getElementById("wordsWrapper");
+  if (words === null || wordsWrapper === null) return;
 
   words.classList.remove(
     "en-vn-line-spacing-comfortable",
@@ -316,9 +333,12 @@ export function applyLearningAppearance(
     settings.dictionary.trim() !== "";
 
   if (!shouldApply) {
+    wordsWrapper.classList.remove("en-vn-learning");
     clearTopDisplay();
     return;
   }
+
+  wordsWrapper.classList.add("en-vn-learning");
 
   const spacingClass = lineSpacingClasses[settings.lineSpacing];
   if (spacingClass !== null) {
@@ -358,7 +378,8 @@ export function handleStartedWord(wordIndex: number): void {
 
 restartTestEvent.subscribe(() => {
   shownTranslationMatches.clear();
-  removeActiveTooltip();
+  removeFloatingTooltip();
+  clearHeldTooltips();
   clearTopDisplay();
   stopEnglishSpeech();
   applyLearningAppearance();
