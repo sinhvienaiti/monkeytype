@@ -1,0 +1,42 @@
+name: Custom EN-VN CI
+
+on:
+  push:
+    branches:
+      - feature/en-vn-translation
+  workflow_dispatch:
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.11.0
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.21.0
+
+      - name: Create stub Firebase config
+        working-directory: ./frontend/src/ts/constants
+        run: |
+          cp ./firebase-config-example.ts ./firebase-config.ts
+          cp ./firebase-config-example.ts ./firebase-config-live.ts
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Lint frontend
+        run: pnpm lint-fast-fe && pnpm lint-fe
+
+      - name: Lint changed styles
+        run: pnpm stylelint frontend/src/styles/test.scss
+
+      - name: Build frontend
+        run: pnpm build-fe
+
+      - name: Test frontend
+        run: pnpm test-fe
