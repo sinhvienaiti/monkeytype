@@ -191,7 +191,7 @@ function showTranslationTooltip(
   popup.style.top = `${rect.top - 8}px`;
 
   activeTooltip = popup;
-  activeTooltipAnimation = popup.animate(
+  const animation = popup.animate(
     [
       {
         opacity: 0,
@@ -218,8 +218,9 @@ function showTranslationTooltip(
       fill: "forwards",
     },
   );
+  activeTooltipAnimation = animation;
 
-  activeTooltipAnimation.onfinish = () => {
+  animation.onfinish = () => {
     if (activeTooltip === popup) {
       activeTooltip = null;
       activeTooltipAnimation = null;
