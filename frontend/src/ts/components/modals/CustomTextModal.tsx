@@ -1161,7 +1161,7 @@ function SettingHelpLabel(props: {
       <span class="group relative inline-flex">
         <span
           class="grid size-4 cursor-help place-items-center rounded-full border border-sub/30 text-[0.65rem] leading-none text-sub"
-          tabindex="0"
+          tabIndex={0}
           aria-label={props.help}
         >
           ?
