@@ -28,6 +28,7 @@ const PronunciationRateSchema = z.enum(["slow", "normal", "fast"]);
 
 const EnVnTranslationSettingsSchema = z.object({
   enabled: z.boolean(),
+  recallModeEnabled: z.boolean(),
   dictionary: z.string(),
   durationMs: z.number().int().min(500).max(10000),
   popupStyle: TranslationPopupStyleSchema,
@@ -66,6 +67,7 @@ export type EnVnTranslationSettings = z.infer<
 
 const defaultSettings: EnVnTranslationSettings = {
   enabled: true,
+  recallModeEnabled: false,
   dictionary: "",
   durationMs: 3000,
   popupStyle: "bubble",
@@ -94,6 +96,10 @@ const settingsStorage = new LocalStorageWithSchema({
         typeof oldData["enabled"] === "boolean"
           ? oldData["enabled"]
           : defaultSettings.enabled,
+      recallModeEnabled:
+        typeof oldData["recallModeEnabled"] === "boolean"
+          ? oldData["recallModeEnabled"]
+          : defaultSettings.recallModeEnabled,
       dictionary:
         typeof oldData["dictionary"] === "string"
           ? oldData["dictionary"]
