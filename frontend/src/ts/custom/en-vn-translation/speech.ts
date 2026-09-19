@@ -53,6 +53,5 @@ export function speakEnglish(
 }
 
 export function stopEnglishSpeech(): void {
-  if (!("speechSynthesis" in window)) return;
-  window.speechSynthesis.cancel();
+  stopTextReader();
 }
