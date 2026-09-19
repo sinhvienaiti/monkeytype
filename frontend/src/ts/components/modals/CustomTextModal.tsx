@@ -140,6 +140,7 @@ export function CustomTextModal(): JSXElement {
       limitSection: "",
       pipeDelimiter: false,
       translationEnabled: true,
+      translationRecallMode: false,
       translationDictionary: "",
       translationDuration: "3000",
       translationPopupStyle: "bubble" as TranslationPopupStyle,
@@ -232,6 +233,7 @@ export function CustomTextModal(): JSXElement {
       );
       setEnVnTranslationSettings({
         enabled: value.translationEnabled,
+        recallModeEnabled: value.translationRecallMode,
         dictionary: value.translationDictionary,
         durationMs: translationDuration,
         popupStyle: value.translationPopupStyle,
@@ -380,6 +382,10 @@ export function CustomTextModal(): JSXElement {
         form.setFieldValue(
           "translationEnabled",
           translationSettings.enabled,
+        );
+        form.setFieldValue(
+          "translationRecallMode",
+          translationSettings.recallModeEnabled,
         );
         form.setFieldValue(
           "translationDictionary",
@@ -637,7 +643,7 @@ export function CustomTextModal(): JSXElement {
                     field={field}
                     ref={textareaRef}
                     placeholder="type or paste your custom text"
-                    class="min-h-182.5 self-start overflow-x-hidden overflow-y-scroll p-4 text-base font-(--font) text-text"
+                    class="min-h-96 max-h-[46vh] self-start overflow-x-hidden overflow-y-auto p-4 text-base font-(--font) text-text"
                     onKeyDown={handleTextareaKeydown}
                     onKeyPress={handleTextareaKeypress}
                   />
@@ -659,7 +665,7 @@ export function CustomTextModal(): JSXElement {
                   <TextareaField
                     field={field}
                     placeholder={"cache = bộ nhớ đệm\nparent block = block cha"}
-                    class="min-h-40 self-start overflow-x-hidden overflow-y-scroll p-4 text-base font-(--font) text-text"
+                    class="min-h-32 max-h-52 self-start overflow-x-hidden overflow-y-auto p-4 text-base font-(--font) text-text"
                   />
                 )}
               </form.Field>
@@ -678,7 +684,7 @@ export function CustomTextModal(): JSXElement {
           {/* Settings sidebar — on large screens spans all rows in column 2 */}
           <div
             class={cn(
-              "grid h-min gap-4 text-xs",
+              "grid h-min gap-3 text-xs",
               isDisabled() && "pointer-events-none opacity-50 select-none",
             )}
           >
@@ -807,7 +813,26 @@ export function CustomTextModal(): JSXElement {
                 </form.Field>
 
                 <div class="grid gap-1">
-                  <div class="text-sub">style</div>
+                  <SettingHelpLabel
+                    label="recall typing"
+                    help="Hide dictionary-matched English text. Correct letters reveal as you type."
+                  />
+                  <form.Field name="translationRecallMode">
+                    {(field) => (
+                      <Button
+                        variant="button"
+                        text={field().state.value ? "enabled" : "disabled"}
+                        active={field().state.value}
+                        onClick={() =>
+                          field().handleChange(!field().state.value)
+                        }
+                      />
+                    )}
+                  </form.Field>
+                </div>
+
+                <div class="grid gap-1">
+                  <SettingHelpLabel label="style" help="Choose the visual shape of translation tooltips." />
                   <form.Field name="translationPopupStyle">
                     {(field) => (
                       <div class="grid grid-cols-2 gap-1">
@@ -827,7 +852,7 @@ export function CustomTextModal(): JSXElement {
                 </div>
 
                 <div class="grid gap-1">
-                  <div class="text-sub">size</div>
+                  <SettingHelpLabel label="size" help="Choose translation tooltip text size." />
                   <form.Field name="translationPopupSize">
                     {(field) => (
                       <div class="grid grid-cols-3 gap-1">
@@ -847,7 +872,7 @@ export function CustomTextModal(): JSXElement {
                 </div>
 
                 <div class="grid gap-1">
-                  <div class="text-sub">color</div>
+                  <SettingHelpLabel label="color" help="Choose the translation tooltip accent color." />
                   <form.Field name="translationPopupColor">
                     {(field) => (
                       <div class="grid grid-cols-2 gap-1">
@@ -867,7 +892,7 @@ export function CustomTextModal(): JSXElement {
                 </div>
 
                 <div class="grid gap-1">
-                  <div class="text-sub">display</div>
+                  <SettingHelpLabel label="display" help="Show translations near the word, above the test, or both." />
                   <form.Field name="translationDisplayMode">
                     {(field) => (
                       <div class="grid grid-cols-3 gap-1">
@@ -887,7 +912,7 @@ export function CustomTextModal(): JSXElement {
                 </div>
 
                 <div class="grid gap-1">
-                  <div class="text-sub">tooltip behavior</div>
+                  <SettingHelpLabel label="tooltip behavior" help="Hold keeps a tooltip attached to the word. Float fades it away." />
                   <form.Field name="translationTooltipBehavior">
                     {(field) => (
                       <div class="grid grid-cols-2 gap-1">
@@ -907,7 +932,7 @@ export function CustomTextModal(): JSXElement {
                 </div>
 
                 <div class="grid gap-1">
-                  <div class="text-sub">line spacing</div>
+                  <SettingHelpLabel label="line spacing" help="Add vertical room between typing lines so tooltips do not cover nearby text." />
                   <form.Field name="translationLineSpacing">
                     {(field) => (
                       <div class="grid grid-cols-3 gap-1">
@@ -927,7 +952,7 @@ export function CustomTextModal(): JSXElement {
                 </div>
 
                 <div class="grid gap-1">
-                  <div class="text-sub">float duration (ms)</div>
+                  <SettingHelpLabel label="float duration (ms)" help="How long floating translation tooltips remain visible." />
                   <form.Field name="translationDuration">
                     {(field) => (
                       <input
@@ -948,7 +973,7 @@ export function CustomTextModal(): JSXElement {
                 <Separator />
 
                 <div class="grid gap-2">
-                  <div class="text-sub">English pronunciation</div>
+                  <SettingHelpLabel label="English pronunciation" help="Pronounce a matching English word or phrase when typing starts." />
                   <form.Field name="pronunciationEnabled">
                     {(field) => (
                       <Button
@@ -963,7 +988,7 @@ export function CustomTextModal(): JSXElement {
                   </form.Field>
 
                   <div class="grid gap-1">
-                    <div class="text-sub">accent</div>
+                    <SettingHelpLabel label="accent" help="Choose the preferred English system voice accent." />
                     <form.Field name="pronunciationAccent">
                       {(field) => (
                         <div class="grid grid-cols-2 gap-1">
@@ -983,7 +1008,7 @@ export function CustomTextModal(): JSXElement {
                   </div>
 
                   <div class="grid gap-1">
-                    <div class="text-sub">speed</div>
+                    <SettingHelpLabel label="speed" help="Choose how fast matching English words are pronounced." />
                     <form.Field name="pronunciationRate">
                       {(field) => (
                         <div class="grid grid-cols-3 gap-1">
@@ -1003,7 +1028,7 @@ export function CustomTextModal(): JSXElement {
                   </div>
 
                   <div class="grid gap-1">
-                    <div class="text-sub">volume (%)</div>
+                    <SettingHelpLabel label="volume (%)" help="Set pronunciation volume from 0 to 100 percent." />
                     <form.Field name="pronunciationVolume">
                       {(field) => (
                         <input
@@ -1123,6 +1148,29 @@ export function CustomTextModal(): JSXElement {
       <WordFilterModal setChainedData={setIncomingChainedData} />
       <CustomGeneratorModal setChainedData={setIncomingChainedData} />
     </>
+  );
+}
+
+function SettingHelpLabel(props: {
+  label: string;
+  help: string;
+}): JSXElement {
+  return (
+    <div class="flex items-center gap-1 text-sub">
+      <span>{props.label}</span>
+      <span class="group relative inline-flex">
+        <span
+          class="grid size-4 cursor-help place-items-center rounded-full border border-sub/30 text-[0.65rem] leading-none text-sub"
+          tabindex="0"
+          aria-label={props.help}
+        >
+          ?
+        </span>
+        <span class="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1.5 w-56 -translate-x-1/2 rounded bg-sub-alt px-2 py-1.5 text-left text-[0.68rem] leading-snug text-text opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+          {props.help}
+        </span>
+      </span>
+    </div>
   );
 }
 
