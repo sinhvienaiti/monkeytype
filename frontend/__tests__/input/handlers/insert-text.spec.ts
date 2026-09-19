@@ -201,6 +201,20 @@ function inputEventsForWord(wordIndex: number): InputEventNoMs[] {
   );
 }
 
+type InsertInputEventData = Extract<
+  InputEventNoMs["data"],
+  { data: string; correct: boolean }
+>;
+type InsertInputEventNoMs = Omit<InputEventNoMs, "data"> & {
+  data: InsertInputEventData;
+};
+
+function insertEventsForWord(wordIndex: number): InsertInputEventNoMs[] {
+  return inputEventsForWord(wordIndex).filter(
+    (event): event is InsertInputEventNoMs => "correct" in event.data,
+  );
+}
+
 /** The deletion events only, as `[inputType, charIndex, inputValue]` triples. */
 function deletesForWord(
   wordIndex: number,
@@ -467,9 +481,7 @@ describe("onInsertText - forgive corrected errors", () => {
     await type("x");
     await type("y");
 
-    const inserts = inputEventsForWord(0).filter(
-      (event) => event.data.inputType === "insertText",
-    );
+    const inserts = insertEventsForWord(0);
     expect(inserts).toHaveLength(2);
     expect(inserts[0]?.data.correct).toBe(false);
     expect(inserts[0]?.data.accuracyIgnored).toBeUndefined();
@@ -484,9 +496,7 @@ describe("onInsertText - forgive corrected errors", () => {
     await type("y");
     await type("h");
 
-    const inserts = inputEventsForWord(0).filter(
-      (event) => event.data.inputType === "insertText",
-    );
+    const inserts = insertEventsForWord(0);
     expect(inserts[0]?.data.accuracyIgnored).toBe(true);
     expect(inserts[1]?.data.accuracyIgnored).toBe(true);
     expect(inserts[2]?.data.correct).toBe(true);
@@ -507,9 +517,7 @@ describe("onInsertText - forgive corrected errors", () => {
     await type("x");
     await type("y");
 
-    let inserts = inputEventsForWord(0).filter(
-      (event) => event.data.inputType === "insertText",
-    );
+    let inserts = insertEventsForWord(0);
     expect(inserts[0]?.data.accuracyIgnored).toBeUndefined();
     expect(inserts[1]?.data.accuracyIgnored).toBe(true);
 
@@ -523,9 +531,7 @@ describe("onInsertText - forgive corrected errors", () => {
 
     for (const char of "hello") await type(char);
 
-    inserts = inputEventsForWord(0).filter(
-      (event) => event.data.inputType === "insertText",
-    );
+    inserts = insertEventsForWord(0);
     expect(inserts[0]?.data.accuracyIgnored).toBe(true);
     expect(getLiveCachedAccuracy()).toBe(100);
     expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
@@ -539,9 +545,7 @@ describe("onInsertText - forgive corrected errors", () => {
     await type("y");
     await type("h");
 
-    const inserts = inputEventsForWord(0).filter(
-      (event) => event.data.inputType === "insertText",
-    );
+    const inserts = insertEventsForWord(0);
     expect(inserts[0]?.data.accuracyIgnored).toBeUndefined();
     expect(inserts[1]?.data.accuracyIgnored).toBeUndefined();
     expect(inserts[2]?.data.correct).toBe(true);
