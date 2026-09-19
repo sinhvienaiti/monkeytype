@@ -132,6 +132,7 @@ vi.mock("../../../src/ts/input/helpers/fail-or-finish", () => ({
 import { onInsertText } from "../../../src/ts/input/handlers/insert-text";
 import {
   buildEventLog,
+  logTestEvent,
   resetTestEvents,
   getAllTestEvents,
   getInputForWord,
@@ -497,6 +498,37 @@ describe("onInsertText - forgive corrected errors", () => {
       incorrect: 0,
       percentage: 100,
     });
+  });
+
+  it("treats a blocked word as one accuracy error and forgives it after correction", async () => {
+    replaceConfig({ stopOnError: "word" });
+    pushWords("hello", "world");
+
+    await type("x");
+    await type("y");
+
+    let inserts = inputEventsForWord(0).filter(
+      (event) => event.data.inputType === "insertText",
+    );
+    expect(inserts[0]?.data.accuracyIgnored).toBeUndefined();
+    expect(inserts[1]?.data.accuracyIgnored).toBe(true);
+
+    setInput("");
+    logTestEvent("input", 1100, {
+      inputType: "deleteWordBackward",
+      wordIndex: 0,
+      charIndex: 2,
+      inputValue: "",
+    });
+
+    for (const char of "hello") await type(char);
+
+    inserts = inputEventsForWord(0).filter(
+      (event) => event.data.inputType === "insertText",
+    );
+    expect(inserts[0]?.data.accuracyIgnored).toBe(true);
+    expect(getLiveCachedAccuracy()).toBe(100);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
   });
 
   it("keeps the original Monkeytype accuracy behavior when disabled", async () => {
