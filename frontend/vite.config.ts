@@ -340,6 +340,21 @@ export default defineConfig(({ mode }): UserConfig => {
     }
   }
 
+  const devAllowedHosts = env["DEV_ALLOWED_HOSTS"]
+    ?.split(",")
+    .map((host) => host.trim())
+    .filter((host) => host !== "");
+
+  const devHmrHost = env["DEV_HMR_HOST"];
+  const devHmrProtocol =
+    env["DEV_HMR_PROTOCOL"] === "wss" || env["DEV_HMR_PROTOCOL"] === "ws"
+      ? env["DEV_HMR_PROTOCOL"]
+      : undefined;
+  const devHmrClientPort =
+    env["DEV_HMR_CLIENT_PORT"] !== undefined
+      ? Number(env["DEV_HMR_CLIENT_PORT"])
+      : undefined;
+
   return {
     plugins: getPlugins({ isDevelopment, useSentry: useSentry, env }),
     build: getBuildOptions({ enableSourceMaps: useSentry }),
@@ -347,7 +362,22 @@ export default defineConfig(({ mode }): UserConfig => {
     server: {
       open: env["SERVER_OPEN"] !== "false",
       port: 3000,
-      host: env["BACKEND_URL"] !== undefined,
+      host:
+        env["DEV_HOST"] !== undefined
+          ? env["DEV_HOST"]
+          : env["BACKEND_URL"] !== undefined,
+      allowedHosts:
+        devAllowedHosts !== undefined && devAllowedHosts.length > 0
+          ? devAllowedHosts
+          : undefined,
+      hmr:
+        devHmrHost !== undefined
+          ? {
+              host: devHmrHost,
+              protocol: devHmrProtocol,
+              clientPort: devHmrClientPort,
+            }
+          : undefined,
       watch: {
         //we rebuild the whole contracts package when a file changes
         //so we only want to watch one file
