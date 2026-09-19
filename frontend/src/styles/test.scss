@@ -1278,6 +1278,11 @@
   #wordsWrapper {
     position: relative;
     overflow: visible clip;
+
+    &.en-vn-learning {
+      overflow: visible;
+    }
+
     &.tape {
       overflow: hidden;
       mask-image: linear-gradient(
