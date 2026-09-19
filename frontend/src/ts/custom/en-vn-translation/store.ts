@@ -16,6 +16,12 @@ const TranslationPopupColorSchema = z.enum([
   "amber",
   "purple",
 ]);
+const TranslationDisplayModeSchema = z.enum(["tooltip", "top", "both"]);
+const TranslationLineSpacingSchema = z.enum([
+  "normal",
+  "comfortable",
+  "wide",
+]);
 const PronunciationAccentSchema = z.enum(["en-US", "en-GB"]);
 const PronunciationRateSchema = z.enum(["slow", "normal", "fast"]);
 
@@ -26,6 +32,8 @@ const EnVnTranslationSettingsSchema = z.object({
   popupStyle: TranslationPopupStyleSchema,
   popupSize: TranslationPopupSizeSchema,
   popupColor: TranslationPopupColorSchema,
+  displayMode: TranslationDisplayModeSchema,
+  lineSpacing: TranslationLineSpacingSchema,
   pronunciationEnabled: z.boolean(),
   pronunciationAccent: PronunciationAccentSchema,
   pronunciationRate: PronunciationRateSchema,
@@ -39,6 +47,12 @@ export type TranslationPopupSize = z.infer<typeof TranslationPopupSizeSchema>;
 export type TranslationPopupColor = z.infer<
   typeof TranslationPopupColorSchema
 >;
+export type TranslationDisplayMode = z.infer<
+  typeof TranslationDisplayModeSchema
+>;
+export type TranslationLineSpacing = z.infer<
+  typeof TranslationLineSpacingSchema
+>;
 export type PronunciationAccent = z.infer<typeof PronunciationAccentSchema>;
 export type PronunciationRate = z.infer<typeof PronunciationRateSchema>;
 export type EnVnTranslationSettings = z.infer<
@@ -50,8 +64,10 @@ const defaultSettings: EnVnTranslationSettings = {
   dictionary: "",
   durationMs: 3000,
   popupStyle: "bubble",
-  popupSize: "large",
+  popupSize: "medium",
   popupColor: "blue",
+  displayMode: "both",
+  lineSpacing: "comfortable",
   pronunciationEnabled: true,
   pronunciationAccent: "en-US",
   pronunciationRate: "normal",
@@ -89,6 +105,12 @@ const settingsStorage = new LocalStorageWithSchema({
       popupColor:
         TranslationPopupColorSchema.safeParse(oldData["popupColor"]).data ??
         defaultSettings.popupColor,
+      displayMode:
+        TranslationDisplayModeSchema.safeParse(oldData["displayMode"]).data ??
+        defaultSettings.displayMode,
+      lineSpacing:
+        TranslationLineSpacingSchema.safeParse(oldData["lineSpacing"]).data ??
+        defaultSettings.lineSpacing,
       pronunciationEnabled:
         typeof oldData["pronunciationEnabled"] === "boolean"
           ? oldData["pronunciationEnabled"]
