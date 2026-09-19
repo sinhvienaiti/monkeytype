@@ -2,7 +2,11 @@ import { Config } from "../../config/store";
 import { restartTestEvent } from "../../events/test";
 import * as TestWords from "../../test/test-words";
 
-import { findDictionaryMatch, parseDictionary } from "./dictionary";
+import {
+  findDictionaryMatch,
+  findDictionaryMatches,
+  parseDictionary,
+} from "./dictionary";
 import type { ParsedDictionary } from "./dictionary";
 import { speakEnglish, stopEnglishSpeech } from "./speech";
 import { getSettings } from "./store";
@@ -90,6 +94,35 @@ function findTranslationStartingAt(
 
   return {
     ...match,
+    speechText: words
+      .slice(startWordIndex, startWordIndex + match.wordCount)
+      .join(" "),
+  };
+}
+
+function findRecallTranslationStartingAt(
+  startWordIndex: number,
+  dictionary: ParsedDictionary,
+): {
+  source: string;
+  speechText: string;
+  translation: string;
+  wordCount: number;
+} | null {
+  const words: string[] = [];
+  for (let index = 0; index < TestWords.words.length; index++) {
+    words.push(TestWords.words.get(index)?.text ?? "");
+  }
+
+  const match = findDictionaryMatches(words, dictionary).find(
+    (candidate) => candidate.startWordIndex === startWordIndex,
+  );
+  if (match === undefined) return null;
+
+  return {
+    source: match.source,
+    translation: match.translation,
+    wordCount: match.wordCount,
     speechText: words
       .slice(startWordIndex, startWordIndex + match.wordCount)
       .join(" "),
@@ -355,13 +388,16 @@ export function applyLearningAppearance(
 function showLearningMatch(
   wordIndex: number,
   settings: EnVnTranslationSettings,
+  useRecallMatches = false,
 ): void {
   if (!settings.enabled || settings.dictionary.trim() === "") return;
 
   const dictionary = getParsedDictionary(settings.dictionary);
   if (dictionary.translations.size === 0) return;
 
-  const match = findTranslationStartingAt(wordIndex, dictionary);
+  const match = useRecallMatches
+    ? findRecallTranslationStartingAt(wordIndex, dictionary)
+    : findTranslationStartingAt(wordIndex, dictionary);
   if (match === null) return;
 
   const matchId = `${wordIndex}:${match.source}`;
@@ -391,7 +427,7 @@ export function handleActiveWord(wordIndex: number): void {
   if (!settings.recallModeEnabled) return;
 
   applyLearningAppearance(settings);
-  showLearningMatch(wordIndex, settings);
+  showLearningMatch(wordIndex, settings, true);
 }
 
 export function handleStartedWord(wordIndex: number): void {
@@ -399,7 +435,7 @@ export function handleStartedWord(wordIndex: number): void {
 
   const settings = getSettings();
   applyLearningAppearance(settings);
-  showLearningMatch(wordIndex, settings);
+  showLearningMatch(wordIndex, settings, settings.recallModeEnabled);
 }
 
 restartTestEvent.subscribe(() => {
