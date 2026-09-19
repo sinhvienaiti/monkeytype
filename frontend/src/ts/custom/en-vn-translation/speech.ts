@@ -46,9 +46,8 @@ export function speakEnglish(
     utterance.voice = voice;
   }
 
-  // Keep pronunciation synchronized with the current learning bubble instead
-  // of allowing old speech to queue behind fast typing.
-  speech.cancel();
+  // stopTextReader() already clears the shared browser speech queue, so this
+  // pronunciation starts immediately instead of waiting behind older speech.
   speech.speak(utterance);
 }
 
