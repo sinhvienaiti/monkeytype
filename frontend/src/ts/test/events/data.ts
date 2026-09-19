@@ -17,7 +17,11 @@ import {
   TimerEventData,
 } from "./types";
 import { getEventsForWord, getInputFromDom, keysToTrack } from "./helpers";
-import { recordEventForCache, resetLiveCache } from "./live-cache";
+import {
+  forgiveIncorrectInputsForAccuracy,
+  recordEventForCache,
+  resetLiveCache,
+} from "./live-cache";
 import { Keycode } from "../../constants/keys";
 import { isSafeNumber, mean, roundTo2 } from "@monkeytype/util/numbers";
 import * as TestWords from "../test-words";
@@ -226,7 +230,7 @@ export function forgiveAccuracyErrorsAt(
   wordIndex: number,
   charIndex: number,
 ): void {
-  let changed = false;
+  let forgiven = 0;
 
   for (let index = inputEvents.length - 1; index >= 0; index--) {
     const event = inputEvents[index];
@@ -244,13 +248,13 @@ export function forgiveAccuracyErrorsAt(
 
     if (eventData.accuracyIgnored !== true) {
       eventData.accuracyIgnored = true;
-      changed = true;
+      forgiven++;
     }
   }
 
-  if (!changed) return;
+  if (forgiven === 0) return;
   invalidateCache();
-  recomputeLiveCache();
+  forgiveIncorrectInputsForAccuracy(forgiven);
 }
 
 export function getCurrentInput(): string {
