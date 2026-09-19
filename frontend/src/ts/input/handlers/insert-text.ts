@@ -29,8 +29,10 @@ import { onBeforeInsertText } from "./before-insert-text";
 import { shouldGoToNextWord, isCharCorrect } from "../helpers/validation";
 import {
   forgiveAccuracyErrorsAt,
+  forgiveAccuracyErrorsForWord,
   getCurrentInput,
   hasCountedAccuracyError,
+  hasCountedAccuracyErrorInWord,
   logTestEvent,
 } from "../../test/events/data";
 import { getCommitCharacterType, normalizeData } from "../helpers/util";
@@ -199,7 +201,9 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
 
   // input and target word
   const testInput = getCurrentInput();
-  const currentWord = TestWords.words.getCurrent()?.textWithCommit ?? "";
+  const currentTestWord = TestWords.words.getCurrent();
+  const currentWord = currentTestWord?.textWithCommit ?? "";
+  const currentWordText = currentTestWord?.text ?? "";
 
   // if the character is visually equal, replace it with the target character
   // this ensures all future equivalence checks work correctly
@@ -248,10 +252,16 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
   const accuracyIgnored =
     useAccuracyForgiveness &&
     !correct &&
-    hasCountedAccuracyError(wordIndex, testInput.length);
+    (Config.stopOnError === "word"
+      ? hasCountedAccuracyErrorInWord(wordIndex)
+      : hasCountedAccuracyError(wordIndex, testInput.length));
 
   if (useAccuracyForgiveness && correct) {
-    forgiveAccuracyErrorsAt(wordIndex, testInput.length);
+    if (Config.stopOnError === "letter") {
+      forgiveAccuracyErrorsAt(wordIndex, testInput.length);
+    } else if (testInput + data === currentWordText) {
+      forgiveAccuracyErrorsForWord(wordIndex);
+    }
   }
 
   // handing cases where last char needs to be removed
@@ -289,6 +299,14 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
       targetWord: currentWord,
       commitCharacterType,
     });
+
+  if (
+    useAccuracyForgiveness &&
+    Config.stopOnError === "word" &&
+    goingToNextWord
+  ) {
+    forgiveAccuracyErrorsForWord(wordIndex);
+  }
 
   if (Config.keymapMode === "react") {
     flash(data, correct);
