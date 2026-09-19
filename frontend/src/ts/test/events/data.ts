@@ -226,6 +226,16 @@ export function hasCountedAccuracyError(
   return false;
 }
 
+export function hasCountedAccuracyErrorInWord(wordIndex: number): boolean {
+  return inputEvents.some(
+    (event) =>
+      event.data.wordIndex === wordIndex &&
+      "correct" in event.data &&
+      !event.data.correct &&
+      event.data.accuracyIgnored !== true,
+  );
+}
+
 export function forgiveAccuracyErrorsAt(
   wordIndex: number,
   charIndex: number,
@@ -247,6 +257,27 @@ export function forgiveAccuracyErrorsAt(
     if (eventData.correct) break;
 
     if (eventData.accuracyIgnored !== true) {
+      eventData.accuracyIgnored = true;
+      forgiven++;
+    }
+  }
+
+  if (forgiven === 0) return;
+  invalidateCache();
+  forgiveIncorrectInputsForAccuracy(forgiven);
+}
+
+export function forgiveAccuracyErrorsForWord(wordIndex: number): void {
+  let forgiven = 0;
+
+  for (const event of inputEvents) {
+    const eventData = event.data;
+    if (
+      eventData.wordIndex === wordIndex &&
+      "correct" in eventData &&
+      !eventData.correct &&
+      eventData.accuracyIgnored !== true
+    ) {
       eventData.accuracyIgnored = true;
       forgiven++;
     }
