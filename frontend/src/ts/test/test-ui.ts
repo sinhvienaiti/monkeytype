@@ -8,6 +8,11 @@ import { z } from "zod";
 import { Config } from "../config/store";
 import { setConfig } from "../config/setters";
 import * as TestWords from "./test-words";
+import {
+  findDictionaryMatch,
+  parseDictionary,
+} from "../custom/en-vn-translation/dictionary";
+import { getSettings as getEnVnTranslationSettings } from "../custom/en-vn-translation/store";
 import { getCurrentInput } from "./events/data";
 import { getLiveCachedAccuracy } from "./events/live-cache";
 import * as CustomText from "./custom-text";
@@ -389,9 +394,14 @@ async function updateHintsPosition(): Promise<void> {
   }
 }
 
-function buildWordHTML(word: string, wordIndex: number): string {
+function buildWordHTML(
+  word: string,
+  wordIndex: number,
+  recallTarget = false,
+): string {
   let newlineafter = false;
-  let retval = `<div class='word' data-wordindex='${wordIndex}'>`;
+  const recallClass = recallTarget ? " en-vn-recall-target" : "";
+  let retval = `<div class='word${recallClass}' data-wordindex='${wordIndex}'>`;
 
   const funbox = findSingleActiveFunboxWithFunction("getWordHtml");
   const chars = Strings.splitIntoCharacters(word);
@@ -415,9 +425,76 @@ function buildWordHTML(word: string, wordIndex: number): string {
   return retval;
 }
 
+function syncEnVnLearningClasses(): void {
+  wordsEl.removeClass(
+    "en-vn-line-spacing-comfortable",
+    "en-vn-line-spacing-wide",
+    "en-vn-recall-mode",
+  );
+  wordsWrapperEl.removeClass("en-vn-learning");
+
+  const settings = getEnVnTranslationSettings();
+  const enabled =
+    Config.mode === "custom" &&
+    settings.enabled &&
+    settings.dictionary.trim() !== "";
+
+  if (!enabled) return;
+
+  wordsWrapperEl.addClass("en-vn-learning");
+
+  if (settings.lineSpacing === "comfortable") {
+    wordsEl.addClass("en-vn-line-spacing-comfortable");
+  } else if (settings.lineSpacing === "wide") {
+    wordsEl.addClass("en-vn-line-spacing-wide");
+  }
+
+  if (settings.recallModeEnabled) {
+    wordsEl.addClass("en-vn-recall-mode");
+  }
+}
+
+function getRecallTargetWordIndices(): Set<number> {
+  const indices = new Set<number>();
+  const settings = getEnVnTranslationSettings();
+
+  if (
+    Config.mode !== "custom" ||
+    !settings.enabled ||
+    !settings.recallModeEnabled ||
+    settings.dictionary.trim() === ""
+  ) {
+    return indices;
+  }
+
+  const dictionary = parseDictionary(settings.dictionary);
+  const words: string[] = [];
+
+  for (let index = 0; index < TestWords.words.length; index++) {
+    const word = TestWords.words.get(index);
+    words.push(word?.text ?? "");
+  }
+
+  for (let index = 0; index < words.length; ) {
+    const match = findDictionaryMatch(words, index, dictionary);
+    if (match === null) {
+      index++;
+      continue;
+    }
+
+    for (let offset = 0; offset < match.wordCount; offset++) {
+      indices.add(index + offset);
+    }
+    index += match.wordCount;
+  }
+
+  return indices;
+}
+
 function updateWordWrapperClasses(): void {
   // outoffocus applies transition, need to remove it
   setTestFocusState("focused");
+  syncEnVnLearningClasses();
 
   if (Config.tapeMode !== "off") {
     wordsEl.addClass("tape");
@@ -515,11 +592,12 @@ function showWords(): void {
   if (Config.mode === "zen") {
     appendEmptyWordElement(0);
   } else {
+    const recallTargets = getRecallTargetWordIndices();
     let wordsHTML = "";
     for (let i = 0; i < TestWords.words.length; i++) {
       const word = TestWords.words.get(i);
       if (word === undefined) continue; // won't happen, but ts complains
-      wordsHTML += buildWordHTML(word.display, i);
+      wordsHTML += buildWordHTML(word.display, i, recallTargets.has(i));
     }
     wordsEl.setHtml(wordsHTML);
   }
@@ -701,13 +779,15 @@ export function addWord(
   word: string,
   wordIndex = TestWords.words.length - 1,
 ): void {
+  const recallTarget = getRecallTargetWordIndices().has(wordIndex);
+
   // if the current active word is the last word, we need to NOT use raf
   // because other ui parts depend on the word existing
   if (getActiveWordIndex() === wordIndex - 1) {
-    wordsEl.appendHtml(buildWordHTML(word, wordIndex));
+    wordsEl.appendHtml(buildWordHTML(word, wordIndex, recallTarget));
   } else {
     requestAnimationFrame(async () => {
-      wordsEl.appendHtml(buildWordHTML(word, wordIndex));
+      wordsEl.appendHtml(buildWordHTML(word, wordIndex, recallTarget));
     });
   }
 
