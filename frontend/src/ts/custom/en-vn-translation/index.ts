@@ -399,14 +399,6 @@ export function handleStartedWord(wordIndex: number): void {
 
   const settings = getSettings();
   applyLearningAppearance(settings);
-
-  if (settings.recallModeEnabled) {
-    // Recall mode presents the learning cue when the target becomes active.
-    // This call is kept as a fallback if an unusual flow skipped active-word UI.
-    showLearningMatch(wordIndex, settings);
-    return;
-  }
-
   showLearningMatch(wordIndex, settings);
 }
 
