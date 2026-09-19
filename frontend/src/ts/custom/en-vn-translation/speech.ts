@@ -1,3 +1,4 @@
+import { stopTextReader } from "./text-reader";
 import type {
   EnVnTranslationSettings,
   PronunciationAccent,
@@ -30,6 +31,8 @@ export function speakEnglish(
   if (!settings.pronunciationEnabled) return;
   if (!("speechSynthesis" in window)) return;
   if (typeof SpeechSynthesisUtterance === "undefined") return;
+
+  stopTextReader();
 
   const speech = window.speechSynthesis;
   const utterance = new SpeechSynthesisUtterance(source);
