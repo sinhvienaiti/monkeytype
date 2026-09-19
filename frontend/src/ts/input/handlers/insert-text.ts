@@ -27,7 +27,12 @@ import { showNoticeNotification } from "../../states/notifications";
 import { goToNextWord, goToPreviousWord } from "../helpers/word-navigation";
 import { onBeforeInsertText } from "./before-insert-text";
 import { shouldGoToNextWord, isCharCorrect } from "../helpers/validation";
-import { getCurrentInput, logTestEvent } from "../../test/events/data";
+import {
+  forgiveAccuracyErrorsAt,
+  getCurrentInput,
+  hasCountedAccuracyError,
+  logTestEvent,
+} from "../../test/events/data";
 import { getCommitCharacterType, normalizeData } from "../helpers/util";
 import { areAllWordsGenerated } from "../../test/words-generator";
 import { getActiveWordIndex, isTestActive } from "../../states/test";
@@ -238,6 +243,17 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     correctShiftUsed,
   });
 
+  const useAccuracyForgiveness =
+    Config.forgiveCorrectedErrors && Config.stopOnError !== "off";
+  const accuracyIgnored =
+    useAccuracyForgiveness &&
+    !correct &&
+    hasCountedAccuracyError(wordIndex, testInput.length);
+
+  if (useAccuracyForgiveness && correct) {
+    forgiveAccuracyErrorsAt(wordIndex, testInput.length);
+  }
+
   // handing cases where last char needs to be removed
   // this is here and not in beforeInsertText because we want to penalize for incorrect spaces
   // like accuracy, keypress errors, and missed words
@@ -297,6 +313,7 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     charIndex: testInput.length,
     isCompositionEnding: isCompositionEnding ? true : undefined,
     inputStopped: removeLastChar ? true : undefined,
+    accuracyIgnored: accuracyIgnored ? true : undefined,
     automatic: automatic ? true : undefined,
     // inputValue is captured from the input element after this event (before goToNextWord clears it).
     inputValue: inputValueAfterEvent,
