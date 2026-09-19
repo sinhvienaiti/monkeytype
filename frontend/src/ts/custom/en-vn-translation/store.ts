@@ -25,6 +25,7 @@ const TranslationLineSpacingSchema = z.enum([
 ]);
 const PronunciationAccentSchema = z.enum(["en-US", "en-GB"]);
 const PronunciationRateSchema = z.enum(["slow", "normal", "fast"]);
+const TextReaderLanguageSchema = z.enum(["auto", "en-US", "vi-VN"]);
 
 const EnVnTranslationSettingsSchema = z.object({
   enabled: z.boolean(),
@@ -41,6 +42,11 @@ const EnVnTranslationSettingsSchema = z.object({
   pronunciationAccent: PronunciationAccentSchema,
   pronunciationRate: PronunciationRateSchema,
   pronunciationVolume: z.number().int().min(0).max(100),
+  textReaderEnabled: z.boolean(),
+  textReaderLanguage: TextReaderLanguageSchema,
+  textReaderVoiceURI: z.string(),
+  textReaderRate: z.number().min(0.5).max(2),
+  textReaderVolume: z.number().int().min(0).max(100),
 });
 
 export type TranslationPopupStyle = z.infer<
@@ -61,6 +67,7 @@ export type TranslationLineSpacing = z.infer<
 >;
 export type PronunciationAccent = z.infer<typeof PronunciationAccentSchema>;
 export type PronunciationRate = z.infer<typeof PronunciationRateSchema>;
+export type TextReaderLanguage = z.infer<typeof TextReaderLanguageSchema>;
 export type EnVnTranslationSettings = z.infer<
   typeof EnVnTranslationSettingsSchema
 >;
@@ -80,6 +87,11 @@ const defaultSettings: EnVnTranslationSettings = {
   pronunciationAccent: "en-US",
   pronunciationRate: "normal",
   pronunciationVolume: 100,
+  textReaderEnabled: false,
+  textReaderLanguage: "auto",
+  textReaderVoiceURI: "",
+  textReaderRate: 1,
+  textReaderVolume: 100,
 };
 
 const settingsStorage = new LocalStorageWithSchema({
@@ -140,6 +152,25 @@ const settingsStorage = new LocalStorageWithSchema({
         typeof oldData["pronunciationVolume"] === "number"
           ? Math.min(100, Math.max(0, oldData["pronunciationVolume"]))
           : defaultSettings.pronunciationVolume,
+      textReaderEnabled:
+        typeof oldData["textReaderEnabled"] === "boolean"
+          ? oldData["textReaderEnabled"]
+          : defaultSettings.textReaderEnabled,
+      textReaderLanguage:
+        TextReaderLanguageSchema.safeParse(oldData["textReaderLanguage"]).data ??
+        defaultSettings.textReaderLanguage,
+      textReaderVoiceURI:
+        typeof oldData["textReaderVoiceURI"] === "string"
+          ? oldData["textReaderVoiceURI"]
+          : defaultSettings.textReaderVoiceURI,
+      textReaderRate:
+        typeof oldData["textReaderRate"] === "number"
+          ? Math.min(2, Math.max(0.5, oldData["textReaderRate"]))
+          : defaultSettings.textReaderRate,
+      textReaderVolume:
+        typeof oldData["textReaderVolume"] === "number"
+          ? Math.min(100, Math.max(0, oldData["textReaderVolume"]))
+          : defaultSettings.textReaderVolume,
     };
   },
 });
