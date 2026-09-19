@@ -373,10 +373,7 @@ export default defineConfig(({ mode }): UserConfig => {
     server: {
       open: env["SERVER_OPEN"] !== "false",
       port: 3000,
-      host:
-        env["DEV_HOST"] !== undefined
-          ? env["DEV_HOST"]
-          : env["BACKEND_URL"] !== undefined,
+      host: env["DEV_HOST"] ?? (env["BACKEND_URL"] !== undefined),
       allowedHosts:
         devAllowedHosts !== undefined && devAllowedHosts.length > 0
           ? devAllowedHosts
