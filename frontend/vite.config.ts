@@ -87,10 +87,12 @@ function sassList(values) {
 
 function getPlugins({
   isDevelopment,
+  useDevelopmentPlugins,
   env,
   useSentry,
 }: {
   isDevelopment: boolean;
+  useDevelopmentPlugins: boolean;
   env: Record<string, string>;
   useSentry: boolean;
 }): PluginOption[] {
@@ -190,9 +192,10 @@ function getPlugins({
     minifyJson(),
   ];
 
-  return [...plugins, ...(isDevelopment ? devPlugins : prodPlugins)].filter(
-    (it) => it !== null,
-  );
+  return [
+    ...plugins,
+    ...(useDevelopmentPlugins ? devPlugins : prodPlugins),
+  ].filter((it) => it !== null);
 }
 
 function getBuildOptions({
@@ -328,10 +331,13 @@ function getCssOptions({
 
 export default defineConfig(({ mode }): UserConfig => {
   const env = loadEnv(mode, process.cwd(), "");
-  const useSentry = env["SENTRY"] !== undefined;
-  const isDevelopment = mode !== "production";
+  const isProduction = mode === "production";
+  const isLocalStatic = env["LOCAL_STATIC"] === "true";
+  const isDevelopment = !isProduction || isLocalStatic;
+  const useDevelopmentPlugins = !isProduction;
+  const useSentry = !isLocalStatic && env["SENTRY"] !== undefined;
 
-  if (!isDevelopment) {
+  if (isProduction && !isLocalStatic) {
     if (env["RECAPTCHA_SITE_KEY"] === undefined) {
       throw new Error(`${mode}: RECAPTCHA_SITE_KEY is not defined`);
     }
@@ -356,7 +362,12 @@ export default defineConfig(({ mode }): UserConfig => {
       : undefined;
 
   return {
-    plugins: getPlugins({ isDevelopment, useSentry: useSentry, env }),
+    plugins: getPlugins({
+      isDevelopment,
+      useDevelopmentPlugins,
+      useSentry: useSentry,
+      env,
+    }),
     build: getBuildOptions({ enableSourceMaps: useSentry }),
     css: getCssOptions({ isDevelopment }),
     server: {
@@ -385,14 +396,14 @@ export default defineConfig(({ mode }): UserConfig => {
       },
     },
     resolve: {
-      alias: isDevelopment
-        ? []
-        : [
+      alias: isProduction && !isLocalStatic
+        ? [
             {
               find: /\/constants\/firebase-config$/,
               replacement: "/constants/firebase-config-live",
             },
-          ],
+          ]
+        : [],
     },
     clearScreen: false,
     root: "src",
