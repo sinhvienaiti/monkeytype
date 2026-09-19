@@ -1193,7 +1193,7 @@ export function CustomTextModal(): JSXElement {
                 <div class="grid gap-2">
                   <SettingHelpLabel
                     label="full text reader"
-                    help="Read the current custom text with a local system voice. No generated audio files or cloud TTS are used."
+                    help="When enabled, reading starts automatically on your first typing key. Preview uses the current local system voice; no cloud TTS is used."
                   />
                   <form.Field name="textReaderEnabled">
                     {(field) => (
@@ -1325,7 +1325,7 @@ export function CustomTextModal(): JSXElement {
                   <div class="grid grid-cols-3 gap-1">
                     <Button
                       variant="button"
-                      text={textReaderState() === "idle" ? "play" : "restart"}
+                      text={textReaderState() === "idle" ? "preview" : "restart"}
                       disabled={!formValues().textReaderEnabled}
                       onClick={handleTextReaderPlay}
                     />
