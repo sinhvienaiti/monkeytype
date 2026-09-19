@@ -2,7 +2,12 @@ import { z } from "zod";
 
 import { LocalStorageWithSchema } from "../../utils/local-storage-with-schema";
 
-const TranslationPopupStyleSchema = z.enum(["bubble", "pill", "soft", "minimal"]);
+const TranslationPopupStyleSchema = z.enum([
+  "bubble",
+  "pill",
+  "soft",
+  "minimal",
+]);
 const TranslationPopupSizeSchema = z.enum(["small", "medium", "large"]);
 const TranslationPopupColorSchema = z.enum([
   "auto",
@@ -11,6 +16,8 @@ const TranslationPopupColorSchema = z.enum([
   "amber",
   "purple",
 ]);
+const PronunciationAccentSchema = z.enum(["en-US", "en-GB"]);
+const PronunciationRateSchema = z.enum(["slow", "normal", "fast"]);
 
 const EnVnTranslationSettingsSchema = z.object({
   enabled: z.boolean(),
@@ -19,6 +26,10 @@ const EnVnTranslationSettingsSchema = z.object({
   popupStyle: TranslationPopupStyleSchema,
   popupSize: TranslationPopupSizeSchema,
   popupColor: TranslationPopupColorSchema,
+  pronunciationEnabled: z.boolean(),
+  pronunciationAccent: PronunciationAccentSchema,
+  pronunciationRate: PronunciationRateSchema,
+  pronunciationVolume: z.number().int().min(0).max(100),
 });
 
 export type TranslationPopupStyle = z.infer<
@@ -28,6 +39,8 @@ export type TranslationPopupSize = z.infer<typeof TranslationPopupSizeSchema>;
 export type TranslationPopupColor = z.infer<
   typeof TranslationPopupColorSchema
 >;
+export type PronunciationAccent = z.infer<typeof PronunciationAccentSchema>;
+export type PronunciationRate = z.infer<typeof PronunciationRateSchema>;
 export type EnVnTranslationSettings = z.infer<
   typeof EnVnTranslationSettingsSchema
 >;
@@ -39,6 +52,10 @@ const defaultSettings: EnVnTranslationSettings = {
   popupStyle: "bubble",
   popupSize: "large",
   popupColor: "blue",
+  pronunciationEnabled: true,
+  pronunciationAccent: "en-US",
+  pronunciationRate: "normal",
+  pronunciationVolume: 100,
 };
 
 const settingsStorage = new LocalStorageWithSchema({
@@ -63,9 +80,29 @@ const settingsStorage = new LocalStorageWithSchema({
         typeof oldData["durationMs"] === "number"
           ? Math.min(10000, Math.max(500, oldData["durationMs"]))
           : defaultSettings.durationMs,
-      popupStyle: defaultSettings.popupStyle,
-      popupSize: defaultSettings.popupSize,
-      popupColor: defaultSettings.popupColor,
+      popupStyle:
+        TranslationPopupStyleSchema.safeParse(oldData["popupStyle"]).data ??
+        defaultSettings.popupStyle,
+      popupSize:
+        TranslationPopupSizeSchema.safeParse(oldData["popupSize"]).data ??
+        defaultSettings.popupSize,
+      popupColor:
+        TranslationPopupColorSchema.safeParse(oldData["popupColor"]).data ??
+        defaultSettings.popupColor,
+      pronunciationEnabled:
+        typeof oldData["pronunciationEnabled"] === "boolean"
+          ? oldData["pronunciationEnabled"]
+          : defaultSettings.pronunciationEnabled,
+      pronunciationAccent:
+        PronunciationAccentSchema.safeParse(oldData["pronunciationAccent"])
+          .data ?? defaultSettings.pronunciationAccent,
+      pronunciationRate:
+        PronunciationRateSchema.safeParse(oldData["pronunciationRate"]).data ??
+        defaultSettings.pronunciationRate,
+      pronunciationVolume:
+        typeof oldData["pronunciationVolume"] === "number"
+          ? Math.min(100, Math.max(0, oldData["pronunciationVolume"]))
+          : defaultSettings.pronunciationVolume,
     };
   },
 });
