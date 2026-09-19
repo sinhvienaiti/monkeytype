@@ -154,16 +154,43 @@
   &.en-vn-line-spacing-comfortable {
     .word,
     .beforeNewline {
-      margin-top: 0.34em;
-      margin-bottom: 0.34em;
+      margin-top: 0.52em;
+      margin-bottom: 0.52em;
     }
   }
 
   &.en-vn-line-spacing-wide {
     .word,
     .beforeNewline {
-      margin-top: 0.42em;
-      margin-bottom: 0.42em;
+      margin-top: 0.7em;
+      margin-bottom: 0.7em;
+    }
+  }
+
+  &.en-vn-recall-mode {
+    .word.en-vn-recall-target {
+      letter {
+        color: transparent !important;
+        text-shadow: none !important;
+
+        &.correct,
+        &.corrected,
+        &.en-vn-recall-structural {
+          color: var(--text-color) !important;
+        }
+
+        &.correct,
+        &.corrected {
+          text-shadow:
+            0 0 0.3em color-mix(in srgb, var(--main-color) 72%, transparent),
+            0 0 0.75em color-mix(in srgb, var(--main-color) 38%, transparent) !important;
+        }
+
+        &.incorrect {
+          color: transparent !important;
+          text-shadow: none !important;
+        }
+      }
     }
   }
 
@@ -1389,7 +1416,10 @@
     overflow: visible clip;
 
     &.en-vn-learning {
+      // Keep Monkeytype's three-line viewport while allowing held tooltips
+      // to extend above and slightly outside the sides of the typing area.
       overflow: visible;
+      clip-path: inset(-4rem -8rem 0 -8rem);
     }
 
     &.tape {
