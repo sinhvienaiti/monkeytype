@@ -31,9 +31,9 @@ let floatingTooltipAnimation: Animation | null = null;
 let textReaderAutoStarted = false;
 
 const popupSizeClasses: Record<TranslationPopupSize, string> = {
-  small: "text-[0.9rem]",
-  medium: "text-base",
-  large: "text-lg",
+  small: "text-[0.8rem]",
+  medium: "text-[0.9rem]",
+  large: "text-base",
 };
 
 const popupStyleClasses: Record<TranslationPopupStyle, string> = {
