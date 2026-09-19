@@ -23,7 +23,7 @@ export function resetLiveCache(): void {
 
 export function recordEventForCache(event: TestEvent): void {
   if (event.type === "input") {
-    if ("correct" in event.data) {
+    if ("correct" in event.data && event.data.accuracyIgnored !== true) {
       cache.totalInputs++;
       if (event.data.correct) cache.correctInputs++;
     }
