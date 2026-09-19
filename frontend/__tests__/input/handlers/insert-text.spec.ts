@@ -511,7 +511,7 @@ describe("onInsertText - forgive corrected errors", () => {
   });
 
   it("treats a blocked word as one accuracy error and forgives it after correction", async () => {
-    replaceConfig({ stopOnError: "word" });
+    replaceConfig({ ...__testing.getConfig(), stopOnError: "word" });
     pushWords("hello", "world");
 
     await type("x");
@@ -538,7 +538,10 @@ describe("onInsertText - forgive corrected errors", () => {
   });
 
   it("keeps the original Monkeytype accuracy behavior when disabled", async () => {
-    replaceConfig({ forgiveCorrectedErrors: false });
+    replaceConfig({
+      ...__testing.getConfig(),
+      forgiveCorrectedErrors: false,
+    });
     pushWords("hello", "world");
 
     await type("x");
