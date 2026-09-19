@@ -220,6 +220,7 @@ describe("onInsertText - delete on error", () => {
       language: "english",
       deleteOnError: "letter",
       stopOnError: "off",
+      forgiveCorrectedErrors: false,
       difficulty: "normal",
       strictSpace: false,
       oppositeShiftMode: "off",
@@ -429,5 +430,72 @@ describe("onInsertText - delete on error", () => {
       (e) => "correct" in e.data && !e.data.correct,
     );
     expect(incorrect).toHaveLength(1);
+  });
+});
+
+
+describe("onInsertText - forgive corrected errors", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetTestEvents();
+    TestWords.reset();
+    mockState.activeWordIndex = 0;
+    mockState.correctShiftUsed = true;
+    mockState.wordsScrolledOff.clear();
+    setInput("");
+    replaceConfig({
+      mode: "words",
+      language: "english",
+      deleteOnError: "off",
+      stopOnError: "letter",
+      forgiveCorrectedErrors: true,
+      difficulty: "normal",
+      strictSpace: false,
+      oppositeShiftMode: "off",
+      keymapMode: "off",
+      blindMode: false,
+    });
+  });
+
+  it("counts repeated blocked attempts at one character only once", async () => {
+    pushWords("hello", "world");
+
+    await type("x");
+    await type("y");
+
+    const inserts = inputEventsForWord(0);
+    expect(inserts).toHaveLength(2);
+    expect(inserts[0]?.data.correct).toBe(false);
+    expect(inserts[0]?.data.accuracyIgnored).toBeUndefined();
+    expect(inserts[1]?.data.correct).toBe(false);
+    expect(inserts[1]?.data.accuracyIgnored).toBe(true);
+  });
+
+  it("forgives the counted error after the blocked character is corrected", async () => {
+    pushWords("hello", "world");
+
+    await type("x");
+    await type("y");
+    await type("h");
+
+    const inserts = inputEventsForWord(0);
+    expect(inserts[0]?.data.accuracyIgnored).toBe(true);
+    expect(inserts[1]?.data.accuracyIgnored).toBe(true);
+    expect(inserts[2]?.data.correct).toBe(true);
+    expect(inserts[2]?.data.accuracyIgnored).toBeUndefined();
+  });
+
+  it("keeps the original Monkeytype accuracy behavior when disabled", async () => {
+    replaceConfig({ forgiveCorrectedErrors: false });
+    pushWords("hello", "world");
+
+    await type("x");
+    await type("y");
+    await type("h");
+
+    const inserts = inputEventsForWord(0);
+    expect(inserts[0]?.data.accuracyIgnored).toBeUndefined();
+    expect(inserts[1]?.data.accuracyIgnored).toBeUndefined();
+    expect(inserts[2]?.data.correct).toBe(true);
   });
 });
