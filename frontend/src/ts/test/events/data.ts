@@ -201,6 +201,58 @@ function invalidateCache(): void {
   cachedAllEvents = undefined;
 }
 
+export function hasCountedAccuracyError(
+  wordIndex: number,
+  charIndex: number,
+): boolean {
+  for (let index = inputEvents.length - 1; index >= 0; index--) {
+    const event = inputEvents[index];
+    if (event === undefined) continue;
+    const eventData = event.data;
+    if (
+      eventData.wordIndex !== wordIndex ||
+      eventData.charIndex !== charIndex ||
+      !("correct" in eventData)
+    ) {
+      continue;
+    }
+    if (eventData.correct) return false;
+    if (eventData.accuracyIgnored !== true) return true;
+  }
+  return false;
+}
+
+export function forgiveAccuracyErrorsAt(
+  wordIndex: number,
+  charIndex: number,
+): void {
+  let changed = false;
+
+  for (let index = inputEvents.length - 1; index >= 0; index--) {
+    const event = inputEvents[index];
+    if (event === undefined) continue;
+    const eventData = event.data;
+    if (
+      eventData.wordIndex !== wordIndex ||
+      eventData.charIndex !== charIndex ||
+      !("correct" in eventData)
+    ) {
+      continue;
+    }
+
+    if (eventData.correct) break;
+
+    if (eventData.accuracyIgnored !== true) {
+      eventData.accuracyIgnored = true;
+      changed = true;
+    }
+  }
+
+  if (!changed) return;
+  invalidateCache();
+  recomputeLiveCache();
+}
+
 export function getCurrentInput(): string {
   const last = inputEvents[inputEvents.length - 1];
 
