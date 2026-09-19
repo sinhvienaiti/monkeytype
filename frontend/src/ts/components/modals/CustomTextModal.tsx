@@ -37,6 +37,8 @@ import {
   setSettings as setEnVnTranslationSettings,
 } from "../../custom/en-vn-translation/store";
 import type {
+  PronunciationAccent,
+  PronunciationRate,
   TranslationPopupColor,
   TranslationPopupSize,
   TranslationPopupStyle,
@@ -84,6 +86,17 @@ const translationColorOptions = [
   { value: "purple", label: "purple" },
 ] as const;
 
+const pronunciationAccentOptions = [
+  { value: "en-US", label: "US" },
+  { value: "en-GB", label: "UK" },
+] as const;
+
+const pronunciationRateOptions = [
+  { value: "slow", label: "slow" },
+  { value: "normal", label: "normal" },
+  { value: "fast", label: "fast" },
+] as const;
+
 export function CustomTextModal(): JSXElement {
   const [longTextWarning, setLongTextWarning] = createSignal(false);
   const [challengeWarning, setChallengeWarning] = createSignal(false);
@@ -112,6 +125,10 @@ export function CustomTextModal(): JSXElement {
       translationPopupStyle: "bubble" as TranslationPopupStyle,
       translationPopupSize: "large" as TranslationPopupSize,
       translationPopupColor: "blue" as TranslationPopupColor,
+      pronunciationEnabled: true,
+      pronunciationAccent: "en-US" as PronunciationAccent,
+      pronunciationRate: "normal" as PronunciationRate,
+      pronunciationVolume: "100",
     },
     onSubmit: ({ value }) => {
       if (value.text === "") {
@@ -197,6 +214,13 @@ export function CustomTextModal(): JSXElement {
         popupStyle: value.translationPopupStyle,
         popupSize: value.translationPopupSize,
         popupColor: value.translationPopupColor,
+        pronunciationEnabled: value.pronunciationEnabled,
+        pronunciationAccent: value.pronunciationAccent,
+        pronunciationRate: value.pronunciationRate,
+        pronunciationVolume: Math.min(
+          100,
+          Math.max(0, parseInt(value.pronunciationVolume) || 0),
+        ),
       });
 
       if (getLoadedChallenge() !== null) {
@@ -350,6 +374,22 @@ export function CustomTextModal(): JSXElement {
         form.setFieldValue(
           "translationPopupColor",
           translationSettings.popupColor,
+        );
+        form.setFieldValue(
+          "pronunciationEnabled",
+          translationSettings.pronunciationEnabled,
+        );
+        form.setFieldValue(
+          "pronunciationAccent",
+          translationSettings.pronunciationAccent,
+        );
+        form.setFieldValue(
+          "pronunciationRate",
+          translationSettings.pronunciationRate,
+        );
+        form.setFieldValue(
+          "pronunciationVolume",
+          `${translationSettings.pronunciationVolume}`,
         );
       });
     });
@@ -805,6 +845,83 @@ export function CustomTextModal(): JSXElement {
                       />
                     )}
                   </form.Field>
+                </div>
+
+                <Separator />
+
+                <div class="grid gap-2">
+                  <div class="text-sub">English pronunciation</div>
+                  <form.Field name="pronunciationEnabled">
+                    {(field) => (
+                      <Button
+                        variant="button"
+                        text={field().state.value ? "enabled" : "disabled"}
+                        active={field().state.value}
+                        onClick={() =>
+                          field().handleChange(!field().state.value)
+                        }
+                      />
+                    )}
+                  </form.Field>
+
+                  <div class="grid gap-1">
+                    <div class="text-sub">accent</div>
+                    <form.Field name="pronunciationAccent">
+                      {(field) => (
+                        <div class="grid grid-cols-2 gap-1">
+                          <For each={pronunciationAccentOptions}>
+                            {(opt) => (
+                              <Button
+                                variant="button"
+                                text={opt.label}
+                                active={field().state.value === opt.value}
+                                onClick={() => field().handleChange(opt.value)}
+                              />
+                            )}
+                          </For>
+                        </div>
+                      )}
+                    </form.Field>
+                  </div>
+
+                  <div class="grid gap-1">
+                    <div class="text-sub">speed</div>
+                    <form.Field name="pronunciationRate">
+                      {(field) => (
+                        <div class="grid grid-cols-3 gap-1">
+                          <For each={pronunciationRateOptions}>
+                            {(opt) => (
+                              <Button
+                                variant="button"
+                                text={opt.label}
+                                active={field().state.value === opt.value}
+                                onClick={() => field().handleChange(opt.value)}
+                              />
+                            )}
+                          </For>
+                        </div>
+                      )}
+                    </form.Field>
+                  </div>
+
+                  <div class="grid gap-1">
+                    <div class="text-sub">volume (%)</div>
+                    <form.Field name="pronunciationVolume">
+                      {(field) => (
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="5"
+                          placeholder="volume (%)"
+                          value={field().state.value}
+                          onInput={(e) =>
+                            field().handleChange(e.currentTarget.value)
+                          }
+                        />
+                      )}
+                    </form.Field>
+                  </div>
                 </div>
               </div>
             </SettingsGroup>
