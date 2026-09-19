@@ -6,6 +6,10 @@ on:
       - feature/en-vn-translation
   workflow_dispatch:
 
+concurrency:
+  group: custom-en-vn-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   frontend:
     runs-on: ubuntu-latest
