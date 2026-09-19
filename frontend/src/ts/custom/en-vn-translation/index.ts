@@ -189,8 +189,37 @@ function showTranslationTooltip(
 
   popup.style.left = `${center}px`;
   popup.style.top = `${rect.top - 8}px`;
+  popup.style.transform = "translate(-50%, -100%)";
 
   activeTooltip = popup;
+
+  if (settings.tooltipBehavior === "hold") {
+    const animation = popup.animate(
+      [
+        {
+          opacity: 0,
+          transform: "translate(-50%, -100%) translateY(4px) scale(0.97)",
+        },
+        {
+          opacity: 1,
+          transform: "translate(-50%, -100%) translateY(0) scale(1)",
+        },
+      ],
+      {
+        duration: 180,
+        easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+      },
+    );
+    activeTooltipAnimation = animation;
+
+    animation.onfinish = () => {
+      if (activeTooltip === popup) {
+        activeTooltipAnimation = null;
+      }
+    };
+    return;
+  }
+
   const animation = popup.animate(
     [
       {
