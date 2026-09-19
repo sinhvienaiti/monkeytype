@@ -3,6 +3,12 @@ export type ParsedDictionary = {
   maxWordCount: number;
 };
 
+export type DictionaryMatch = {
+  source: string;
+  translation: string;
+  wordCount: number;
+};
+
 function normalizeWord(word: string): string {
   return word
     .normalize("NFKC")
@@ -58,4 +64,30 @@ export function parseDictionary(raw: string): ParsedDictionary {
   }
 
   return { translations, maxWordCount };
+}
+
+
+export function findDictionaryMatch(
+  words: string[],
+  startWordIndex: number,
+  dictionary: ParsedDictionary,
+): DictionaryMatch | null {
+  const maxWordCount = Math.min(
+    dictionary.maxWordCount,
+    words.length - startWordIndex,
+  );
+
+  for (let wordCount = maxWordCount; wordCount >= 1; wordCount--) {
+    const phrase = words
+      .slice(startWordIndex, startWordIndex + wordCount)
+      .join(" ");
+    const source = normalizePhrase(phrase);
+    const translation = dictionary.translations.get(source);
+
+    if (translation !== undefined) {
+      return { source, translation, wordCount };
+    }
+  }
+
+  return null;
 }
