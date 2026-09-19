@@ -1,6 +1,5 @@
 import { Config } from "../../config/store";
 import { restartTestEvent } from "../../events/test";
-import * as TestUI from "../../test/test-ui";
 import * as TestWords from "../../test/test-words";
 
 import { findDictionaryMatch, parseDictionary } from "./dictionary";
@@ -183,22 +182,28 @@ function createTooltipContent(
   }
 }
 
+function getWordElement(wordIndex: number): HTMLElement | null {
+  return document.querySelector<HTMLElement>(
+    `#words .word[data-wordindex="${wordIndex}"]`,
+  );
+}
+
 function showTranslationTooltip(
   translation: string,
   wordIndex: number,
   settings: EnVnTranslationSettings,
 ): void {
-  const anchor = TestUI.getWordElement(wordIndex);
+  const anchor = getWordElement(wordIndex);
   if (anchor === null) return;
 
   if (settings.tooltipBehavior === "hold") {
-    showHeldTranslationTooltip(anchor.native, translation, settings);
+    showHeldTranslationTooltip(anchor, translation, settings);
     return;
   }
 
   removeFloatingTooltip();
 
-  const rect = anchor.native.getBoundingClientRect();
+  const rect = anchor.getBoundingClientRect();
   const popup = document.createElement("div");
   popup.dataset["personalEnVnTranslation"] = "floating";
 
@@ -347,12 +352,10 @@ export function applyLearningAppearance(
   }
 }
 
-export function handleStartedWord(wordIndex: number): void {
-  if (Config.mode !== "custom") return;
-
-  const settings = getSettings();
-  applyLearningAppearance(settings);
-
+function showLearningMatch(
+  wordIndex: number,
+  settings: EnVnTranslationSettings,
+): void {
   if (!settings.enabled || settings.dictionary.trim() === "") return;
 
   const dictionary = getParsedDictionary(settings.dictionary);
@@ -379,6 +382,32 @@ export function handleStartedWord(wordIndex: number): void {
   }
 
   speakEnglish(match.speechText, settings);
+}
+
+export function handleActiveWord(wordIndex: number): void {
+  if (Config.mode !== "custom") return;
+
+  const settings = getSettings();
+  if (!settings.recallModeEnabled) return;
+
+  applyLearningAppearance(settings);
+  showLearningMatch(wordIndex, settings);
+}
+
+export function handleStartedWord(wordIndex: number): void {
+  if (Config.mode !== "custom") return;
+
+  const settings = getSettings();
+  applyLearningAppearance(settings);
+
+  if (settings.recallModeEnabled) {
+    // Recall mode presents the learning cue when the target becomes active.
+    // This call is kept as a fallback if an unusual flow skipped active-word UI.
+    showLearningMatch(wordIndex, settings);
+    return;
+  }
+
+  showLearningMatch(wordIndex, settings);
 }
 
 restartTestEvent.subscribe(() => {
