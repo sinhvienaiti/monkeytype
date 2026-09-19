@@ -1,7 +1,15 @@
 import type { CustomTextMode } from "@monkeytype/schemas/util";
 
 import { createForm } from "@tanstack/solid-form";
-import { batch, createSignal, For, JSXElement, Show, untrack } from "solid-js";
+import {
+  batch,
+  createSignal,
+  For,
+  JSXElement,
+  onCleanup,
+  Show,
+  untrack,
+} from "solid-js";
 
 import type { FaSolidIcon } from "../../types/font-awesome";
 
@@ -36,9 +44,18 @@ import {
   getSettings as getEnVnTranslationSettings,
   setSettings as setEnVnTranslationSettings,
 } from "../../custom/en-vn-translation/store";
+import {
+  getLocalTextReaderVoices,
+  pauseTextReader,
+  resumeTextReader,
+  startTextReader,
+  stopTextReader,
+} from "../../custom/en-vn-translation/text-reader";
+import type { TextReaderState } from "../../custom/en-vn-translation/text-reader";
 import type {
   PronunciationAccent,
   PronunciationRate,
+  TextReaderLanguage,
   TranslationDisplayMode,
   TranslationLineSpacing,
   TranslationPopupColor,
@@ -117,6 +134,12 @@ const pronunciationRateOptions = [
   { value: "fast", label: "fast" },
 ] as const;
 
+const textReaderLanguageOptions = [
+  { value: "auto", label: "auto" },
+  { value: "en-US", label: "English" },
+  { value: "vi-VN", label: "Vietnamese" },
+] as const;
+
 export function CustomTextModal(): JSXElement {
   const [longTextWarning, setLongTextWarning] = createSignal(false);
   const [challengeWarning, setChallengeWarning] = createSignal(false);
@@ -125,6 +148,11 @@ export function CustomTextModal(): JSXElement {
     createSignal<CustomTextIncomingData>(null);
 
   const [textToSave, setTextToSave] = createSignal<string[]>([]);
+  const [textReaderState, setTextReaderState] =
+    createSignal<TextReaderState>("idle");
+  const [textReaderVoices, setTextReaderVoices] = createSignal<
+    SpeechSynthesisVoice[]
+  >([]);
 
   // oxlint-disable-next-line no-unassigned-vars -- assigned via SolidJS ref
   let fileInputRef!: HTMLInputElement;
@@ -153,6 +181,11 @@ export function CustomTextModal(): JSXElement {
       pronunciationAccent: "en-US" as PronunciationAccent,
       pronunciationRate: "normal" as PronunciationRate,
       pronunciationVolume: "100",
+      textReaderEnabled: false,
+      textReaderLanguage: "auto" as TextReaderLanguage,
+      textReaderVoiceURI: "",
+      textReaderRate: 1,
+      textReaderVolume: 100,
     },
     onSubmit: ({ value }) => {
       if (value.text === "") {
@@ -249,6 +282,14 @@ export function CustomTextModal(): JSXElement {
           100,
           Math.max(0, parseInt(value.pronunciationVolume) || 0),
         ),
+        textReaderEnabled: value.textReaderEnabled,
+        textReaderLanguage: value.textReaderLanguage,
+        textReaderVoiceURI: value.textReaderVoiceURI,
+        textReaderRate: Math.min(2, Math.max(0.5, value.textReaderRate)),
+        textReaderVolume: Math.min(
+          100,
+          Math.max(0, Math.round(value.textReaderVolume)),
+        ),
       });
 
       if (getLoadedChallenge() !== null) {
@@ -271,6 +312,61 @@ export function CustomTextModal(): JSXElement {
 
   const showWordLimit = () => !formValues().pipeDelimiter;
   const showSectionLimit = () => formValues().pipeDelimiter;
+
+  const currentTextReaderSettings = () => ({
+    ...getEnVnTranslationSettings(),
+    textReaderEnabled: form.getFieldValue("textReaderEnabled"),
+    textReaderLanguage: form.getFieldValue("textReaderLanguage"),
+    textReaderVoiceURI: form.getFieldValue("textReaderVoiceURI"),
+    textReaderRate: Math.min(
+      2,
+      Math.max(0.5, form.getFieldValue("textReaderRate")),
+    ),
+    textReaderVolume: Math.min(
+      100,
+      Math.max(0, Math.round(form.getFieldValue("textReaderVolume"))),
+    ),
+  });
+
+  const refreshTextReaderVoices = (): void => {
+    const voices = getLocalTextReaderVoices(
+      form.getFieldValue("text"),
+      form.getFieldValue("textReaderLanguage"),
+    );
+    setTextReaderVoices(voices);
+
+    const selectedVoice = form.getFieldValue("textReaderVoiceURI");
+    if (
+      selectedVoice !== "" &&
+      !voices.some((voice) => voice.voiceURI === selectedVoice)
+    ) {
+      form.setFieldValue("textReaderVoiceURI", "");
+    }
+  };
+
+  const handleTextReaderPlay = (): void => {
+    refreshTextReaderVoices();
+    const result = startTextReader(
+      form.getFieldValue("text"),
+      currentTextReaderSettings(),
+      {
+        onStateChange: setTextReaderState,
+        onError: (message) => showErrorNotification(message),
+      },
+    );
+
+    if (!result.started && result.error !== undefined) {
+      showNoticeNotification(result.error, { durationMs: 5000 });
+    }
+  };
+
+  const handleTextReaderPauseResume = (): void => {
+    if (textReaderState() === "paused") {
+      resumeTextReader();
+    } else {
+      pauseTextReader();
+    }
+  };
 
   const cleanUpText = (): string[] => {
     let text = form.getFieldValue("text");
@@ -435,7 +531,29 @@ export function CustomTextModal(): JSXElement {
           "pronunciationVolume",
           `${translationSettings.pronunciationVolume}`,
         );
+        form.setFieldValue(
+          "textReaderEnabled",
+          translationSettings.textReaderEnabled,
+        );
+        form.setFieldValue(
+          "textReaderLanguage",
+          translationSettings.textReaderLanguage,
+        );
+        form.setFieldValue(
+          "textReaderVoiceURI",
+          translationSettings.textReaderVoiceURI,
+        );
+        form.setFieldValue(
+          "textReaderRate",
+          translationSettings.textReaderRate,
+        );
+        form.setFieldValue(
+          "textReaderVolume",
+          translationSettings.textReaderVolume,
+        );
       });
+
+      refreshTextReaderVoices();
     });
 
     setLongTextWarning(getCustomTextIndicator()?.isLong ?? false);
@@ -559,10 +677,32 @@ export function CustomTextModal(): JSXElement {
   };
 
   const afterShow = () => {
+    refreshTextReaderVoices();
     if (!isDisabled()) {
       textareaRef?.focus();
     }
   };
+
+  const handleVoicesChanged = (): void => {
+    refreshTextReaderVoices();
+  };
+
+  if (typeof window !== "undefined" && "speechSynthesis" in window) {
+    window.speechSynthesis.addEventListener(
+      "voiceschanged",
+      handleVoicesChanged,
+    );
+  }
+
+  onCleanup(() => {
+    stopTextReader();
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.removeEventListener(
+        "voiceschanged",
+        handleVoicesChanged,
+      );
+    }
+  });
 
   return (
     <>
@@ -571,6 +711,7 @@ export function CustomTextModal(): JSXElement {
         modalClass="max-w-[1200px] lg:grid-cols-[auto_20rem] grid-cols-1 h-min"
         beforeShow={beforeShow}
         afterShow={afterShow}
+        afterHide={stopTextReader}
       >
         <form
           class="contents"
@@ -1044,6 +1185,168 @@ export function CustomTextModal(): JSXElement {
                         />
                       )}
                     </form.Field>
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div class="grid gap-2">
+                  <SettingHelpLabel
+                    label="full text reader"
+                    help="Read the current custom text with a local system voice. No generated audio files or cloud TTS are used."
+                  />
+                  <form.Field name="textReaderEnabled">
+                    {(field) => (
+                      <Button
+                        variant="button"
+                        text={field().state.value ? "enabled" : "disabled"}
+                        active={field().state.value}
+                        onClick={() => {
+                          const enabled = !field().state.value;
+                          field().handleChange(enabled);
+                          if (!enabled) stopTextReader();
+                        }}
+                      />
+                    )}
+                  </form.Field>
+
+                  <div class="grid gap-1">
+                    <SettingHelpLabel
+                      label="reader language"
+                      help="Auto detects Vietnamese marks; otherwise choose English or Vietnamese explicitly."
+                    />
+                    <form.Field name="textReaderLanguage">
+                      {(field) => (
+                        <div class="grid grid-cols-3 gap-1">
+                          <For each={textReaderLanguageOptions}>
+                            {(opt) => (
+                              <Button
+                                variant="button"
+                                text={opt.label}
+                                active={field().state.value === opt.value}
+                                disabled={!formValues().textReaderEnabled}
+                                onClick={() => {
+                                  field().handleChange(opt.value);
+                                  window.setTimeout(refreshTextReaderVoices, 0);
+                                }}
+                              />
+                            )}
+                          </For>
+                        </div>
+                      )}
+                    </form.Field>
+                  </div>
+
+                  <div class="grid gap-1">
+                    <SettingHelpLabel
+                      label="local voice"
+                      help="Only voices reported by the browser as local system voices are offered."
+                    />
+                    <form.Field name="textReaderVoiceURI">
+                      {(field) => (
+                        <select
+                          value={field().state.value}
+                          disabled={!formValues().textReaderEnabled}
+                          onChange={(e) =>
+                            field().handleChange(e.currentTarget.value)
+                          }
+                        >
+                          <option value="">local default</option>
+                          <For each={textReaderVoices()}>
+                            {(voice) => (
+                              <option value={voice.voiceURI}>
+                                {voice.name} ({voice.lang})
+                              </option>
+                            )}
+                          </For>
+                        </select>
+                      )}
+                    </form.Field>
+                    <div class="text-[0.68rem] text-sub">
+                      {textReaderVoices().length} local voice
+                      {textReaderVoices().length === 1 ? "" : "s"} available
+                    </div>
+                  </div>
+
+                  <div class="grid gap-1">
+                    <SettingHelpLabel
+                      label="reader speed"
+                      help="Adjust full-text reading speed from 0.5x to 2.0x."
+                    />
+                    <form.Field name="textReaderRate">
+                      {(field) => (
+                        <div class="grid grid-cols-[1fr_auto] items-center gap-2">
+                          <input
+                            type="range"
+                            min="0.5"
+                            max="2"
+                            step="0.05"
+                            value={field().state.value}
+                            disabled={!formValues().textReaderEnabled}
+                            onInput={(e) =>
+                              field().handleChange(e.currentTarget.valueAsNumber)
+                            }
+                          />
+                          <span class="min-w-10 text-right text-sub">
+                            {field().state.value.toFixed(2)}x
+                          </span>
+                        </div>
+                      )}
+                    </form.Field>
+                  </div>
+
+                  <div class="grid gap-1">
+                    <SettingHelpLabel
+                      label="reader volume"
+                      help="Adjust full-text reader volume without changing browser or system volume."
+                    />
+                    <form.Field name="textReaderVolume">
+                      {(field) => (
+                        <div class="grid grid-cols-[1fr_auto] items-center gap-2">
+                          <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            step="5"
+                            value={field().state.value}
+                            disabled={!formValues().textReaderEnabled}
+                            onInput={(e) =>
+                              field().handleChange(e.currentTarget.valueAsNumber)
+                            }
+                          />
+                          <span class="min-w-8 text-right text-sub">
+                            {field().state.value}%
+                          </span>
+                        </div>
+                      )}
+                    </form.Field>
+                  </div>
+
+                  <div class="grid grid-cols-3 gap-1">
+                    <Button
+                      variant="button"
+                      text={textReaderState() === "idle" ? "play" : "restart"}
+                      disabled={!formValues().textReaderEnabled}
+                      onClick={handleTextReaderPlay}
+                    />
+                    <Button
+                      variant="button"
+                      text={textReaderState() === "paused" ? "resume" : "pause"}
+                      disabled={
+                        !formValues().textReaderEnabled ||
+                        textReaderState() === "idle"
+                      }
+                      onClick={handleTextReaderPauseResume}
+                    />
+                    <Button
+                      variant="button"
+                      text="stop"
+                      disabled={
+                        !formValues().textReaderEnabled ||
+                        textReaderState() === "idle"
+                      }
+                      onClick={stopTextReader}
+                    />
                   </div>
                 </div>
               </div>
