@@ -33,11 +33,11 @@ const popupSizeClasses: Record<TranslationPopupSize, string> = {
 
 const popupStyleClasses: Record<TranslationPopupStyle, string> = {
   bubble:
-    "overflow-visible rounded-xl border bg-translation-surface/72 px-3.5 py-2 shadow-xl backdrop-blur-md",
+    "overflow-visible rounded-xl border bg-translation-surface/75 px-3.5 py-2 shadow-xl backdrop-blur-md",
   pill:
-    "overflow-visible rounded-full border bg-translation-surface/72 px-4 py-2 shadow-xl backdrop-blur-md",
+    "overflow-visible rounded-full border bg-translation-surface/75 px-4 py-2 shadow-xl backdrop-blur-md",
   soft:
-    "overflow-visible rounded-lg border bg-translation-surface/68 px-3.5 py-2 shadow-lg backdrop-blur-sm",
+    "overflow-visible rounded-lg border bg-translation-surface/70 px-3.5 py-2 shadow-lg backdrop-blur-sm",
   minimal: "px-2 py-1 drop-shadow-lg",
 };
 
@@ -143,7 +143,7 @@ function createTooltipContent(
   if (style !== "minimal") {
     const pointer = document.createElement("div");
     pointer.className = [
-      "absolute -bottom-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 border-r border-b bg-translation-surface/72",
+      "absolute -bottom-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 border-r border-b bg-translation-surface/75",
       popupAccentClasses[color],
     ].join(" ");
     popup.append(pointer);
