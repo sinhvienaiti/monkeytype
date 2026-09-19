@@ -56,6 +56,18 @@ export function chunkTextReaderText(
     let current = "";
 
     for (const word of words) {
+      if (word.length > maxLength) {
+        if (current !== "") {
+          chunks.push(current);
+          current = "";
+        }
+
+        for (let index = 0; index < word.length; index += maxLength) {
+          chunks.push(word.slice(index, index + maxLength));
+        }
+        continue;
+      }
+
       if (current === "") {
         current = word;
         continue;
@@ -136,10 +148,8 @@ export function startTextReader(
     return { started: false, error: "Text reader is disabled." };
   }
 
-  if (
-    typeof SpeechSynthesisUtterance === "undefined" ||
-    getSpeech() === null
-  ) {
+  const speech = getSpeech();
+  if (typeof SpeechSynthesisUtterance === "undefined" || speech === null) {
     return {
       started: false,
       error: "Speech synthesis is not supported by this browser.",
@@ -149,14 +159,6 @@ export function startTextReader(
   const chunks = chunkTextReaderText(source);
   if (chunks.length === 0) {
     return { started: false, error: "Text is empty." };
-  }
-
-  const speech = getSpeech();
-  if (speech === null) {
-    return {
-      started: false,
-      error: "Speech synthesis is not supported by this browser.",
-    };
   }
 
   const language = resolveTextReaderLanguage(
