@@ -722,7 +722,7 @@ export function CustomTextModal(): JSXElement {
           }}
         >
           <Separator class="row-start-2 block lg:hidden" />
-          <div class="row-start-3 grid gap-4 lg:row-start-1">
+          <div class="row-start-3 grid content-start gap-4 self-start lg:row-start-1">
             {/* Top buttons row 1 */}
             <div class="grid grid-cols-2 gap-4">
               <Button
@@ -825,7 +825,7 @@ export function CustomTextModal(): JSXElement {
           {/* Settings sidebar — on large screens spans all rows in column 2 */}
           <div
             class={cn(
-              "grid h-min gap-3 text-xs",
+              "grid h-min content-start gap-2 self-start text-xs",
               isDisabled() && "pointer-events-none opacity-50 select-none",
             )}
           >
@@ -939,7 +939,7 @@ export function CustomTextModal(): JSXElement {
               icon="fa-language"
               sub="Show the Vietnamese meaning and pronounce the English text when you start typing a matching word or phrase."
             >
-              <div class="grid gap-3">
+              <div class="grid gap-2">
                 <form.Field name="translationEnabled">
                   {(field) => (
                     <Button
@@ -1490,7 +1490,7 @@ function SettingsGroup(props: {
         <Fa icon={props.icon} fixedWidth class={props.iconClass} />
         {props.title}
       </div>
-      <div class="mt-1 mb-2 text-text">{props.sub}</div>
+      <div class="mt-1 mb-1.5 text-text">{props.sub}</div>
       {props.children}
     </div>
   );

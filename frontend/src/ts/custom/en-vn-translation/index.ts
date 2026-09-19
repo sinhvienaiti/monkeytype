@@ -1,10 +1,15 @@
 import { Config } from "../../config/store";
 import { restartTestEvent } from "../../events/test";
 import * as TestWords from "../../test/test-words";
+import { showNoticeNotification } from "../../states/notifications";
 
 import { findDictionaryMatch, parseDictionary } from "./dictionary";
 import type { ParsedDictionary } from "./dictionary";
 import { speakEnglish, stopEnglishSpeech } from "./speech";
+import {
+  getTextReaderState,
+  startTextReader,
+} from "./text-reader";
 import { getSettings } from "./store";
 import type {
   EnVnTranslationSettings,
@@ -23,6 +28,7 @@ let cachedDictionary: ParsedDictionary = {
 const shownTranslationMatches = new Set<string>();
 let floatingTooltip: HTMLDivElement | null = null;
 let floatingTooltipAnimation: Animation | null = null;
+let textReaderAutoStarted = false;
 
 const popupSizeClasses: Record<TranslationPopupSize, string> = {
   small: "text-[0.9rem]",
@@ -32,11 +38,11 @@ const popupSizeClasses: Record<TranslationPopupSize, string> = {
 
 const popupStyleClasses: Record<TranslationPopupStyle, string> = {
   bubble:
-    "overflow-visible rounded-xl border bg-translation-surface/75 px-3.5 py-2 shadow-xl backdrop-blur-md",
+    "overflow-visible rounded-xl border bg-translation-surface/75 px-3 py-1.5 shadow-xl backdrop-blur-md",
   pill:
-    "overflow-visible rounded-full border bg-translation-surface/75 px-4 py-2 shadow-xl backdrop-blur-md",
+    "overflow-visible rounded-full border bg-translation-surface/75 px-3.5 py-1.5 shadow-xl backdrop-blur-md",
   soft:
-    "overflow-visible rounded-lg border bg-translation-surface/70 px-3.5 py-2 shadow-lg backdrop-blur-sm",
+    "overflow-visible rounded-lg border bg-translation-surface/70 px-3 py-1.5 shadow-lg backdrop-blur-sm",
   minimal: "px-2 py-1 drop-shadow-lg",
 };
 
@@ -56,11 +62,38 @@ const popupGlowClasses: Record<TranslationPopupColor, string> = {
   purple: "bg-translation-purple/25",
 };
 
-const lineSpacingClasses: Record<TranslationLineSpacing, string | null> = {
-  normal: null,
+const lineSpacingClasses: Record<TranslationLineSpacing, string> = {
+  normal: "en-vn-line-spacing-normal",
   comfortable: "en-vn-line-spacing-comfortable",
   wide: "en-vn-line-spacing-wide",
 };
+
+function getCurrentTestSpeechText(): string {
+  const words: string[] = [];
+  for (let index = 0; index < TestWords.words.length; index++) {
+    const text = TestWords.words.get(index)?.text;
+    if (text !== undefined && text !== "") words.push(text);
+  }
+  return words.join(" ");
+}
+
+function maybeStartTextReader(settings: EnVnTranslationSettings): void {
+  if (!settings.textReaderEnabled || textReaderAutoStarted) return;
+
+  textReaderAutoStarted = true;
+  const result = startTextReader(getCurrentTestSpeechText(), settings, {
+    onError: (message) =>
+      showNoticeNotification(message, {
+        durationMs: 5000,
+      }),
+  });
+
+  if (!result.started && result.error !== undefined) {
+    showNoticeNotification(result.error, {
+      durationMs: 5000,
+    });
+  }
+}
 
 function getParsedDictionary(source: string): ParsedDictionary {
   if (source !== cachedDictionarySource) {
@@ -333,6 +366,7 @@ export function applyLearningAppearance(
   if (words === null || wordsWrapper === null) return;
 
   words.classList.remove(
+    "en-vn-line-spacing-normal",
     "en-vn-line-spacing-comfortable",
     "en-vn-line-spacing-wide",
     "en-vn-recall-mode",
@@ -352,10 +386,7 @@ export function applyLearningAppearance(
   wordsWrapper.classList.add("en-vn-learning");
   words.classList.toggle("en-vn-recall-mode", settings.recallModeEnabled);
 
-  const spacingClass = lineSpacingClasses[settings.lineSpacing];
-  if (spacingClass !== null) {
-    words.classList.add(spacingClass);
-  }
+  words.classList.add(lineSpacingClasses[settings.lineSpacing]);
 }
 
 function showLearningMatch(
@@ -387,7 +418,11 @@ function showLearningMatch(
     );
   }
 
-  speakEnglish(match.speechText, settings);
+  // Full-text reading takes precedence while it is active. Per-word
+  // pronunciation resumes normally once the reader finishes or is stopped.
+  if (getTextReaderState() === "idle") {
+    speakEnglish(match.speechText, settings);
+  }
 }
 
 export function handleActiveWord(wordIndex: number): void {
@@ -406,6 +441,11 @@ export function handleStartedWord(wordIndex: number): void {
   if (Config.mode !== "custom") return;
 
   const settings = getSettings();
+
+  // The settings Play button is a preview. Normal gameplay automatically
+  // starts the full-text reader on the user's first real typing input.
+  maybeStartTextReader(settings);
+
   if (settings.recallModeEnabled && !isRecallMatchStart(wordIndex)) return;
 
   applyLearningAppearance(settings);
@@ -413,6 +453,7 @@ export function handleStartedWord(wordIndex: number): void {
 }
 
 restartTestEvent.subscribe(() => {
+  textReaderAutoStarted = false;
   shownTranslationMatches.clear();
   removeFloatingTooltip();
   clearHeldTooltips();
