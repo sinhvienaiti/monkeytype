@@ -131,6 +131,8 @@ vi.mock("../../../src/ts/input/helpers/fail-or-finish", () => ({
 
 import { onInsertText } from "../../../src/ts/input/handlers/insert-text";
 import {
+  buildEventLog,
+  logTestEvent,
   resetTestEvents,
   getAllTestEvents,
   getInputForWord,
@@ -140,6 +142,8 @@ import {
   getEventsForWord,
 } from "../../../src/ts/test/events/helpers";
 import type { InputEventNoMs } from "../../../src/ts/test/events/types";
+import { getAccuracy } from "../../../src/ts/test/events/stats";
+import { getLiveCachedAccuracy } from "../../../src/ts/test/events/live-cache";
 import { words as TestWords } from "../../../src/ts/test/test-words";
 import { __testing } from "../../../src/ts/config/testing";
 import { DeleteInputType } from "../../../src/ts/input/helpers/input-type";
@@ -197,6 +201,20 @@ function inputEventsForWord(wordIndex: number): InputEventNoMs[] {
   );
 }
 
+type InsertInputEventData = Extract<
+  InputEventNoMs["data"],
+  { data: string; correct: boolean }
+>;
+type InsertInputEventNoMs = Omit<InputEventNoMs, "data"> & {
+  data: InsertInputEventData;
+};
+
+function insertEventsForWord(wordIndex: number): InsertInputEventNoMs[] {
+  return inputEventsForWord(wordIndex).filter(
+    (event): event is InsertInputEventNoMs => "correct" in event.data,
+  );
+}
+
 /** The deletion events only, as `[inputType, charIndex, inputValue]` triples. */
 function deletesForWord(
   wordIndex: number,
@@ -220,6 +238,7 @@ describe("onInsertText - delete on error", () => {
       language: "english",
       deleteOnError: "letter",
       stopOnError: "off",
+      forgiveCorrectedErrors: false,
       difficulty: "normal",
       strictSpace: false,
       oppositeShiftMode: "off",
@@ -429,5 +448,111 @@ describe("onInsertText - delete on error", () => {
       (e) => "correct" in e.data && !e.data.correct,
     );
     expect(incorrect).toHaveLength(1);
+  });
+});
+
+
+describe("onInsertText - forgive corrected errors", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetTestEvents();
+    TestWords.reset();
+    mockState.activeWordIndex = 0;
+    mockState.correctShiftUsed = true;
+    mockState.wordsScrolledOff.clear();
+    setInput("");
+    replaceConfig({
+      mode: "words",
+      language: "english",
+      deleteOnError: "off",
+      stopOnError: "letter",
+      forgiveCorrectedErrors: true,
+      difficulty: "normal",
+      strictSpace: false,
+      oppositeShiftMode: "off",
+      keymapMode: "off",
+      blindMode: false,
+    });
+  });
+
+  it("counts repeated blocked attempts at one character only once", async () => {
+    pushWords("hello", "world");
+
+    await type("x");
+    await type("y");
+
+    const inserts = insertEventsForWord(0);
+    expect(inserts).toHaveLength(2);
+    expect(inserts[0]?.data.correct).toBe(false);
+    expect(inserts[0]?.data.accuracyIgnored).toBeUndefined();
+    expect(inserts[1]?.data.correct).toBe(false);
+    expect(inserts[1]?.data.accuracyIgnored).toBe(true);
+  });
+
+  it("forgives the counted error after the blocked character is corrected", async () => {
+    pushWords("hello", "world");
+
+    await type("x");
+    await type("y");
+    await type("h");
+
+    const inserts = insertEventsForWord(0);
+    expect(inserts[0]?.data.accuracyIgnored).toBe(true);
+    expect(inserts[1]?.data.accuracyIgnored).toBe(true);
+    expect(inserts[2]?.data.correct).toBe(true);
+    expect(inserts[2]?.data.accuracyIgnored).toBeUndefined();
+
+    expect(getLiveCachedAccuracy()).toBe(100);
+    expect(getAccuracy(buildEventLog())).toEqual({
+      correct: 1,
+      incorrect: 0,
+      percentage: 100,
+    });
+  });
+
+  it("treats a blocked word as one accuracy error and forgives it after correction", async () => {
+    replaceConfig({ ...__testing.getConfig(), stopOnError: "word" });
+    pushWords("hello", "world");
+
+    await type("x");
+    await type("y");
+
+    let inserts = insertEventsForWord(0);
+    expect(inserts[0]?.data.accuracyIgnored).toBeUndefined();
+    expect(inserts[1]?.data.accuracyIgnored).toBe(true);
+
+    setInput("");
+    logTestEvent("input", 1100, {
+      inputType: "deleteWordBackward",
+      wordIndex: 0,
+      charIndex: 2,
+      inputValue: "",
+    });
+
+    for (const char of "hello") await type(char);
+
+    inserts = insertEventsForWord(0);
+    expect(inserts[0]?.data.accuracyIgnored).toBe(true);
+    expect(getLiveCachedAccuracy()).toBe(100);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+  });
+
+  it("keeps the original Monkeytype accuracy behavior when disabled", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      forgiveCorrectedErrors: false,
+    });
+    pushWords("hello", "world");
+
+    await type("x");
+    await type("y");
+    await type("h");
+
+    const inserts = insertEventsForWord(0);
+    expect(inserts[0]?.data.accuracyIgnored).toBeUndefined();
+    expect(inserts[1]?.data.accuracyIgnored).toBeUndefined();
+    expect(inserts[2]?.data.correct).toBe(true);
+
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(2);
   });
 });

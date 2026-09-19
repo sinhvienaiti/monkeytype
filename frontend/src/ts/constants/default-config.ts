@@ -52,6 +52,7 @@ const obj: Config = {
   timerColor: "main",
   timerOpacity: "1",
   stopOnError: "off",
+  forgiveCorrectedErrors: false,
   deleteOnError: "off",
   showAllLines: false,
   keymapMode: "off",

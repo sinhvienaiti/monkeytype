@@ -69,6 +69,7 @@ export async function goToNextWord({
     void TestLogic.addWord();
   }
 
+
   if (
     getActiveWordIndex() < TestWords.words.length - 1 ||
     Config.mode === "zen"

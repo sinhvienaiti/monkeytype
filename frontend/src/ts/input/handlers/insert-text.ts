@@ -27,11 +27,19 @@ import { showNoticeNotification } from "../../states/notifications";
 import { goToNextWord, goToPreviousWord } from "../helpers/word-navigation";
 import { onBeforeInsertText } from "./before-insert-text";
 import { shouldGoToNextWord, isCharCorrect } from "../helpers/validation";
-import { getCurrentInput, logTestEvent } from "../../test/events/data";
+import {
+  forgiveAccuracyErrorsAt,
+  forgiveAccuracyErrorsForWord,
+  getCurrentInput,
+  hasCountedAccuracyError,
+  hasCountedAccuracyErrorInWord,
+  logTestEvent,
+} from "../../test/events/data";
 import { getCommitCharacterType, normalizeData } from "../helpers/util";
 import { areAllWordsGenerated } from "../../test/words-generator";
 import { getActiveWordIndex, isTestActive } from "../../states/test";
 import { DeleteInputType } from "../helpers/input-type";
+import { handleStartedWord as handleEnVnTranslationStart } from "../../custom/en-vn-translation";
 
 const charOverrides = new Map<string, string>([
   ["…", "..."],
@@ -193,7 +201,9 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
 
   // input and target word
   const testInput = getCurrentInput();
-  const currentWord = TestWords.words.getCurrent()?.textWithCommit ?? "";
+  const currentTestWord = TestWords.words.getCurrent();
+  const currentWord = currentTestWord?.textWithCommit ?? "";
+  const currentWordText = currentTestWord?.text ?? "";
 
   // if the character is visually equal, replace it with the target character
   // this ensures all future equivalence checks work correctly
@@ -221,6 +231,14 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     targetWord: currentWord,
   });
 
+  if (
+    testInput.length === 0 &&
+    commitCharacterType === false &&
+    automatic !== true
+  ) {
+    handleEnVnTranslationStart(wordIndex);
+  }
+
   // is char correct
   const correct = isCharCorrect({
     data,
@@ -228,6 +246,23 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     targetWord: currentWord,
     correctShiftUsed,
   });
+
+  const useAccuracyForgiveness =
+    Config.forgiveCorrectedErrors && Config.stopOnError !== "off";
+  const accuracyIgnored =
+    useAccuracyForgiveness &&
+    !correct &&
+    (Config.stopOnError === "word"
+      ? hasCountedAccuracyErrorInWord(wordIndex)
+      : hasCountedAccuracyError(wordIndex, testInput.length));
+
+  if (useAccuracyForgiveness && correct) {
+    if (Config.stopOnError === "letter") {
+      forgiveAccuracyErrorsAt(wordIndex, testInput.length);
+    } else if (testInput + data === currentWordText) {
+      forgiveAccuracyErrorsForWord(wordIndex);
+    }
+  }
 
   // handing cases where last char needs to be removed
   // this is here and not in beforeInsertText because we want to penalize for incorrect spaces
@@ -265,6 +300,14 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
       commitCharacterType,
     });
 
+  if (
+    useAccuracyForgiveness &&
+    Config.stopOnError === "word" &&
+    goingToNextWord
+  ) {
+    forgiveAccuracyErrorsForWord(wordIndex);
+  }
+
   if (Config.keymapMode === "react") {
     flash(data, correct);
   }
@@ -288,6 +331,7 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     charIndex: testInput.length,
     isCompositionEnding: isCompositionEnding ? true : undefined,
     inputStopped: removeLastChar ? true : undefined,
+    accuracyIgnored: accuracyIgnored ? true : undefined,
     automatic: automatic ? true : undefined,
     // inputValue is captured from the input element after this event (before goToNextWord clears it).
     inputValue: inputValueAfterEvent,

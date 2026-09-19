@@ -5,7 +5,11 @@ import { getInputElementValue, setInputElementValue } from "../input-element";
 import { Config } from "../../config/store";
 import { goToPreviousWord } from "../helpers/word-navigation";
 import { DeleteInputType } from "../helpers/input-type";
-import { getCurrentInput, logTestEvent } from "../../test/events/data";
+import {
+  forgiveAccuracyErrorsForWord,
+  getCurrentInput,
+  logTestEvent,
+} from "../../test/events/data";
 import { getActiveWordIndex } from "../../states/test";
 
 export function onDelete(inputType: DeleteInputType, now: number): void {
@@ -76,6 +80,14 @@ export function onDelete(inputType: DeleteInputType, now: number): void {
       charIndex: inputBeforeDelete.length,
       inputValue: inputAfterDelete,
     });
+
+    if (
+      Config.forgiveCorrectedErrors &&
+      Config.stopOnError === "word" &&
+      inputAfterDelete === TestWords.words.getCurrent()?.text
+    ) {
+      forgiveAccuracyErrorsForWord(activeWordIndexBeforeDelete);
+    }
   }
 
   TestUI.afterTestDelete();

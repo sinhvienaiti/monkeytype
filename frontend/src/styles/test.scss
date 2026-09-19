@@ -71,6 +71,63 @@
     margin: 0 auto;
   }
 
+  #enVnTranslationTopDisplay {
+    position: absolute;
+    top: -6.2rem;
+    left: 50%;
+    z-index: 4;
+    display: grid;
+    min-width: 12rem;
+    max-width: min(34rem, calc(100vw - 2rem));
+    justify-items: center;
+    gap: 0.15rem;
+    padding: 0.65rem 1.15rem;
+    border: 1px solid
+      color-mix(in srgb, var(--sub-color) 38%, transparent);
+    border-radius: 1rem;
+    background: color-mix(in srgb, var(--bg-color) 72%, transparent);
+    box-shadow:
+      0 0.7rem 2rem rgba(0, 0, 0, 0.18),
+      inset 0 1px 0 color-mix(in srgb, var(--text-color) 16%, transparent);
+    backdrop-filter: blur(10px);
+    pointer-events: none;
+    user-select: none;
+    opacity: 0;
+    transform: translate(-50%, 0.3rem) scale(0.98);
+    transition:
+      opacity 0.16s ease,
+      transform 0.2s ease;
+
+    &.visible {
+      opacity: 1;
+      transform: translate(-50%, 0) scale(1);
+    }
+
+    .translationVietnamese {
+      overflow: hidden;
+      max-width: 100%;
+      color: var(--text-color);
+      font-size: 1.35rem;
+      font-weight: 700;
+      line-height: 1.15;
+      text-align: center;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .translationEnglish {
+      overflow: hidden;
+      max-width: 100%;
+      color: var(--sub-color);
+      font-size: 0.78rem;
+      font-weight: 600;
+      line-height: 1.15;
+      text-align: center;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
   .ssWatermark {
     font-size: 1.25rem;
     color: var(--sub-color);
@@ -93,6 +150,57 @@
   width: 100%;
   align-content: flex-start;
   user-select: none;
+
+  &.en-vn-line-spacing-normal {
+    .word,
+    .beforeNewline {
+      margin-top: 0.58em;
+      margin-bottom: 0.58em;
+    }
+  }
+
+  &.en-vn-line-spacing-comfortable {
+    .word,
+    .beforeNewline {
+      margin-top: 0.7em;
+      margin-bottom: 0.7em;
+    }
+  }
+
+  &.en-vn-line-spacing-wide {
+    .word,
+    .beforeNewline {
+      margin-top: 0.84em;
+      margin-bottom: 0.84em;
+    }
+  }
+
+  &.en-vn-recall-mode {
+    .word.en-vn-recall-target {
+      letter {
+        color: transparent !important;
+        text-shadow: none !important;
+
+        &.correct,
+        &.corrected,
+        &.en-vn-recall-structural {
+          color: var(--text-color) !important;
+        }
+
+        &.correct,
+        &.corrected {
+          text-shadow:
+            0 0 0.3em color-mix(in srgb, var(--main-color) 72%, transparent),
+            0 0 0.75em color-mix(in srgb, var(--main-color) 38%, transparent) !important;
+        }
+
+        &.incorrect {
+          color: transparent !important;
+          text-shadow: none !important;
+        }
+      }
+    }
+  }
 
   .newline {
     width: inherit;
@@ -500,6 +608,115 @@
   margin: 0.25em 0.3em;
   font-variant: no-common-ligatures;
   border-bottom: 2px solid transparent;
+
+  &.en-vn-held-tooltip {
+    --en-vn-tooltip-font-size: 0.8rem;
+    --en-vn-tooltip-radius: 0.75rem;
+    --en-vn-tooltip-bg: rgba(17, 24, 39, 0.75);
+    --en-vn-tooltip-border: rgba(147, 197, 253, 0.6);
+
+    &::before {
+      content: attr(data-en-vn-translation);
+      position: absolute;
+      left: 50%;
+      bottom: calc(100% + 0.38rem);
+      z-index: 50;
+      max-width: min(24rem, calc(100vw - 2rem));
+      padding: 0.36rem 0.72rem;
+      transform: translateX(-50%);
+      border: 1px solid var(--en-vn-tooltip-border);
+      border-radius: var(--en-vn-tooltip-radius);
+      background: var(--en-vn-tooltip-bg);
+      box-shadow:
+        0 0.65rem 1.75rem rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.12);
+      backdrop-filter: blur(10px);
+      color: #f8fafc;
+      font-size: var(--en-vn-tooltip-font-size);
+      font-weight: 700;
+      line-height: 1.2;
+      letter-spacing: 0.01em;
+      text-align: center;
+      white-space: nowrap;
+      pointer-events: none;
+      animation: en-vn-tooltip-in 180ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    &::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      bottom: calc(100% + 0.08rem);
+      z-index: 49;
+      width: 0.65rem;
+      height: 0.65rem;
+      transform: translateX(-50%) rotate(45deg);
+      border-right: 1px solid var(--en-vn-tooltip-border);
+      border-bottom: 1px solid var(--en-vn-tooltip-border);
+      background: var(--en-vn-tooltip-bg);
+      pointer-events: none;
+    }
+  }
+
+  &.en-vn-tooltip-size-small {
+    --en-vn-tooltip-font-size: 0.8rem;
+  }
+
+  &.en-vn-tooltip-size-medium {
+    --en-vn-tooltip-font-size: 0.9rem;
+  }
+
+  &.en-vn-tooltip-size-large {
+    --en-vn-tooltip-font-size: 1rem;
+  }
+
+  &.en-vn-tooltip-style-pill {
+    --en-vn-tooltip-radius: 999px;
+  }
+
+  &.en-vn-tooltip-style-soft {
+    --en-vn-tooltip-radius: 0.55rem;
+  }
+
+  &.en-vn-tooltip-style-minimal {
+    --en-vn-tooltip-bg: transparent;
+    --en-vn-tooltip-border: transparent;
+
+    &::before {
+      padding: 0.2rem 0.35rem;
+      box-shadow: none;
+      backdrop-filter: none;
+      text-shadow: 0 0.15rem 0.45rem rgba(0, 0, 0, 0.45);
+    }
+
+    &::after {
+      display: none;
+    }
+  }
+
+  &.en-vn-tooltip-color-auto {
+    --en-vn-tooltip-border: color-mix(
+      in srgb,
+      var(--text-color) 38%,
+      transparent
+    );
+  }
+
+  &.en-vn-tooltip-color-blue {
+    --en-vn-tooltip-border: rgba(147, 197, 253, 0.6);
+  }
+
+  &.en-vn-tooltip-color-green {
+    --en-vn-tooltip-border: rgba(134, 239, 172, 0.6);
+  }
+
+  &.en-vn-tooltip-color-amber {
+    --en-vn-tooltip-border: rgba(252, 211, 77, 0.6);
+  }
+
+  &.en-vn-tooltip-color-purple {
+    --en-vn-tooltip-border: rgba(196, 181, 253, 0.6);
+  }
   letter {
     display: inline-block;
   }
@@ -1205,6 +1422,18 @@
   #wordsWrapper {
     position: relative;
     overflow: visible clip;
+
+    &.en-vn-learning {
+      // Reserve a lane above the first typing line for held tooltips so they
+      // do not cover Monkeytype's mini timer/WPM/accuracy row.
+      margin-top: 2.15rem;
+
+      // Keep Monkeytype's three-line viewport while allowing held tooltips
+      // to extend above and slightly outside the sides of the typing area.
+      overflow: visible;
+      clip-path: inset(-8rem -8rem 0 -8rem);
+    }
+
     &.tape {
       overflow: hidden;
       mask-image: linear-gradient(
@@ -1270,5 +1499,17 @@ body.fb-arrows {
     letter {
       margin: 0 0.25em;
     }
+  }
+}
+
+@keyframes en-vn-tooltip-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(4px) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
   }
 }

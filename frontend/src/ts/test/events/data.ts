@@ -17,7 +17,11 @@ import {
   TimerEventData,
 } from "./types";
 import { getEventsForWord, getInputFromDom, keysToTrack } from "./helpers";
-import { recordEventForCache, resetLiveCache } from "./live-cache";
+import {
+  forgiveIncorrectInputsForAccuracy,
+  recordEventForCache,
+  resetLiveCache,
+} from "./live-cache";
 import { Keycode } from "../../constants/keys";
 import { isSafeNumber, mean, roundTo2 } from "@monkeytype/util/numbers";
 import * as TestWords from "../test-words";
@@ -199,6 +203,89 @@ export function logTestEvent(
 
 function invalidateCache(): void {
   cachedAllEvents = undefined;
+}
+
+export function hasCountedAccuracyError(
+  wordIndex: number,
+  charIndex: number,
+): boolean {
+  for (let index = inputEvents.length - 1; index >= 0; index--) {
+    const event = inputEvents[index];
+    if (event === undefined) continue;
+    const eventData = event.data;
+    if (
+      eventData.wordIndex !== wordIndex ||
+      eventData.charIndex !== charIndex ||
+      !("correct" in eventData)
+    ) {
+      continue;
+    }
+    if (eventData.correct) return false;
+    if (eventData.accuracyIgnored !== true) return true;
+  }
+  return false;
+}
+
+export function hasCountedAccuracyErrorInWord(wordIndex: number): boolean {
+  return inputEvents.some(
+    (event) =>
+      event.data.wordIndex === wordIndex &&
+      "correct" in event.data &&
+      !event.data.correct &&
+      event.data.accuracyIgnored !== true,
+  );
+}
+
+export function forgiveAccuracyErrorsAt(
+  wordIndex: number,
+  charIndex: number,
+): void {
+  let forgiven = 0;
+
+  for (let index = inputEvents.length - 1; index >= 0; index--) {
+    const event = inputEvents[index];
+    if (event === undefined) continue;
+    const eventData = event.data;
+    if (
+      eventData.wordIndex !== wordIndex ||
+      eventData.charIndex !== charIndex ||
+      !("correct" in eventData)
+    ) {
+      continue;
+    }
+
+    if (eventData.correct) break;
+
+    if (eventData.accuracyIgnored !== true) {
+      eventData.accuracyIgnored = true;
+      forgiven++;
+    }
+  }
+
+  if (forgiven === 0) return;
+  invalidateCache();
+  forgiveIncorrectInputsForAccuracy(forgiven);
+}
+
+export function forgiveAccuracyErrorsForWord(wordIndex: number): void {
+  let forgiven = 0;
+
+  for (const event of inputEvents) {
+    const eventData = event.data;
+    if (
+      eventData.wordIndex === wordIndex &&
+      "correct" in eventData &&
+      !eventData.correct &&
+      eventData.accuracyIgnored !== true
+    ) {
+      eventData.accuracyIgnored = true;
+      forgiven++;
+    }
+  }
+
+  if (forgiven === 0) return;
+  invalidateCache();
+  forgiveIncorrectInputsForAccuracy(forgiven);
 }
 
 export function getCurrentInput(): string {

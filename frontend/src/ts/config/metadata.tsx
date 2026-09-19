@@ -515,6 +515,15 @@ export const configMetadata: ConfigMetadataObject = {
       return {};
     },
   },
+  forgiveCorrectedErrors: {
+    key: "forgiveCorrectedErrors",
+    fa: { icon: "fa-check-double" },
+    displayString: "forgive corrected errors",
+    changeRequiresRestart: false,
+    group: "input",
+    description:
+      "When stop on error is enabled, repeated attempts on the same blocked character only count as one accuracy error. If you correct that character before moving on, the error is removed from accuracy.",
+  },
   deleteOnError: {
     key: "deleteOnError",
     fa: { icon: "fa-eraser" },

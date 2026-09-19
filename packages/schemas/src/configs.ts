@@ -437,6 +437,7 @@ export const ConfigSchema = z
     strictSpace: z.boolean(),
     oppositeShiftMode: OppositeShiftModeSchema,
     stopOnError: StopOnErrorSchema,
+    forgiveCorrectedErrors: z.boolean(),
     deleteOnError: DeleteOnErrorSchema,
     confidenceMode: ConfidenceModeSchema,
     quickEnd: z.boolean(),
