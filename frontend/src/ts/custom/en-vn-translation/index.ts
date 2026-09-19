@@ -5,6 +5,7 @@ import * as TestWords from "../../test/test-words";
 
 import { normalizePhrase, parseDictionary } from "./dictionary";
 import type { ParsedDictionary } from "./dictionary";
+import { speakEnglish, stopEnglishSpeech } from "./speech";
 import { getSettings } from "./store";
 import type {
   EnVnTranslationSettings,
@@ -65,7 +66,7 @@ function getParsedDictionary(source: string): ParsedDictionary {
 function findTranslationStartingAt(
   startWordIndex: number,
   dictionary: ParsedDictionary,
-): { source: string; translation: string } | null {
+): { source: string; speechText: string; translation: string } | null {
   const maxWordCount = Math.min(
     dictionary.maxWordCount,
     TestWords.words.length - startWordIndex,
@@ -86,10 +87,11 @@ function findTranslationStartingAt(
 
     if (words.length !== wordCount) continue;
 
-    const source = normalizePhrase(words.join(" "));
+    const speechText = words.join(" ");
+    const source = normalizePhrase(speechText);
     const translation = dictionary.translations.get(source);
     if (translation !== undefined) {
-      return { source, translation };
+      return { source, speechText, translation };
     }
   }
 
@@ -202,9 +204,11 @@ export function handleStartedWord(wordIndex: number): void {
 
   if (showTranslation(match.translation, wordIndex, settings)) {
     shownTranslationMatches.add(matchId);
+    speakEnglish(match.speechText, settings);
   }
 }
 
 restartTestEvent.subscribe(() => {
   shownTranslationMatches.clear();
+  stopEnglishSpeech();
 });
