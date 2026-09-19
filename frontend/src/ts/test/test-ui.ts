@@ -10,7 +10,7 @@ import { setConfig } from "../config/setters";
 import * as TestWords from "./test-words";
 import { handleActiveWord } from "../custom/en-vn-translation";
 import {
-  findDictionaryMatch,
+  findDictionaryMatches,
   parseDictionary,
 } from "../custom/en-vn-translation/dictionary";
 import { getSettings as getEnVnTranslationSettings } from "../custom/en-vn-translation/store";
@@ -493,17 +493,10 @@ function getRecallTargetWordIndices(): Set<number> {
     words.push(word?.text ?? "");
   }
 
-  for (let index = 0; index < words.length; ) {
-    const match = findDictionaryMatch(words, index, dictionary);
-    if (match === null) {
-      index++;
-      continue;
-    }
-
+  for (const match of findDictionaryMatches(words, dictionary)) {
     for (let offset = 0; offset < match.wordCount; offset++) {
-      indices.add(index + offset);
+      indices.add(match.startWordIndex + offset);
     }
-    index += match.wordCount;
   }
 
   return indices;
