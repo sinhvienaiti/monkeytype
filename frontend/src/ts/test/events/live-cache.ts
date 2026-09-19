@@ -38,6 +38,11 @@ export function recordEventForCache(event: TestEvent): void {
   }
 }
 
+export function forgiveIncorrectInputsForAccuracy(count: number): void {
+  if (count <= 0) return;
+  cache.totalInputs = Math.max(cache.correctInputs, cache.totalInputs - count);
+}
+
 export function getLiveCachedAccuracy(): number {
   return cache.totalInputs === 0
     ? 100
