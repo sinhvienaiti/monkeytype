@@ -9,6 +9,7 @@ import { speakEnglish, stopEnglishSpeech } from "./speech";
 import { getSettings } from "./store";
 import type {
   EnVnTranslationSettings,
+  TranslationLineSpacing,
   TranslationPopupColor,
   TranslationPopupSize,
   TranslationPopupStyle,
@@ -21,20 +22,22 @@ let cachedDictionary: ParsedDictionary = {
 };
 
 const shownTranslationMatches = new Set<string>();
+let activeTooltip: HTMLDivElement | null = null;
+let activeTooltipAnimation: Animation | null = null;
 
 const popupSizeClasses: Record<TranslationPopupSize, string> = {
-  small: "text-lg",
-  medium: "text-xl",
-  large: "text-2xl",
+  small: "text-[0.9rem]",
+  medium: "text-base",
+  large: "text-lg",
 };
 
 const popupStyleClasses: Record<TranslationPopupStyle, string> = {
   bubble:
-    "overflow-hidden rounded-[2rem] border bg-translation-surface/65 px-5 py-3 shadow-2xl backdrop-blur-md",
+    "overflow-visible rounded-xl border bg-translation-surface/72 px-3.5 py-2 shadow-xl backdrop-blur-md",
   pill:
-    "rounded-full border bg-translation-surface/70 px-4 py-2 shadow-xl backdrop-blur-sm",
+    "overflow-visible rounded-full border bg-translation-surface/72 px-4 py-2 shadow-xl backdrop-blur-md",
   soft:
-    "rounded-xl border bg-translation-surface/70 px-4 py-2 shadow-lg backdrop-blur-sm",
+    "overflow-visible rounded-lg border bg-translation-surface/68 px-3.5 py-2 shadow-lg backdrop-blur-sm",
   minimal: "px-2 py-1 drop-shadow-lg",
 };
 
@@ -47,11 +50,17 @@ const popupAccentClasses: Record<TranslationPopupColor, string> = {
 };
 
 const popupGlowClasses: Record<TranslationPopupColor, string> = {
-  auto: "bg-text/20",
-  blue: "bg-translation-blue/35",
-  green: "bg-translation-green/35",
-  amber: "bg-translation-amber/35",
-  purple: "bg-translation-purple/35",
+  auto: "bg-text/15",
+  blue: "bg-translation-blue/25",
+  green: "bg-translation-green/25",
+  amber: "bg-translation-amber/25",
+  purple: "bg-translation-purple/25",
+};
+
+const lineSpacingClasses: Record<TranslationLineSpacing, string | null> = {
+  normal: null,
+  comfortable: "en-vn-line-spacing-comfortable",
+  wide: "en-vn-line-spacing-wide",
 };
 
 function getParsedDictionary(source: string): ParsedDictionary {
@@ -98,56 +107,71 @@ function findTranslationStartingAt(
   return null;
 }
 
-function createBubbleContent(
+function removeActiveTooltip(): void {
+  activeTooltipAnimation?.cancel();
+  activeTooltipAnimation = null;
+  activeTooltip?.remove();
+  activeTooltip = null;
+}
+
+function createTooltipContent(
   popup: HTMLDivElement,
   translation: string,
   color: TranslationPopupColor,
   style: TranslationPopupStyle,
 ): void {
-  if (style === "bubble") {
+  if (style !== "minimal") {
     const glow = document.createElement("div");
     glow.className = [
-      "pointer-events-none absolute -top-5 left-1/2 h-12 w-32 -translate-x-1/2 rounded-full blur-xl",
+      "pointer-events-none absolute -top-4 left-1/2 h-8 w-24 -translate-x-1/2 rounded-full blur-xl",
       popupGlowClasses[color],
     ].join(" ");
     popup.append(glow);
 
     const highlight = document.createElement("div");
     highlight.className =
-      "pointer-events-none absolute inset-x-6 top-1 h-px bg-translation-text/35";
+      "pointer-events-none absolute inset-x-4 top-px h-px bg-translation-text/25";
     popup.append(highlight);
   }
 
   const text = document.createElement("span");
   text.className =
-    "relative z-10 block text-center font-semibold leading-tight tracking-wide text-translation-text";
+    "relative z-10 block text-center font-bold leading-[1.2] tracking-[0.01em] text-translation-text";
   text.textContent = translation;
   popup.append(text);
+
+  if (style !== "minimal") {
+    const pointer = document.createElement("div");
+    pointer.className = [
+      "absolute -bottom-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 border-r border-b bg-translation-surface/72",
+      popupAccentClasses[color],
+    ].join(" ");
+    popup.append(pointer);
+  }
 }
 
-function showTranslation(
+function showTranslationTooltip(
   translation: string,
   wordIndex: number,
   settings: EnVnTranslationSettings,
-): boolean {
+): void {
   const anchor = TestUI.getWordElement(wordIndex);
-  if (anchor === null) return false;
+  if (anchor === null) return;
+
+  removeActiveTooltip();
 
   const rect = anchor.native.getBoundingClientRect();
   const popup = document.createElement("div");
   popup.dataset["personalEnVnTranslation"] = "true";
 
   popup.className = [
-    "pointer-events-none fixed z-50 max-w-[calc(100vw-2rem)] whitespace-normal font-(--font)",
+    "pointer-events-none fixed z-50 max-w-[min(24rem,calc(100vw-2rem))] whitespace-normal font-(--font)",
     popupSizeClasses[settings.popupSize],
     popupStyleClasses[settings.popupStyle],
     popupAccentClasses[settings.popupColor],
   ].join(" ");
 
-  popup.style.left = `${rect.left + rect.width / 2}px`;
-  popup.style.top = `${rect.top - 10}px`;
-
-  createBubbleContent(
+  createTooltipContent(
     popup,
     translation,
     settings.popupColor,
@@ -155,25 +179,37 @@ function showTranslation(
   );
   document.body.append(popup);
 
-  const animation = popup.animate(
+  const popupRect = popup.getBoundingClientRect();
+  const halfWidth = popupRect.width / 2;
+  const desiredCenter = rect.left + rect.width / 2;
+  const center = Math.min(
+    window.innerWidth - halfWidth - 12,
+    Math.max(halfWidth + 12, desiredCenter),
+  );
+
+  popup.style.left = `${center}px`;
+  popup.style.top = `${rect.top - 8}px`;
+
+  activeTooltip = popup;
+  activeTooltipAnimation = popup.animate(
     [
       {
         opacity: 0,
-        transform: "translate(-50%, -100%) translateY(10px) scale(0.88)",
+        transform: "translate(-50%, -100%) translateY(6px) scale(0.96)",
       },
       {
         opacity: 1,
         transform: "translate(-50%, -100%) translateY(0) scale(1)",
-        offset: 0.08,
+        offset: 0.07,
       },
       {
         opacity: 1,
-        transform: "translate(-50%, -100%) translateY(-22px) scale(1)",
-        offset: 0.76,
+        transform: "translate(-50%, -100%) translateY(-8px) scale(1)",
+        offset: 0.72,
       },
       {
         opacity: 0,
-        transform: "translate(-50%, -100%) translateY(-58px) scale(1.03)",
+        transform: "translate(-50%, -100%) translateY(-36px) scale(1.01)",
       },
     ],
     {
@@ -183,14 +219,89 @@ function showTranslation(
     },
   );
 
-  void animation.finished.finally(() => popup.remove());
-  return true;
+  activeTooltipAnimation.onfinish = () => {
+    if (activeTooltip === popup) {
+      activeTooltip = null;
+      activeTooltipAnimation = null;
+    }
+    popup.remove();
+  };
+}
+
+function getTopDisplay(): HTMLElement | null {
+  return document.getElementById("enVnTranslationTopDisplay");
+}
+
+function clearTopDisplay(): void {
+  const display = getTopDisplay();
+  if (display === null) return;
+
+  display.classList.remove("visible");
+  display.classList.add("hidden");
+  display.setAttribute("aria-hidden", "true");
+}
+
+function showTopDisplay(translation: string, source: string): void {
+  const display = getTopDisplay();
+  if (display === null) return;
+
+  const vietnamese = display.querySelector<HTMLElement>(".translationVietnamese");
+  const english = display.querySelector<HTMLElement>(".translationEnglish");
+  if (vietnamese === null || english === null) return;
+
+  vietnamese.textContent = translation;
+  english.textContent = source;
+
+  display.classList.remove("hidden");
+  display.setAttribute("aria-hidden", "false");
+
+  if (!display.classList.contains("visible")) {
+    requestAnimationFrame(() => display.classList.add("visible"));
+    return;
+  }
+
+  display.animate(
+    [
+      { opacity: 0.55, transform: "translate(-50%, 0.15rem) scale(0.99)" },
+      { opacity: 1, transform: "translate(-50%, 0) scale(1)" },
+    ],
+    { duration: 160, easing: "ease-out" },
+  );
+}
+
+export function applyLearningAppearance(
+  settings: EnVnTranslationSettings = getSettings(),
+): void {
+  const words = document.getElementById("words");
+  if (words === null) return;
+
+  words.classList.remove(
+    "en-vn-line-spacing-comfortable",
+    "en-vn-line-spacing-wide",
+  );
+
+  const shouldApply =
+    Config.mode === "custom" &&
+    settings.enabled &&
+    settings.dictionary.trim() !== "";
+
+  if (!shouldApply) {
+    clearTopDisplay();
+    return;
+  }
+
+  const spacingClass = lineSpacingClasses[settings.lineSpacing];
+  if (spacingClass !== null) {
+    words.classList.add(spacingClass);
+  }
 }
 
 export function handleStartedWord(wordIndex: number): void {
   if (Config.mode !== "custom") return;
 
   const settings = getSettings();
+  applyLearningAppearance(settings);
+
   if (!settings.enabled || settings.dictionary.trim() === "") return;
 
   const dictionary = getParsedDictionary(settings.dictionary);
@@ -202,13 +313,23 @@ export function handleStartedWord(wordIndex: number): void {
   const matchId = `${wordIndex}:${match.source}`;
   if (shownTranslationMatches.has(matchId)) return;
 
-  if (showTranslation(match.translation, wordIndex, settings)) {
-    shownTranslationMatches.add(matchId);
-    speakEnglish(match.speechText, settings);
+  shownTranslationMatches.add(matchId);
+
+  if (settings.displayMode === "tooltip" || settings.displayMode === "both") {
+    showTranslationTooltip(match.translation, wordIndex, settings);
   }
+
+  if (settings.displayMode === "top" || settings.displayMode === "both") {
+    showTopDisplay(match.translation, match.speechText);
+  }
+
+  speakEnglish(match.speechText, settings);
 }
 
 restartTestEvent.subscribe(() => {
   shownTranslationMatches.clear();
+  removeActiveTooltip();
+  clearTopDisplay();
   stopEnglishSpeech();
+  applyLearningAppearance();
 });
