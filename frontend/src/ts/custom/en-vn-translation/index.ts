@@ -22,7 +22,6 @@ let cachedDictionary: ParsedDictionary = {
 };
 
 const shownTranslationMatches = new Set<string>();
-const heldTooltips = new Set<HTMLDivElement>();
 let floatingTooltip: HTMLDivElement | null = null;
 let floatingTooltipAnimation: Animation | null = null;
 
@@ -115,11 +114,47 @@ function removeFloatingTooltip(): void {
   floatingTooltip = null;
 }
 
+const heldTooltipClasses = [
+  "en-vn-held-tooltip",
+  "en-vn-tooltip-size-small",
+  "en-vn-tooltip-size-medium",
+  "en-vn-tooltip-size-large",
+  "en-vn-tooltip-style-bubble",
+  "en-vn-tooltip-style-pill",
+  "en-vn-tooltip-style-soft",
+  "en-vn-tooltip-style-minimal",
+  "en-vn-tooltip-color-auto",
+  "en-vn-tooltip-color-blue",
+  "en-vn-tooltip-color-green",
+  "en-vn-tooltip-color-amber",
+  "en-vn-tooltip-color-purple",
+];
+
 function clearHeldTooltips(): void {
-  for (const tooltip of heldTooltips) {
-    tooltip.remove();
+  const tooltips = document.querySelectorAll<HTMLElement>(
+    "#words .word[data-en-vn-held-tooltip='true']",
+  );
+
+  for (const word of tooltips) {
+    delete word.dataset["enVnHeldTooltip"];
+    delete word.dataset["enVnTranslation"];
+    word.classList.remove(...heldTooltipClasses);
   }
-  heldTooltips.clear();
+}
+
+function showHeldTranslationTooltip(
+  anchor: HTMLElement,
+  translation: string,
+  settings: EnVnTranslationSettings,
+): void {
+  anchor.dataset["enVnHeldTooltip"] = "true";
+  anchor.dataset["enVnTranslation"] = translation;
+  anchor.classList.add(
+    "en-vn-held-tooltip",
+    `en-vn-tooltip-size-${settings.popupSize}`,
+    `en-vn-tooltip-style-${settings.popupStyle}`,
+    `en-vn-tooltip-color-${settings.popupColor}`,
+  );
 }
 
 function createTooltipContent(
@@ -166,12 +201,19 @@ function showTranslationTooltip(
   const anchor = TestUI.getWordElement(wordIndex);
   if (anchor === null) return;
 
+  if (settings.tooltipBehavior === "hold") {
+    showHeldTranslationTooltip(anchor.native, translation, settings);
+    return;
+  }
+
+  removeFloatingTooltip();
+
+  const rect = anchor.native.getBoundingClientRect();
   const popup = document.createElement("div");
-  popup.dataset["personalEnVnTranslation"] =
-    settings.tooltipBehavior === "hold" ? "held" : "floating";
+  popup.dataset["personalEnVnTranslation"] = "floating";
 
   popup.className = [
-    "pointer-events-none z-50 max-w-[min(24rem,calc(100vw-2rem))] whitespace-normal font-(--font)",
+    "pointer-events-none fixed z-50 max-w-[min(24rem,calc(100vw-2rem))] whitespace-normal font-(--font)",
     popupSizeClasses[settings.popupSize],
     popupStyleClasses[settings.popupStyle],
     popupAccentClasses[settings.popupColor],
@@ -183,44 +225,6 @@ function showTranslationTooltip(
     settings.popupColor,
     settings.popupStyle,
   );
-
-  if (settings.tooltipBehavior === "hold") {
-    popup.classList.add("absolute");
-    popup.style.left = "50%";
-    popup.style.bottom = "calc(100% + 0.55rem)";
-    popup.style.transform = "translateX(-50%)";
-
-    anchor.native.append(popup);
-    heldTooltips.add(popup);
-
-    const animation = popup.animate(
-      [
-        {
-          opacity: 0,
-          transform: "translateX(-50%) translateY(4px) scale(0.97)",
-        },
-        {
-          opacity: 1,
-          transform: "translateX(-50%) translateY(0) scale(1)",
-        },
-      ],
-      {
-        duration: 180,
-        easing: "cubic-bezier(0.22, 1, 0.36, 1)",
-      },
-    );
-
-    animation.onfinish = () => {
-      popup.style.opacity = "1";
-      popup.style.transform = "translateX(-50%)";
-    };
-    return;
-  }
-
-  removeFloatingTooltip();
-
-  const rect = anchor.native.getBoundingClientRect();
-  popup.classList.add("fixed");
   document.body.append(popup);
 
   const popupRect = popup.getBoundingClientRect();
