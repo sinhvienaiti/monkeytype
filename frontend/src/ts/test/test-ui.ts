@@ -8,6 +8,7 @@ import { z } from "zod";
 import { Config } from "../config/store";
 import { setConfig } from "../config/setters";
 import * as TestWords from "./test-words";
+import { handleActiveWord } from "../custom/en-vn-translation";
 import {
   findDictionaryMatch,
   parseDictionary,
@@ -186,6 +187,7 @@ export function updateActiveElement(
     newActiveWord.removeClass("error");
     newActiveWord.removeClass("typed");
     Joining.set(newActiveWord, false);
+    handleActiveWord(getActiveWordIndex());
 
     activeWordTop = newActiveWord.getOffsetTop();
     activeWordHeight = newActiveWord.getOffsetHeight();
