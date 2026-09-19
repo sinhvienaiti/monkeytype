@@ -131,6 +131,7 @@ vi.mock("../../../src/ts/input/helpers/fail-or-finish", () => ({
 
 import { onInsertText } from "../../../src/ts/input/handlers/insert-text";
 import {
+  buildEventLog,
   resetTestEvents,
   getAllTestEvents,
   getInputForWord,
@@ -140,6 +141,8 @@ import {
   getEventsForWord,
 } from "../../../src/ts/test/events/helpers";
 import type { InputEventNoMs } from "../../../src/ts/test/events/types";
+import { getAccuracy } from "../../../src/ts/test/events/stats";
+import { getLiveCachedAccuracy } from "../../../src/ts/test/events/live-cache";
 import { words as TestWords } from "../../../src/ts/test/test-words";
 import { __testing } from "../../../src/ts/config/testing";
 import { DeleteInputType } from "../../../src/ts/input/helpers/input-type";
@@ -487,6 +490,13 @@ describe("onInsertText - forgive corrected errors", () => {
     expect(inserts[1]?.data.accuracyIgnored).toBe(true);
     expect(inserts[2]?.data.correct).toBe(true);
     expect(inserts[2]?.data.accuracyIgnored).toBeUndefined();
+
+    expect(getLiveCachedAccuracy()).toBe(100);
+    expect(getAccuracy(buildEventLog())).toEqual({
+      correct: 1,
+      incorrect: 0,
+      percentage: 100,
+    });
   });
 
   it("keeps the original Monkeytype accuracy behavior when disabled", async () => {
@@ -503,5 +513,7 @@ describe("onInsertText - forgive corrected errors", () => {
     expect(inserts[0]?.data.accuracyIgnored).toBeUndefined();
     expect(inserts[1]?.data.accuracyIgnored).toBeUndefined();
     expect(inserts[2]?.data.correct).toBe(true);
+
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(2);
   });
 });
