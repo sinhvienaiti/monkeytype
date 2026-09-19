@@ -80,14 +80,14 @@ export function onDelete(inputType: DeleteInputType, now: number): void {
       charIndex: inputBeforeDelete.length,
       inputValue: inputAfterDelete,
     });
-  }
 
-  if (
-    Config.forgiveCorrectedErrors &&
-    Config.stopOnError === "word" &&
-    inputAfterDelete === TestWords.words.getCurrent()?.text
-  ) {
-    forgiveAccuracyErrorsForWord(activeWordIndexBeforeDelete);
+    if (
+      Config.forgiveCorrectedErrors &&
+      Config.stopOnError === "word" &&
+      inputAfterDelete === TestWords.words.getCurrent()?.text
+    ) {
+      forgiveAccuracyErrorsForWord(activeWordIndexBeforeDelete);
+    }
   }
 
   TestUI.afterTestDelete();
