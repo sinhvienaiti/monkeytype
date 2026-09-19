@@ -330,7 +330,10 @@ function getCssOptions({
 }
 
 export default defineConfig(({ mode }): UserConfig => {
-  const env = loadEnv(mode, process.cwd(), "");
+  const env = {
+    ...loadEnv(mode, process.cwd(), ""),
+    ...process.env,
+  } as Record<string, string>;
   const isProduction = mode === "production";
   const isLocalStatic = env["LOCAL_STATIC"] === "true";
   const isDevelopment = !isProduction || isLocalStatic;
