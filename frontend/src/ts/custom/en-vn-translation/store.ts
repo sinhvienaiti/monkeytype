@@ -17,6 +17,7 @@ const TranslationPopupColorSchema = z.enum([
   "purple",
 ]);
 const TranslationDisplayModeSchema = z.enum(["tooltip", "top", "both"]);
+const TranslationTooltipBehaviorSchema = z.enum(["hold", "float"]);
 const TranslationLineSpacingSchema = z.enum([
   "normal",
   "comfortable",
@@ -33,6 +34,7 @@ const EnVnTranslationSettingsSchema = z.object({
   popupSize: TranslationPopupSizeSchema,
   popupColor: TranslationPopupColorSchema,
   displayMode: TranslationDisplayModeSchema,
+  tooltipBehavior: TranslationTooltipBehaviorSchema,
   lineSpacing: TranslationLineSpacingSchema,
   pronunciationEnabled: z.boolean(),
   pronunciationAccent: PronunciationAccentSchema,
@@ -49,6 +51,9 @@ export type TranslationPopupColor = z.infer<
 >;
 export type TranslationDisplayMode = z.infer<
   typeof TranslationDisplayModeSchema
+>;
+export type TranslationTooltipBehavior = z.infer<
+  typeof TranslationTooltipBehaviorSchema
 >;
 export type TranslationLineSpacing = z.infer<
   typeof TranslationLineSpacingSchema
@@ -67,6 +72,7 @@ const defaultSettings: EnVnTranslationSettings = {
   popupSize: "medium",
   popupColor: "blue",
   displayMode: "both",
+  tooltipBehavior: "hold",
   lineSpacing: "comfortable",
   pronunciationEnabled: true,
   pronunciationAccent: "en-US",
@@ -108,6 +114,9 @@ const settingsStorage = new LocalStorageWithSchema({
       displayMode:
         TranslationDisplayModeSchema.safeParse(oldData["displayMode"]).data ??
         defaultSettings.displayMode,
+      tooltipBehavior:
+        TranslationTooltipBehaviorSchema.safeParse(oldData["tooltipBehavior"])
+          .data ?? defaultSettings.tooltipBehavior,
       lineSpacing:
         TranslationLineSpacingSchema.safeParse(oldData["lineSpacing"]).data ??
         defaultSettings.lineSpacing,
