@@ -238,7 +238,10 @@ export function resumeTextReader(): void {
 export function stopTextReader(): void {
   runId++;
   const speech = getSpeech();
-  if (speech !== null) speech.cancel();
+  if (speech !== null) {
+    speech.cancel();
+    if (speech.paused) speech.resume();
+  }
 
   if (state !== "idle") setState("idle");
 }
