@@ -33,6 +33,11 @@ describe("EN-VN text reader helpers", () => {
     expect(chunks.join(" ").replace(/\s+/g, " ")).toBe(source);
   });
 
+  it("splits a single oversized token safely", () => {
+    const chunks = chunkTextReaderText("abcdefghijklmnop", 5);
+    expect(chunks).toEqual(["abcde", "fghij", "klmno", "p"]);
+  });
+
   it("returns no chunks for blank text", () => {
     expect(chunkTextReaderText("   \n\t ")).toEqual([]);
   });
