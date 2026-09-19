@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   findDictionaryMatch,
+  findDictionaryMatches,
   normalizePhrase,
   parseDictionary,
 } from "../../../src/ts/custom/en-vn-translation/dictionary";
@@ -65,6 +66,23 @@ describe("EN-VN translation dictionary", () => {
       translation: "tiêm phụ thuộc",
       wordCount: 2,
     });
+  });
+
+  it("keeps a standalone entry inside a longer phrase from becoming a second target", () => {
+    const dictionary = parseDictionary(
+      "dependency injection = tiêm phụ thuộc\ninjection = tiêm",
+    );
+
+    expect(
+      findDictionaryMatches(["dependency", "injection"], dictionary),
+    ).toEqual([
+      {
+        source: "dependency injection",
+        translation: "tiêm phụ thuộc",
+        wordCount: 2,
+        startWordIndex: 0,
+      },
+    ]);
   });
 
   it("returns null when no dictionary entry matches", () => {
