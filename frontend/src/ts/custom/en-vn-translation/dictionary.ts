@@ -9,6 +9,10 @@ export type DictionaryMatch = {
   wordCount: number;
 };
 
+export type DictionaryMatchSpan = DictionaryMatch & {
+  startWordIndex: number;
+};
+
 function normalizeWord(word: string): string {
   return word
     .normalize("NFKC")
@@ -90,4 +94,27 @@ export function findDictionaryMatch(
   }
 
   return null;
+}
+
+export function findDictionaryMatches(
+  words: string[],
+  dictionary: ParsedDictionary,
+): DictionaryMatchSpan[] {
+  const matches: DictionaryMatchSpan[] = [];
+
+  for (let index = 0; index < words.length; ) {
+    const match = findDictionaryMatch(words, index, dictionary);
+    if (match === null) {
+      index++;
+      continue;
+    }
+
+    matches.push({
+      ...match,
+      startWordIndex: index,
+    });
+    index += match.wordCount;
+  }
+
+  return matches;
 }
