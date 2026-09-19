@@ -3,7 +3,7 @@ import { restartTestEvent } from "../../events/test";
 import * as TestUI from "../../test/test-ui";
 import * as TestWords from "../../test/test-words";
 
-import { normalizePhrase, parseDictionary } from "./dictionary";
+import { findDictionaryMatch, parseDictionary } from "./dictionary";
 import type { ParsedDictionary } from "./dictionary";
 import { speakEnglish, stopEnglishSpeech } from "./speech";
 import { getSettings } from "./store";
@@ -75,36 +75,26 @@ function getParsedDictionary(source: string): ParsedDictionary {
 function findTranslationStartingAt(
   startWordIndex: number,
   dictionary: ParsedDictionary,
-): { source: string; speechText: string; translation: string } | null {
-  const maxWordCount = Math.min(
-    dictionary.maxWordCount,
-    TestWords.words.length - startWordIndex,
-  );
-
-  for (let wordCount = maxWordCount; wordCount >= 1; wordCount--) {
-    const words: string[] = [];
-
-    for (
-      let index = startWordIndex;
-      index < startWordIndex + wordCount;
-      index++
-    ) {
-      const word = TestWords.words.get(index);
-      if (word === undefined) break;
-      words.push(word.text);
-    }
-
-    if (words.length !== wordCount) continue;
-
-    const speechText = words.join(" ");
-    const source = normalizePhrase(speechText);
-    const translation = dictionary.translations.get(source);
-    if (translation !== undefined) {
-      return { source, speechText, translation };
-    }
+): {
+  source: string;
+  speechText: string;
+  translation: string;
+  wordCount: number;
+} | null {
+  const words: string[] = [];
+  for (let index = 0; index < TestWords.words.length; index++) {
+    words.push(TestWords.words.get(index)?.text ?? "");
   }
 
-  return null;
+  const match = findDictionaryMatch(words, startWordIndex, dictionary);
+  if (match === null) return null;
+
+  return {
+    ...match,
+    speechText: words
+      .slice(startWordIndex, startWordIndex + match.wordCount)
+      .join(" "),
+  };
 }
 
 function removeFloatingTooltip(): void {
@@ -291,7 +281,11 @@ function clearTopDisplay(): void {
   display.setAttribute("aria-hidden", "true");
 }
 
-function showTopDisplay(translation: string, source: string): void {
+function showTopDisplay(
+  translation: string,
+  source: string,
+  hideSource: boolean,
+): void {
   const display = getTopDisplay();
   if (display === null) return;
 
@@ -300,7 +294,8 @@ function showTopDisplay(translation: string, source: string): void {
   if (vietnamese === null || english === null) return;
 
   vietnamese.textContent = translation;
-  english.textContent = source;
+  english.textContent = hideSource ? "" : source;
+  english.classList.toggle("hidden", hideSource);
 
   display.classList.remove("hidden");
   display.setAttribute("aria-hidden", "false");
@@ -329,6 +324,7 @@ export function applyLearningAppearance(
   words.classList.remove(
     "en-vn-line-spacing-comfortable",
     "en-vn-line-spacing-wide",
+    "en-vn-recall-mode",
   );
 
   const shouldApply =
@@ -343,6 +339,7 @@ export function applyLearningAppearance(
   }
 
   wordsWrapper.classList.add("en-vn-learning");
+  words.classList.toggle("en-vn-recall-mode", settings.recallModeEnabled);
 
   const spacingClass = lineSpacingClasses[settings.lineSpacing];
   if (spacingClass !== null) {
@@ -374,7 +371,11 @@ export function handleStartedWord(wordIndex: number): void {
   }
 
   if (settings.displayMode === "top" || settings.displayMode === "both") {
-    showTopDisplay(match.translation, match.speechText);
+    showTopDisplay(
+      match.translation,
+      match.speechText,
+      settings.recallModeEnabled,
+    );
   }
 
   speakEnglish(match.speechText, settings);
