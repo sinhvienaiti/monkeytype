@@ -415,10 +415,12 @@ function buildWordHTML(
   word: string,
   wordIndex: number,
   recallTarget = false,
+  recallStart = false,
 ): string {
   let newlineafter = false;
   const recallClass = recallTarget ? " en-vn-recall-target" : "";
-  let retval = `<div class='word${recallClass}' data-wordindex='${wordIndex}'>`;
+  const recallStartClass = recallStart ? " en-vn-recall-start" : "";
+  let retval = `<div class='word${recallClass}${recallStartClass}' data-wordindex='${wordIndex}'>`;
 
   const funbox = findSingleActiveFunboxWithFunction("getWordHtml");
   const chars = Strings.splitIntoCharacters(word);
@@ -472,8 +474,12 @@ function syncEnVnLearningClasses(): void {
   }
 }
 
-function getRecallTargetWordIndices(): Set<number> {
-  const indices = new Set<number>();
+function getRecallTargetInfo(): {
+  targets: Set<number>;
+  starts: Set<number>;
+} {
+  const targets = new Set<number>();
+  const starts = new Set<number>();
   const settings = getEnVnTranslationSettings();
 
   if (
@@ -482,7 +488,7 @@ function getRecallTargetWordIndices(): Set<number> {
     !settings.recallModeEnabled ||
     settings.dictionary.trim() === ""
   ) {
-    return indices;
+    return { targets, starts };
   }
 
   const dictionary = parseDictionary(settings.dictionary);
@@ -494,12 +500,13 @@ function getRecallTargetWordIndices(): Set<number> {
   }
 
   for (const match of findDictionaryMatches(words, dictionary)) {
+    starts.add(match.startWordIndex);
     for (let offset = 0; offset < match.wordCount; offset++) {
-      indices.add(match.startWordIndex + offset);
+      targets.add(match.startWordIndex + offset);
     }
   }
 
-  return indices;
+  return { targets, starts };
 }
 
 function updateWordWrapperClasses(): void {
@@ -603,12 +610,17 @@ function showWords(): void {
   if (Config.mode === "zen") {
     appendEmptyWordElement(0);
   } else {
-    const recallTargets = getRecallTargetWordIndices();
+    const recallInfo = getRecallTargetInfo();
     let wordsHTML = "";
     for (let i = 0; i < TestWords.words.length; i++) {
       const word = TestWords.words.get(i);
       if (word === undefined) continue; // won't happen, but ts complains
-      wordsHTML += buildWordHTML(word.display, i, recallTargets.has(i));
+      wordsHTML += buildWordHTML(
+        word.display,
+        i,
+        recallInfo.targets.has(i),
+        recallInfo.starts.has(i),
+      );
     }
     wordsEl.setHtml(wordsHTML);
   }
@@ -790,15 +802,17 @@ export function addWord(
   word: string,
   wordIndex = TestWords.words.length - 1,
 ): void {
-  const recallTarget = getRecallTargetWordIndices().has(wordIndex);
+  const recallInfo = getRecallTargetInfo();
+  const recallTarget = recallInfo.targets.has(wordIndex);
+  const recallStart = recallInfo.starts.has(wordIndex);
 
   // if the current active word is the last word, we need to NOT use raf
   // because other ui parts depend on the word existing
   if (getActiveWordIndex() === wordIndex - 1) {
-    wordsEl.appendHtml(buildWordHTML(word, wordIndex, recallTarget));
+    wordsEl.appendHtml(buildWordHTML(word, wordIndex, recallTarget, recallStart));
   } else {
     requestAnimationFrame(async () => {
-      wordsEl.appendHtml(buildWordHTML(word, wordIndex, recallTarget));
+      wordsEl.appendHtml(buildWordHTML(word, wordIndex, recallTarget, recallStart));
     });
   }
 
