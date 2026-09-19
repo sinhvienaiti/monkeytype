@@ -71,6 +71,63 @@
     margin: 0 auto;
   }
 
+  #enVnTranslationTopDisplay {
+    position: absolute;
+    top: -5.35rem;
+    left: 50%;
+    z-index: 4;
+    display: grid;
+    min-width: 12rem;
+    max-width: min(34rem, calc(100vw - 2rem));
+    justify-items: center;
+    gap: 0.15rem;
+    padding: 0.65rem 1.15rem;
+    border: 1px solid
+      color-mix(in srgb, var(--sub-color) 38%, transparent);
+    border-radius: 1rem;
+    background: color-mix(in srgb, var(--bg-color) 72%, transparent);
+    box-shadow:
+      0 0.7rem 2rem rgba(0, 0, 0, 0.18),
+      inset 0 1px 0 color-mix(in srgb, var(--text-color) 16%, transparent);
+    backdrop-filter: blur(10px);
+    pointer-events: none;
+    user-select: none;
+    opacity: 0;
+    transform: translate(-50%, 0.3rem) scale(0.98);
+    transition:
+      opacity 0.16s ease,
+      transform 0.2s ease;
+
+    &.visible {
+      opacity: 1;
+      transform: translate(-50%, 0) scale(1);
+    }
+
+    .translationVietnamese {
+      overflow: hidden;
+      max-width: 100%;
+      color: var(--text-color);
+      font-size: 1.35rem;
+      font-weight: 700;
+      line-height: 1.15;
+      text-align: center;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .translationEnglish {
+      overflow: hidden;
+      max-width: 100%;
+      color: var(--sub-color);
+      font-size: 0.78rem;
+      font-weight: 600;
+      line-height: 1.15;
+      text-align: center;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
   .ssWatermark {
     font-size: 1.25rem;
     color: var(--sub-color);
@@ -93,6 +150,22 @@
   width: 100%;
   align-content: flex-start;
   user-select: none;
+
+  &.en-vn-line-spacing-comfortable {
+    .word,
+    .beforeNewline {
+      margin-top: 0.34em;
+      margin-bottom: 0.34em;
+    }
+  }
+
+  &.en-vn-line-spacing-wide {
+    .word,
+    .beforeNewline {
+      margin-top: 0.42em;
+      margin-bottom: 0.42em;
+    }
+  }
 
   .newline {
     width: inherit;
