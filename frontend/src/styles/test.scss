@@ -73,7 +73,7 @@
 
   #enVnTranslationTopDisplay {
     position: absolute;
-    top: -7.15rem;
+    top: -6.2rem;
     left: 50%;
     z-index: 4;
     display: grid;
@@ -659,7 +659,7 @@
   }
 
   &.en-vn-tooltip-size-small {
-    --en-vn-tooltip-font-size: 0.9rem;
+    --en-vn-tooltip-font-size: 0.8rem;
   }
 
   &.en-vn-tooltip-size-medium {
