@@ -1419,7 +1419,7 @@
       // Keep Monkeytype's three-line viewport while allowing held tooltips
       // to extend above and slightly outside the sides of the typing area.
       overflow: visible;
-      clip-path: inset(-4rem -8rem 0 -8rem);
+      clip-path: inset(-8rem -8rem 0 -8rem);
     }
 
     &.tape {
