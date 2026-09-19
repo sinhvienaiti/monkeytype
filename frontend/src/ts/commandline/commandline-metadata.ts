@@ -311,6 +311,11 @@ export const commandlineConfigMetadata: CommandlineConfigMetadataObject = {
       options: "fromSchema",
     },
   },
+  forgiveCorrectedErrors: {
+    subgroup: {
+      options: "fromSchema",
+    },
+  },
   deleteOnError: {
     subgroup: {
       options: "fromSchema",
