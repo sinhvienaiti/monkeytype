@@ -44,6 +44,7 @@ import type {
   TranslationPopupColor,
   TranslationPopupSize,
   TranslationPopupStyle,
+  TranslationTooltipBehavior,
 } from "../../custom/en-vn-translation/store";
 
 export type CustomTextIncomingData =
@@ -100,6 +101,11 @@ const translationLineSpacingOptions = [
   { value: "wide", label: "wide" },
 ] as const;
 
+const translationTooltipBehaviorOptions = [
+  { value: "hold", label: "hold" },
+  { value: "float", label: "float" },
+] as const;
+
 const pronunciationAccentOptions = [
   { value: "en-US", label: "US" },
   { value: "en-GB", label: "UK" },
@@ -140,6 +146,7 @@ export function CustomTextModal(): JSXElement {
       translationPopupSize: "medium" as TranslationPopupSize,
       translationPopupColor: "blue" as TranslationPopupColor,
       translationDisplayMode: "both" as TranslationDisplayMode,
+      translationTooltipBehavior: "hold" as TranslationTooltipBehavior,
       translationLineSpacing: "comfortable" as TranslationLineSpacing,
       pronunciationEnabled: true,
       pronunciationAccent: "en-US" as PronunciationAccent,
@@ -231,6 +238,7 @@ export function CustomTextModal(): JSXElement {
         popupSize: value.translationPopupSize,
         popupColor: value.translationPopupColor,
         displayMode: value.translationDisplayMode,
+        tooltipBehavior: value.translationTooltipBehavior,
         lineSpacing: value.translationLineSpacing,
         pronunciationEnabled: value.pronunciationEnabled,
         pronunciationAccent: value.pronunciationAccent,
@@ -396,6 +404,10 @@ export function CustomTextModal(): JSXElement {
         form.setFieldValue(
           "translationDisplayMode",
           translationSettings.displayMode,
+        );
+        form.setFieldValue(
+          "translationTooltipBehavior",
+          translationSettings.tooltipBehavior,
         );
         form.setFieldValue(
           "translationLineSpacing",
@@ -875,6 +887,26 @@ export function CustomTextModal(): JSXElement {
                 </div>
 
                 <div class="grid gap-1">
+                  <div class="text-sub">tooltip behavior</div>
+                  <form.Field name="translationTooltipBehavior">
+                    {(field) => (
+                      <div class="grid grid-cols-2 gap-1">
+                        <For each={translationTooltipBehaviorOptions}>
+                          {(opt) => (
+                            <Button
+                              variant="button"
+                              text={opt.label}
+                              active={field().state.value === opt.value}
+                              onClick={() => field().handleChange(opt.value)}
+                            />
+                          )}
+                        </For>
+                      </div>
+                    )}
+                  </form.Field>
+                </div>
+
+                <div class="grid gap-1">
                   <div class="text-sub">line spacing</div>
                   <form.Field name="translationLineSpacing">
                     {(field) => (
@@ -895,7 +927,7 @@ export function CustomTextModal(): JSXElement {
                 </div>
 
                 <div class="grid gap-1">
-                  <div class="text-sub">duration (ms)</div>
+                  <div class="text-sub">float duration (ms)</div>
                   <form.Field name="translationDuration">
                     {(field) => (
                       <input
