@@ -36,7 +36,7 @@ jobs:
         run: pnpm stylelint frontend/src/styles/test.scss
 
       - name: Build frontend
-        run: pnpm build-fe
+        run: LOCAL_STATIC=true pnpm build-fe
 
       - name: Test frontend
         run: pnpm test-fe
