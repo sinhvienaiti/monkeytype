@@ -463,7 +463,9 @@ describe("onInsertText - forgive corrected errors", () => {
     await type("x");
     await type("y");
 
-    const inserts = inputEventsForWord(0);
+    const inserts = inputEventsForWord(0).filter(
+      (event) => event.data.inputType === "insertText",
+    );
     expect(inserts).toHaveLength(2);
     expect(inserts[0]?.data.correct).toBe(false);
     expect(inserts[0]?.data.accuracyIgnored).toBeUndefined();
@@ -478,7 +480,9 @@ describe("onInsertText - forgive corrected errors", () => {
     await type("y");
     await type("h");
 
-    const inserts = inputEventsForWord(0);
+    const inserts = inputEventsForWord(0).filter(
+      (event) => event.data.inputType === "insertText",
+    );
     expect(inserts[0]?.data.accuracyIgnored).toBe(true);
     expect(inserts[1]?.data.accuracyIgnored).toBe(true);
     expect(inserts[2]?.data.correct).toBe(true);
@@ -493,7 +497,9 @@ describe("onInsertText - forgive corrected errors", () => {
     await type("y");
     await type("h");
 
-    const inserts = inputEventsForWord(0);
+    const inserts = inputEventsForWord(0).filter(
+      (event) => event.data.inputType === "insertText",
+    );
     expect(inserts[0]?.data.accuracyIgnored).toBeUndefined();
     expect(inserts[1]?.data.accuracyIgnored).toBeUndefined();
     expect(inserts[2]?.data.correct).toBe(true);
