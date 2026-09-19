@@ -394,6 +394,21 @@ async function updateHintsPosition(): Promise<void> {
   }
 }
 
+function recallStructuralClass(
+  character: string | undefined,
+  recallTarget: boolean,
+): string {
+  if (
+    !recallTarget ||
+    character === undefined ||
+    /[\p{L}\p{N}]/u.test(character)
+  ) {
+    return "";
+  }
+
+  return " en-vn-recall-structural";
+}
+
 function buildWordHTML(
   word: string,
   wordIndex: number,
@@ -414,7 +429,8 @@ function buildWordHTML(
       newlineafter = true;
       retval += `<letter class='nlChar'><i class="fas fa-level-down-alt fa-rotate-90 fa-fw"></i></letter>`;
     } else {
-      retval += `<letter>${char}</letter>`;
+      const structuralClass = recallStructuralClass(char, recallTarget);
+      retval += `<letter class='${structuralClass.trim()}'>${char}</letter>`;
     }
   }
   retval += "</div>";
@@ -847,6 +863,7 @@ export async function updateWordLetters({
       let ret = "";
       const wordAtIndex = getWordElement(wordIndex);
       if (!wordAtIndex) return;
+      const recallTarget = wordAtIndex.hasClass("en-vn-recall-target");
       const hintIndices: number[][] = [];
 
       let newlineafter = false;
@@ -893,8 +910,13 @@ export async function updateWordLetters({
             currentLetter = `<i class="fas fa-level-down-alt fa-rotate-90 fa-fw"></i>`;
           }
 
+          const structuralClass = recallStructuralClass(
+            currentWordChars[i],
+            recallTarget,
+          );
+
           if (charCorrect) {
-            ret += `<letter class="correct ${tabChar}${nlChar}">${currentLetter}</letter>`;
+            ret += `<letter class="correct ${tabChar}${nlChar}${structuralClass}">${currentLetter}</letter>`;
           } else if (currentLetter === undefined) {
             const letter = displayTypedChar(inputChars[i]);
             ret += `<letter class="incorrect extra ${tabChar}${nlChar}">${letter}</letter>`;
@@ -908,7 +930,7 @@ export async function updateWordLetters({
               charString = displayTypedChar(inputChars[i] ?? currentLetter);
             }
 
-            ret += `<letter class="incorrect ${tabChar}${nlChar}">${charString}</letter>`;
+            ret += `<letter class="incorrect ${tabChar}${nlChar}${structuralClass}">${charString}</letter>`;
             if (
               Config.indicateTypos === "below" ||
               Config.indicateTypos === "both"
@@ -953,7 +975,11 @@ export async function updateWordLetters({
           } else if (currentLetter === "\n") {
             ret += `<letter class='nlChar'><i class="fas fa-level-down-alt fa-rotate-90 fa-fw"></i></letter>`;
           } else {
-            ret += `<letter>${currentLetter}</letter>`;
+            const structuralClass = recallStructuralClass(
+              currentLetter,
+              recallTarget,
+            );
+            ret += `<letter class="${structuralClass.trim()}">${currentLetter}</letter>`;
           }
         }
       }
