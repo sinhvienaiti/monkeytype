@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  findDictionaryMatch,
   normalizePhrase,
   parseDictionary,
 } from "../../../src/ts/custom/en-vn-translation/dictionary";
@@ -47,5 +48,27 @@ describe("EN-VN translation dictionary", () => {
     );
 
     expect(result.translations.get("cache")).toBe("nghĩa mới");
+  });
+
+  it("uses the longest matching phrase", () => {
+    const dictionary = parseDictionary(
+      "dependency = sự phụ thuộc\ndependency injection = tiêm phụ thuộc",
+    );
+    const match = findDictionaryMatch(
+      ["dependency", "injection", "pattern"],
+      0,
+      dictionary,
+    );
+
+    expect(match).toEqual({
+      source: "dependency injection",
+      translation: "tiêm phụ thuộc",
+      wordCount: 2,
+    });
+  });
+
+  it("returns null when no dictionary entry matches", () => {
+    const dictionary = parseDictionary("cache = bộ nhớ đệm");
+    expect(findDictionaryMatch(["service", "container"], 0, dictionary)).toBeNull();
   });
 });
