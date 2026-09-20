@@ -123,12 +123,12 @@ function isLevelMeta(value: unknown): value is TypingTextLevelMeta {
 export async function loadTypingTextIndex(): Promise<TypingTextIndex> {
   if (indexCache !== null) return indexCache;
 
-  const response = await fetch(BASE_URL + "/index.json", {
+  const response = await fetch(`${BASE_URL}/index.json`, {
     cache: "no-cache",
   });
   if (!response.ok) {
     throw new Error(
-      "Typing-text index request failed: " + String(response.status),
+      `Typing-text index request failed: ${response.status}`,
     );
   }
 
@@ -169,16 +169,16 @@ async function loadTypingTextLevel(
   const metadata = index.levels.find((item) => item.level === level);
   if (metadata === undefined) {
     throw new Error(
-      "Typing-text level " + String(level) + " is unavailable",
+      `Typing-text level ${level} is unavailable`,
     );
   }
 
-  const response = await fetch(BASE_URL + "/" + metadata.file, {
+  const response = await fetch(`${BASE_URL}/${metadata.file}`, {
     cache: "no-cache",
   });
   if (!response.ok) {
     throw new Error(
-      "Typing-text level request failed: " + String(response.status),
+      `Typing-text level request failed: ${response.status}`,
     );
   }
 
@@ -190,7 +190,7 @@ async function loadTypingTextLevel(
     !data.passages.every(isPassage)
   ) {
     throw new Error(
-      "Typing-text level " + String(level) + " is invalid",
+      `Typing-text level ${level} is invalid`,
     );
   }
 
@@ -199,8 +199,7 @@ async function loadTypingTextLevel(
   );
   if (uniqueIds.size !== data.passages.length) {
     throw new Error(
-      "Typing-text level " + String(level) +
-        " has duplicate passage ids",
+      `Typing-text level ${level} has duplicate passage ids`,
     );
   }
 
@@ -228,7 +227,7 @@ function loadProgress(): ProgressStore {
 
     return {
       version: 1,
-      levels: data.levels as Record<string, SavedLevelProgress>,
+      levels: data.levels,
     };
   } catch {
     return emptyProgress();
@@ -258,7 +257,7 @@ export async function prepareLevelPassageText(
 
   if (document.passages.length === 0) {
     throw new Error(
-      "Typing-text level " + String(level) + " has no passages",
+      `Typing-text level ${level} has no passages`,
     );
   }
 
