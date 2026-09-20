@@ -14,6 +14,7 @@ import {
   parseDictionary,
 } from "../custom/en-vn-translation/dictionary";
 import { getSettings as getEnVnTranslationSettings } from "../custom/en-vn-translation/store";
+import { getActiveDictionaryRaw } from "../custom/en-vn-translation/library";
 import { getCurrentInput } from "./events/data";
 import { getLiveCachedAccuracy } from "./events/live-cache";
 import * as CustomText from "./custom-text";
@@ -454,10 +455,14 @@ function syncEnVnLearningClasses(): void {
   wordsWrapperEl.removeClass("en-vn-learning");
 
   const settings = getEnVnTranslationSettings();
+  const dictionaryRaw = getActiveDictionaryRaw(
+    settings.dictionarySource,
+    settings.dictionary,
+  );
   const enabled =
     Config.mode === "custom" &&
     settings.enabled &&
-    settings.dictionary.trim() !== "";
+    dictionaryRaw.trim() !== "";
 
   if (!enabled) return;
 
@@ -485,13 +490,18 @@ function getRecallTargetInfo(): {
   if (
     Config.mode !== "custom" ||
     !settings.enabled ||
-    !settings.recallModeEnabled ||
-    settings.dictionary.trim() === ""
+    !settings.recallModeEnabled
   ) {
     return { targets, starts };
   }
 
-  const dictionary = parseDictionary(settings.dictionary);
+  const dictionaryRaw = getActiveDictionaryRaw(
+    settings.dictionarySource,
+    settings.dictionary,
+  );
+  if (dictionaryRaw.trim() === "") return { targets, starts };
+
+  const dictionary = parseDictionary(dictionaryRaw);
   const words: string[] = [];
 
   for (let index = 0; index < TestWords.words.length; index++) {
