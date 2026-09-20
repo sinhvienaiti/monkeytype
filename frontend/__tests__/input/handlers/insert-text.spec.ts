@@ -598,12 +598,37 @@ describe("onInsertText - ignore repeated blocked errors", () => {
     expect(inserts[1]?.data.accuracyIgnored).toBe(true);
     expect(inserts[2]?.data.correct).toBe(true);
 
-    expect(inserts[0]?.data.accuracyIgnored).toBeUndefined();
     expect(getAccuracy(buildEventLog())).toEqual({
       correct: 1,
       incorrect: 1,
       percentage: 50,
     });
+  });
+
+  it("keeps the first blocked-word penalty after the word is corrected", async () => {
+    replaceConfig({ ...__testing.getConfig(), stopOnError: "word" });
+    pushWords("hello", "world");
+
+    await type("x");
+    await type("y");
+
+    let inserts = insertEventsForWord(0);
+    expect(inserts[0]?.data.accuracyIgnored).toBeUndefined();
+    expect(inserts[1]?.data.accuracyIgnored).toBe(true);
+
+    setInput("");
+    logTestEvent("input", 1100, {
+      inputType: "deleteWordBackward",
+      wordIndex: 0,
+      charIndex: 2,
+      inputValue: "",
+    });
+
+    for (const char of "hello") await type(char);
+
+    inserts = insertEventsForWord(0);
+    expect(inserts[0]?.data.accuracyIgnored).toBeUndefined();
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
   });
 });
 
