@@ -311,6 +311,16 @@ export const commandlineConfigMetadata: CommandlineConfigMetadataObject = {
       options: "fromSchema",
     },
   },
+  stopOnErrorKeepFirstError: {
+    subgroup: {
+      options: "fromSchema",
+    },
+  },
+  ignoreRepeatedBlockedErrors: {
+    subgroup: {
+      options: "fromSchema",
+    },
+  },
   forgiveCorrectedErrors: {
     subgroup: {
       options: "fromSchema",
