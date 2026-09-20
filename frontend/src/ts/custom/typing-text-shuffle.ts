@@ -88,10 +88,12 @@ export class PassageShuffleBag {
         replacementIndex > 0 ? replacementIndex : fallbackIndex;
 
       if (swapIndex > 0) {
-        [ordered[0], ordered[swapIndex]] = [
-          ordered[swapIndex],
-          ordered[0],
-        ];
+        const first = ordered[0];
+        const replacement = ordered[swapIndex];
+        if (first !== undefined && replacement !== undefined) {
+          ordered[0] = replacement;
+          ordered[swapIndex] = first;
+        }
       }
     }
 
