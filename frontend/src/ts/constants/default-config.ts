@@ -52,6 +52,8 @@ const obj: Config = {
   timerColor: "main",
   timerOpacity: "1",
   stopOnError: "off",
+  stopOnErrorKeepFirstError: false,
+  ignoreRepeatedBlockedErrors: false,
   forgiveCorrectedErrors: false,
   deleteOnError: "off",
   showAllLines: false,

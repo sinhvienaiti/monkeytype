@@ -26,7 +26,11 @@ import {
 import { showNoticeNotification } from "../../states/notifications";
 import { goToNextWord, goToPreviousWord } from "../helpers/word-navigation";
 import { onBeforeInsertText } from "./before-insert-text";
-import { shouldGoToNextWord, isCharCorrect } from "../helpers/validation";
+import {
+  hasUnresolvedInputError,
+  shouldGoToNextWord,
+  isCharCorrect,
+} from "../helpers/validation";
 import {
   forgiveAccuracyErrorsAt,
   forgiveAccuracyErrorsForWord,
@@ -205,6 +209,18 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
   const currentWord = currentTestWord?.textWithCommit ?? "";
   const currentWordText = currentTestWord?.text ?? "";
 
+  // onBeforeInsertText normally catches this before the DOM value changes.
+  // Keep this defensive guard for composition/emulated paths that can reach
+  // the handler with a character already appended.
+  if (
+    Config.stopOnError === "letter" &&
+    Config.stopOnErrorKeepFirstError &&
+    hasUnresolvedInputError(testInput, currentWord)
+  ) {
+    replaceInputElementLastValueChar("");
+    return;
+  }
+
   // if the character is visually equal, replace it with the target character
   // this ensures all future equivalence checks work correctly
   const normalizedData = normalizeDataAndUpdateInputIfNeeded(
@@ -247,16 +263,21 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     correctShiftUsed,
   });
 
-  const useAccuracyForgiveness =
-    Config.forgiveCorrectedErrors && Config.stopOnError !== "off";
+  const ignoreRepeatedBlockedErrors =
+    (Config.forgiveCorrectedErrors || Config.ignoreRepeatedBlockedErrors) &&
+    Config.stopOnError !== "off";
   const accuracyIgnored =
-    useAccuracyForgiveness &&
+    ignoreRepeatedBlockedErrors &&
     !correct &&
     (Config.stopOnError === "word"
       ? hasCountedAccuracyErrorInWord(wordIndex)
       : hasCountedAccuracyError(wordIndex, testInput.length));
 
-  if (useAccuracyForgiveness && correct) {
+  if (
+    Config.forgiveCorrectedErrors &&
+    Config.stopOnError !== "off" &&
+    correct
+  ) {
     if (Config.stopOnError === "letter") {
       forgiveAccuracyErrorsAt(wordIndex, testInput.length);
     } else if (testInput + data === currentWordText) {
@@ -269,7 +290,11 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
   // like accuracy, keypress errors, and missed words
   let removeLastChar = false;
   let visualInputOverride: string | undefined;
-  if (Config.stopOnError === "letter" && !correct) {
+  if (
+    Config.stopOnError === "letter" &&
+    !correct &&
+    !Config.stopOnErrorKeepFirstError
+  ) {
     if (!Config.blindMode) {
       visualInputOverride = testInput + data;
     }
@@ -301,7 +326,7 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     });
 
   if (
-    useAccuracyForgiveness &&
+    Config.forgiveCorrectedErrors &&
     Config.stopOnError === "word" &&
     goingToNextWord
   ) {

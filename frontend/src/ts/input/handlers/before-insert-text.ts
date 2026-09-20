@@ -11,7 +11,10 @@ import {
   isResultCalculating,
   wordsHaveNewline,
 } from "../../states/test";
-import { shouldGoToNextWord } from "../helpers/validation";
+import {
+  hasUnresolvedInputError,
+  shouldGoToNextWord,
+} from "../helpers/validation";
 import { getCommitCharacterType, normalizeData } from "../helpers/util";
 import { getCurrentInput } from "../../test/events/data";
 import { isSpace } from "../../utils/strings";
@@ -48,6 +51,14 @@ export function onBeforeInsertText(data: string): boolean {
   const currentWordObj = TestWords.words.getCurrent();
   const currentWordTextWithCommit = currentWordObj?.textWithCommit ?? "";
   const currentWordTextDisplay = currentWordObj?.display ?? "";
+
+  if (
+    Config.stopOnError === "letter" &&
+    Config.stopOnErrorKeepFirstError &&
+    hasUnresolvedInputError(getCurrentInput(), currentWordTextWithCommit)
+  ) {
+    return true;
+  }
 
   //normalize visually-equivalent chars (e.g. IME U+3000 space) to the target
   //char, matching onInsertText, so commit classification is consistent

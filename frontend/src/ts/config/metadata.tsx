@@ -515,6 +515,32 @@ export const configMetadata: ConfigMetadataObject = {
       return {};
     },
   },
+  stopOnErrorKeepFirstError: {
+    key: "stopOnErrorKeepFirstError",
+    fa: { icon: "fa-pen" },
+    displayString: "keep first wrong letter",
+    changeRequiresRestart: false,
+    group: "input",
+    description:
+      "With stop on error set to letter, keep the first wrong letter visible in red. Further typing is blocked until you backspace the wrong letter.",
+  },
+  ignoreRepeatedBlockedErrors: {
+    key: "ignoreRepeatedBlockedErrors",
+    fa: { icon: "fa-equals" },
+    displayString: "ignore repeated blocked errors",
+    changeRequiresRestart: false,
+    group: "input",
+    description:
+      "When stop on error is enabled, the first blocked error keeps its accuracy penalty. Extra wrong attempts at the same blocked character or word do not add more penalties. Correcting it does not restore the first penalty.",
+    overrideConfig: ({ value }) => {
+      if (value) {
+        return {
+          forgiveCorrectedErrors: false,
+        };
+      }
+      return {};
+    },
+  },
   forgiveCorrectedErrors: {
     key: "forgiveCorrectedErrors",
     fa: { icon: "fa-check-double" },
@@ -523,6 +549,14 @@ export const configMetadata: ConfigMetadataObject = {
     group: "input",
     description:
       "When stop on error is enabled, repeated attempts on the same blocked character only count as one accuracy error. If you correct that character before moving on, the error is removed from accuracy.",
+    overrideConfig: ({ value }) => {
+      if (value) {
+        return {
+          ignoreRepeatedBlockedErrors: false,
+        };
+      }
+      return {};
+    },
   },
   deleteOnError: {
     key: "deleteOnError",

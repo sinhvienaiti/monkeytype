@@ -466,6 +466,8 @@ describe("onInsertText - forgive corrected errors", () => {
       language: "english",
       deleteOnError: "off",
       stopOnError: "letter",
+      stopOnErrorKeepFirstError: false,
+      ignoreRepeatedBlockedErrors: false,
       forgiveCorrectedErrors: true,
       difficulty: "normal",
       strictSpace: false,
@@ -554,5 +556,112 @@ describe("onInsertText - forgive corrected errors", () => {
     expect(inserts[2]?.data.correct).toBe(true);
 
     expect(getAccuracy(buildEventLog()).incorrect).toBe(2);
+  });
+});
+
+describe("onInsertText - ignore repeated blocked errors", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetTestEvents();
+    TestWords.reset();
+    mockState.activeWordIndex = 0;
+    mockState.correctShiftUsed = true;
+    mockState.wordsScrolledOff.clear();
+    setInput("");
+    replaceConfig({
+      mode: "words",
+      language: "english",
+      deleteOnError: "off",
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: false,
+      ignoreRepeatedBlockedErrors: true,
+      forgiveCorrectedErrors: false,
+      difficulty: "normal",
+      strictSpace: false,
+      oppositeShiftMode: "off",
+      keymapMode: "off",
+      blindMode: false,
+    });
+  });
+
+  it("ignores repeated blocked mistakes but keeps the first accuracy penalty", async () => {
+    pushWords("hello", "world");
+
+    await type("x");
+    await type("y");
+    await type("h");
+
+    const inserts = insertEventsForWord(0);
+    expect(inserts[0]?.data.correct).toBe(false);
+    expect(inserts[0]?.data.accuracyIgnored).toBeUndefined();
+    expect(inserts[1]?.data.correct).toBe(false);
+    expect(inserts[1]?.data.accuracyIgnored).toBe(true);
+    expect(inserts[2]?.data.correct).toBe(true);
+
+    expect(inserts[0]?.data.accuracyIgnored).toBeUndefined();
+    expect(getAccuracy(buildEventLog())).toEqual({
+      correct: 1,
+      incorrect: 1,
+      percentage: 50,
+    });
+  });
+});
+
+describe("onInsertText - keep first wrong letter", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetTestEvents();
+    TestWords.reset();
+    mockState.activeWordIndex = 0;
+    mockState.correctShiftUsed = true;
+    mockState.wordsScrolledOff.clear();
+    setInput("");
+    replaceConfig({
+      mode: "words",
+      language: "english",
+      deleteOnError: "off",
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: true,
+      ignoreRepeatedBlockedErrors: false,
+      forgiveCorrectedErrors: false,
+      difficulty: "normal",
+      strictSpace: false,
+      oppositeShiftMode: "off",
+      keymapMode: "off",
+      blindMode: false,
+    });
+  });
+
+  it("keeps the first wrong letter and blocks later input until it is deleted", async () => {
+    pushWords("modern", "software");
+
+    await type("m");
+    await type("a");
+
+    let inserts = insertEventsForWord(0);
+    expect(getInput()).toBe("ma");
+    expect(inserts).toHaveLength(2);
+    expect(inserts[1]?.data.correct).toBe(false);
+    expect(inserts[1]?.data.inputStopped).toBeUndefined();
+
+    // Defensive handler guard mirrors the normal before-insert block.
+    await type("x");
+    inserts = insertEventsForWord(0);
+    expect(getInput()).toBe("ma");
+    expect(inserts).toHaveLength(2);
+
+    setInput("m");
+    logTestEvent("input", 1100, {
+      inputType: "deleteContentBackward",
+      wordIndex: 0,
+      charIndex: 2,
+      inputValue: "m",
+    });
+
+    await type("o");
+    inserts = insertEventsForWord(0);
+    expect(getInput()).toBe("mo");
+    expect(inserts).toHaveLength(3);
+    expect(inserts[2]?.data.correct).toBe(true);
   });
 });

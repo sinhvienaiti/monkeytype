@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
 import {
+  hasUnresolvedInputError,
   isCharCorrect,
   shouldGoToNextWord,
 } from "../../../src/ts/input/helpers/validation";
@@ -22,6 +23,18 @@ vi.mock("../../../src/ts/utils/strings", async () => {
     ...actual,
     areCharactersVisuallyEqual: vi.fn(),
   };
+});
+
+describe("hasUnresolvedInputError", () => {
+  it.each([
+    ["", "Modern", false],
+    ["M", "Modern", false],
+    ["Mo", "Modern", false],
+    ["Ma", "Modern", true],
+    ["Modernx", "Modern", true],
+  ])("input %s against %s -> %s", (input, target, expected) => {
+    expect(hasUnresolvedInputError(input, target)).toBe(expected);
+  });
 });
 
 describe("isCharCorrect", () => {

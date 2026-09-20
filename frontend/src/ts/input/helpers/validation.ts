@@ -9,6 +9,16 @@ import { type CommitCharacterType } from "./util";
  * @param options.targetWord - Target word
  * @param options.correctShiftUsed - Whether the correct shift state was used. Null means disabled
  */
+export function hasUnresolvedInputError(
+  inputValue: string,
+  targetWord: string,
+): boolean {
+  for (let index = 0; index < inputValue.length; index++) {
+    if (inputValue[index] !== targetWord[index]) return true;
+  }
+  return false;
+}
+
 export function isCharCorrect(options: {
   data: string;
   inputValue: string;
