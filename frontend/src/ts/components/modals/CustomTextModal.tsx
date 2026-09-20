@@ -46,6 +46,16 @@ import {
 } from "../../custom/en-vn-translation/store";
 import { prepareLibraryDictionary } from "../../custom/en-vn-translation/library";
 import {
+  loadTypingTextIndex,
+  loadTypingTextSettings,
+  prepareLevelPassageText,
+  saveTypingTextSettings,
+} from "../../custom/typing-text-library";
+import type {
+  TypingTextIndex,
+  TypingTextSource,
+} from "../../custom/typing-text-library";
+import {
   getLocalTextReaderVoices,
   pauseTextReader,
   resumeTextReader,
@@ -155,6 +165,10 @@ export function CustomTextModal(): JSXElement {
   const [textReaderVoices, setTextReaderVoices] = createSignal<
     SpeechSynthesisVoice[]
   >([]);
+  const [typingTextIndex, setTypingTextIndex] =
+    createSignal<TypingTextIndex | null>(null);
+  const [typingTextIndexLoading, setTypingTextIndexLoading] =
+    createSignal(false);
 
   // oxlint-disable-next-line no-unassigned-vars -- assigned via SolidJS ref
   let fileInputRef!: HTMLInputElement;
@@ -164,6 +178,9 @@ export function CustomTextModal(): JSXElement {
   const form = createForm(() => ({
     defaultValues: {
       text: "",
+      typingTextSource: "custom" as TypingTextSource,
+      typingTextLevel: "1",
+      typingTextPassageCount: "1",
       mode: "simple" as Mode,
       limitWord: "",
       limitTime: "",
@@ -191,7 +208,28 @@ export function CustomTextModal(): JSXElement {
       textReaderVolume: 100,
     },
     onSubmit: async ({ value }) => {
-      if (value.text === "") {
+      let sourceText = value.text;
+
+      if (value.typingTextSource === "level") {
+        try {
+          const prepared = await prepareLevelPassageText(
+            parseInt(value.typingTextLevel) || 1,
+            parseInt(value.typingTextPassageCount) || 1,
+          );
+          sourceText = prepared.text;
+          form.setFieldValue("text", sourceText);
+        } catch (error) {
+          showErrorNotification(
+            error instanceof Error
+              ? error.message
+              : "Failed to load the selected typing-text level.",
+            { durationMs: 5000 },
+          );
+          return;
+        }
+      }
+
+      if (sourceText === "") {
         showNoticeNotification("Text cannot be empty");
         return;
       }
@@ -231,25 +269,30 @@ export function CustomTextModal(): JSXElement {
         );
       }
 
-      const text = cleanUpText();
+      const text = cleanUpText(sourceText);
       if (text.length === 0) {
         showNoticeNotification("Text cannot be empty");
         return;
       }
 
-      if (value.mode === "simple") {
+      const effectiveMode: Mode =
+        value.typingTextSource === "level" ? "simple" : value.mode;
+      const effectivePipeDelimiter =
+        value.typingTextSource === "level" ? false : value.pipeDelimiter;
+
+      if (effectiveMode === "simple") {
         CustomText.setMode("repeat");
       } else {
-        CustomText.setMode(value.mode);
+        CustomText.setMode(effectiveMode);
       }
 
-      CustomText.setPipeDelimiter(value.pipeDelimiter);
+      CustomText.setPipeDelimiter(effectivePipeDelimiter);
       CustomText.setText(text);
 
-      if (value.mode === "simple" && value.pipeDelimiter) {
+      if (effectiveMode === "simple" && effectivePipeDelimiter) {
         CustomText.setLimitMode("section");
         CustomText.setLimitValue(text.length);
-      } else if (value.mode === "simple") {
+      } else if (effectiveMode === "simple") {
         CustomText.setLimitMode("word");
         CustomText.setLimitValue(text.length);
       } else if (value.limitWord !== "") {
@@ -273,7 +316,7 @@ export function CustomTextModal(): JSXElement {
         value.translationDictionarySource === "library"
       ) {
         try {
-          const loaded = await prepareLibraryDictionary(value.text);
+          const loaded = await prepareLibraryDictionary(sourceText);
           if (loaded.entries === 0) {
             showNoticeNotification(
               "No words from the shared library were found in this text.",
@@ -290,6 +333,15 @@ export function CustomTextModal(): JSXElement {
           return;
         }
       }
+
+      saveTypingTextSettings({
+        source: value.typingTextSource,
+        level: parseInt(value.typingTextLevel) || 1,
+        passageCount: Math.min(
+          15,
+          Math.max(1, parseInt(value.typingTextPassageCount) || 1),
+        ),
+      });
 
       setEnVnTranslationSettings({
         enabled: value.translationEnabled,
@@ -396,8 +448,10 @@ export function CustomTextModal(): JSXElement {
     }
   };
 
-  const cleanUpText = (): string[] => {
-    let text = form.getFieldValue("text");
+  const cleanUpText = (
+    sourceText: string = form.getFieldValue("text"),
+  ): string[] => {
+    let text = sourceText;
     if (text === "") return [];
 
     text = text.normalize();
@@ -490,6 +544,7 @@ export function CustomTextModal(): JSXElement {
     }
 
     const translationSettings = getEnVnTranslationSettings();
+    const typingTextSettings = loadTypingTextSettings();
 
     const text = CustomText.getText()
       .join(pipeDelimiter ? "|" : " ")
@@ -503,6 +558,15 @@ export function CustomTextModal(): JSXElement {
         form.setFieldValue("limitSection", limitSection);
         form.setFieldValue("pipeDelimiter", pipeDelimiter);
         form.setFieldValue("text", text);
+        form.setFieldValue("typingTextSource", typingTextSettings.source);
+        form.setFieldValue(
+          "typingTextLevel",
+          String(typingTextSettings.level),
+        );
+        form.setFieldValue(
+          "typingTextPassageCount",
+          String(typingTextSettings.passageCount),
+        );
         form.setFieldValue(
           "translationEnabled",
           translationSettings.enabled,
@@ -621,6 +685,7 @@ export function CustomTextModal(): JSXElement {
     untrack(() => {
       batch(() => {
         form.setFieldValue("text", newText);
+        form.setFieldValue("typingTextSource", "custom");
         form.setFieldValue("mode", "simple");
         form.setFieldValue("limitWord", `${cleanUpText().length}`);
         form.setFieldValue("limitTime", "");
@@ -643,6 +708,7 @@ export function CustomTextModal(): JSXElement {
     reader.onload = (e) => {
       const content = e.target?.result as string;
       form.setFieldValue("text", content);
+      form.setFieldValue("typingTextSource", "custom");
       fileInputRef.value = "";
     };
     reader.onerror = () => {
@@ -700,7 +766,41 @@ export function CustomTextModal(): JSXElement {
     });
   };
 
+  const refreshTypingTextIndex = async (): Promise<void> => {
+    if (typingTextIndexLoading()) return;
+    setTypingTextIndexLoading(true);
+
+    try {
+      const index = await loadTypingTextIndex();
+      setTypingTextIndex(index);
+
+      const selectedLevel = parseInt(
+        form.getFieldValue("typingTextLevel"),
+      );
+      if (
+        index.levels.length > 0 &&
+        !index.levels.some((item) => item.level === selectedLevel)
+      ) {
+        form.setFieldValue(
+          "typingTextLevel",
+          String(index.levels[0]?.level ?? 1),
+        );
+      }
+    } catch (error) {
+      setTypingTextIndex(null);
+      showErrorNotification(
+        error instanceof Error
+          ? error.message
+          : "Failed to load typing-text levels.",
+        { durationMs: 5000 },
+      );
+    } finally {
+      setTypingTextIndexLoading(false);
+    }
+  };
+
   const beforeShow = (isChained: boolean) => {
+    void refreshTypingTextIndex();
     if (!isChained) {
       initState();
     } else {
@@ -710,7 +810,10 @@ export function CustomTextModal(): JSXElement {
 
   const afterShow = () => {
     refreshTextReaderVoices();
-    if (!isDisabled()) {
+    if (
+      !isDisabled() &&
+      form.getFieldValue("typingTextSource") === "custom"
+    ) {
       textareaRef?.focus();
     }
   };
@@ -774,8 +877,99 @@ export function CustomTextModal(): JSXElement {
               />
             </div>
 
+            <div class="grid gap-2">
+              <div>
+                <div class="text-xs text-sub lowercase">
+                  typing text source
+                </div>
+                <div class="mt-1 text-xs text-text">
+                  Type your own text, or load reviewed passages from a shared level.
+                </div>
+              </div>
+
+              <form.Field name="typingTextSource">
+                {(field) => (
+                  <div class="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="button"
+                      text="custom text"
+                      active={field().state.value === "custom"}
+                      onClick={() => field().handleChange("custom")}
+                    />
+                    <Button
+                      variant="button"
+                      text="level passages"
+                      active={field().state.value === "level"}
+                      onClick={() => {
+                        field().handleChange("level");
+                        void refreshTypingTextIndex();
+                      }}
+                    />
+                  </div>
+                )}
+              </form.Field>
+
+              <Show when={formValues().typingTextSource === "level"}>
+                <div class="grid grid-cols-2 gap-2">
+                  <label class="grid gap-1">
+                    <span class="text-xs text-sub">level</span>
+                    <form.Field name="typingTextLevel">
+                      {(field) => (
+                        <select
+                          value={field().state.value}
+                          disabled={
+                            typingTextIndexLoading() ||
+                            (typingTextIndex()?.levels.length ?? 0) === 0
+                          }
+                          onChange={(e) =>
+                            field().handleChange(e.currentTarget.value)
+                          }
+                        >
+                          <For each={typingTextIndex()?.levels ?? []}>
+                            {(item) => (
+                              <option value={String(item.level)}>
+                                Level {String(item.level).padStart(3, "0")} ·{" "}
+                                {item.cefr}
+                              </option>
+                            )}
+                          </For>
+                        </select>
+                      )}
+                    </form.Field>
+                  </label>
+
+                  <label class="grid gap-1">
+                    <span class="text-xs text-sub">passages per session</span>
+                    <form.Field name="typingTextPassageCount">
+                      {(field) => (
+                        <input
+                          type="number"
+                          min="1"
+                          max="15"
+                          step="1"
+                          value={field().state.value}
+                          onInput={(e) =>
+                            field().handleChange(e.currentTarget.value)
+                          }
+                        />
+                      )}
+                    </form.Field>
+                  </label>
+                </div>
+
+                <div class="rounded bg-sub-alt px-3 py-2 text-xs text-sub">
+                  {typingTextIndexLoading()
+                    ? "Loading typing-text levels..."
+                    : (typingTextIndex()?.levels.length ?? 0) === 0
+                      ? "No reviewed production passage levels are available yet."
+                      : "Passages use random non-repeating cycles and keep their original sentence order."}
+                </div>
+              </Show>
+            </div>
+
             {/* Textarea */}
-            <div class="relative lg:col-start-1">
+            <Show when={formValues().typingTextSource === "custom"}>
+              <div class="relative lg:col-start-1">
               <Show when={longTextWarning()}>
                 <div
                   class="absolute inset-0 z-10 grid cursor-pointer place-items-center rounded bg-sub-alt text-center"
@@ -822,7 +1016,8 @@ export function CustomTextModal(): JSXElement {
                   />
                 )}
               </form.Field>
-            </div>
+              </div>
+            </Show>
 
             <div class="grid gap-2">
               <div>
