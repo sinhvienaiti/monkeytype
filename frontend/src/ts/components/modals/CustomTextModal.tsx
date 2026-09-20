@@ -44,6 +44,7 @@ import {
   getSettings as getEnVnTranslationSettings,
   setSettings as setEnVnTranslationSettings,
 } from "../../custom/en-vn-translation/store";
+import { prepareLibraryDictionary } from "../../custom/en-vn-translation/library";
 import {
   getLocalTextReaderVoices,
   pauseTextReader,
@@ -53,6 +54,7 @@ import {
 } from "../../custom/en-vn-translation/text-reader";
 import type { TextReaderState } from "../../custom/en-vn-translation/text-reader";
 import type {
+  DictionarySource,
   PronunciationAccent,
   PronunciationRate,
   TextReaderLanguage,
@@ -169,6 +171,7 @@ export function CustomTextModal(): JSXElement {
       pipeDelimiter: false,
       translationEnabled: true,
       translationRecallMode: false,
+      translationDictionarySource: "custom" as DictionarySource,
       translationDictionary: "",
       translationDuration: "3000",
       translationPopupStyle: "bubble" as TranslationPopupStyle,
@@ -187,7 +190,7 @@ export function CustomTextModal(): JSXElement {
       textReaderRate: 1,
       textReaderVolume: 100,
     },
-    onSubmit: ({ value }) => {
+    onSubmit: async ({ value }) => {
       if (value.text === "") {
         showNoticeNotification("Text cannot be empty");
         return;
@@ -264,9 +267,34 @@ export function CustomTextModal(): JSXElement {
         10000,
         Math.max(500, parseInt(value.translationDuration) || 3000),
       );
+
+      if (
+        value.translationEnabled &&
+        value.translationDictionarySource === "library"
+      ) {
+        try {
+          const loaded = await prepareLibraryDictionary(value.text);
+          if (loaded.entries === 0) {
+            showNoticeNotification(
+              "No words from the shared library were found in this text.",
+              { durationMs: 5000 },
+            );
+          }
+        } catch (error) {
+          showErrorNotification(
+            error instanceof Error
+              ? error.message
+              : "Failed to load the shared vocabulary library.",
+            { durationMs: 5000 },
+          );
+          return;
+        }
+      }
+
       setEnVnTranslationSettings({
         enabled: value.translationEnabled,
         recallModeEnabled: value.translationRecallMode,
+        dictionarySource: value.translationDictionarySource,
         dictionary: value.translationDictionary,
         durationMs: translationDuration,
         popupStyle: value.translationPopupStyle,
@@ -482,6 +510,10 @@ export function CustomTextModal(): JSXElement {
         form.setFieldValue(
           "translationRecallMode",
           translationSettings.recallModeEnabled,
+        );
+        form.setFieldValue(
+          "translationDictionarySource",
+          translationSettings.dictionarySource,
         );
         form.setFieldValue(
           "translationDictionary",
@@ -798,18 +830,47 @@ export function CustomTextModal(): JSXElement {
                   EN-VN translation dictionary
                 </div>
                 <div class="mt-1 text-xs text-text">
-                  One entry per line. Examples: cache = bộ nhớ đệm, parent block = block cha.
+                  Use the shared library automatically, or keep your own custom dictionary.
                 </div>
               </div>
-              <form.Field name="translationDictionary">
+
+              <form.Field name="translationDictionarySource">
                 {(field) => (
-                  <TextareaField
-                    field={field}
-                    placeholder={"cache = bộ nhớ đệm\nparent block = block cha"}
-                    class="min-h-32 max-h-52 self-start overflow-x-hidden overflow-y-auto p-4 text-base font-(--font) text-text"
-                  />
+                  <div class="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="button"
+                      text="library"
+                      active={field().state.value === "library"}
+                      onClick={() => field().handleChange("library")}
+                    />
+                    <Button
+                      variant="button"
+                      text="custom"
+                      active={field().state.value === "custom"}
+                      onClick={() => field().handleChange("custom")}
+                    />
+                  </div>
                 )}
               </form.Field>
+
+              <Show when={formValues().translationDictionarySource === "library"}>
+                <div class="rounded bg-sub-alt px-3 py-2 text-xs text-sub">
+                  Library mode uses the shared leveled vocabulary files. Monkeytype
+                  automatically loads only the levels needed by the current text.
+                </div>
+              </Show>
+
+              <Show when={formValues().translationDictionarySource === "custom"}>
+                <form.Field name="translationDictionary">
+                  {(field) => (
+                    <TextareaField
+                      field={field}
+                      placeholder={"cache = bộ nhớ đệm\nparent block = block cha"}
+                      class="min-h-32 max-h-52 self-start overflow-x-hidden overflow-y-auto p-4 text-base font-(--font) text-text"
+                    />
+                  )}
+                </form.Field>
+              </Show>
             </div>
 
             <SubmitButton
