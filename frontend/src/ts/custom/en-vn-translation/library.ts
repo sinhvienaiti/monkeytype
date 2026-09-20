@@ -88,7 +88,9 @@ function findRequiredLevels(
   sourceText: string,
   lookup: VocabularyLookup,
 ): Set<number> {
-  const words = normalizePhrase(sourceText).split(" ").filter(Boolean);
+  const words = normalizePhrase(sourceText.replaceAll("|", " "))
+    .split(" ")
+    .filter(Boolean);
   const levels = new Set<number>();
 
   for (let index = 0; index < words.length; ) {
