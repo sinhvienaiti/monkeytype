@@ -234,51 +234,53 @@ export function CustomTextModal(): JSXElement {
         return;
       }
 
-      const activeLimits = [
-        value.limitWord,
-        value.limitTime,
-        value.limitSection,
-      ].filter((l) => l !== "");
-      if (activeLimits.length > 1) {
-        showNoticeNotification("You can only specify one limit", {
-          durationMs: 5000,
-        });
-        return;
-      }
-
-      if (
-        value.mode !== "simple" &&
-        value.limitWord === "" &&
-        value.limitTime === "" &&
-        value.limitSection === ""
-      ) {
-        showNoticeNotification("You need to specify a limit", {
-          durationMs: 5000,
-        });
-        return;
-      }
-
-      if (
-        value.limitSection === "0" ||
-        value.limitWord === "0" ||
-        value.limitTime === "0"
-      ) {
-        showNoticeNotification(
-          "Infinite test! Make sure to use Bail Out from the command line to save your result.",
-          { durationMs: 7000 },
-        );
-      }
-
-      const text = cleanUpText(sourceText);
-      if (text.length === 0) {
-        showNoticeNotification("Text cannot be empty");
-        return;
-      }
-
       const effectiveMode: Mode =
         value.typingTextSource === "level" ? "simple" : value.mode;
       const effectivePipeDelimiter =
         value.typingTextSource === "level" ? false : value.pipeDelimiter;
+
+      if (value.typingTextSource === "custom") {
+        const activeLimits = [
+          value.limitWord,
+          value.limitTime,
+          value.limitSection,
+        ].filter((l) => l !== "");
+        if (activeLimits.length > 1) {
+          showNoticeNotification("You can only specify one limit", {
+            durationMs: 5000,
+          });
+          return;
+        }
+
+        if (
+          effectiveMode !== "simple" &&
+          value.limitWord === "" &&
+          value.limitTime === "" &&
+          value.limitSection === ""
+        ) {
+          showNoticeNotification("You need to specify a limit", {
+            durationMs: 5000,
+          });
+          return;
+        }
+
+        if (
+          value.limitSection === "0" ||
+          value.limitWord === "0" ||
+          value.limitTime === "0"
+        ) {
+          showNoticeNotification(
+            "Infinite test! Make sure to use Bail Out from the command line to save your result.",
+            { durationMs: 7000 },
+          );
+        }
+      }
+
+      const text = cleanUpText(sourceText, effectivePipeDelimiter);
+      if (text.length === 0) {
+        showNoticeNotification("Text cannot be empty");
+        return;
+      }
 
       if (effectiveMode === "simple") {
         CustomText.setMode("repeat");
@@ -450,6 +452,7 @@ export function CustomTextModal(): JSXElement {
 
   const cleanUpText = (
     sourceText: string = form.getFieldValue("text"),
+    pipeDelimiter: boolean = form.getFieldValue("pipeDelimiter"),
   ): string[] => {
     let text = sourceText;
     if (text === "") return [];
@@ -460,7 +463,7 @@ export function CustomTextModal(): JSXElement {
     text = text.replace(/( *(\r\n|\r|\n) *)/g, "\n ");
 
     return text
-      .split(form.getFieldValue("pipeDelimiter") ? "|" : " ")
+      .split(pipeDelimiter ? "|" : " ")
       .filter((word) => word !== "");
   };
 
