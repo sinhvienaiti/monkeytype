@@ -6,6 +6,7 @@ import { showNoticeNotification } from "../../states/notifications";
 import { findDictionaryMatch, parseDictionary } from "./dictionary";
 import type { ParsedDictionary } from "./dictionary";
 import { speakEnglish, stopEnglishSpeech } from "./speech";
+import { getActiveDictionaryRaw } from "./library";
 import {
   getTextReaderState,
   startTextReader,
@@ -372,10 +373,14 @@ export function applyLearningAppearance(
     "en-vn-recall-mode",
   );
 
+  const dictionaryRaw = getActiveDictionaryRaw(
+    settings.dictionarySource,
+    settings.dictionary,
+  );
   const shouldApply =
     Config.mode === "custom" &&
     settings.enabled &&
-    settings.dictionary.trim() !== "";
+    dictionaryRaw.trim() !== "";
 
   if (!shouldApply) {
     wordsWrapper.classList.remove("en-vn-learning");
@@ -393,9 +398,13 @@ function showLearningMatch(
   wordIndex: number,
   settings: EnVnTranslationSettings,
 ): void {
-  if (!settings.enabled || settings.dictionary.trim() === "") return;
+  const dictionaryRaw = getActiveDictionaryRaw(
+    settings.dictionarySource,
+    settings.dictionary,
+  );
+  if (!settings.enabled || dictionaryRaw.trim() === "") return;
 
-  const dictionary = getParsedDictionary(settings.dictionary);
+  const dictionary = getParsedDictionary(dictionaryRaw);
   if (dictionary.translations.size === 0) return;
 
   const match = findTranslationStartingAt(wordIndex, dictionary);
