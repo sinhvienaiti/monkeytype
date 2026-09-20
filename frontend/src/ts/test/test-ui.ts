@@ -448,6 +448,7 @@ function buildWordHTML(
 
 function syncEnVnLearningClasses(): void {
   wordsEl.native.classList.remove(
+    "en-vn-line-spacing-normal",
     "en-vn-line-spacing-comfortable",
     "en-vn-line-spacing-wide",
     "en-vn-recall-mode",
