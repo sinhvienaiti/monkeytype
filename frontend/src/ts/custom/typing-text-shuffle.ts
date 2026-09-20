@@ -89,8 +89,8 @@ export class PassageShuffleBag {
 
       if (swapIndex > 0) {
         [ordered[0], ordered[swapIndex]] = [
-          ordered[swapIndex] as string,
-          ordered[0] as string,
+          ordered[swapIndex],
+          ordered[0],
         ];
       }
     }
