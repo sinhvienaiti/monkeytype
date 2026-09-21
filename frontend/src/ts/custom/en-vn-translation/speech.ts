@@ -32,8 +32,6 @@ export function speakEnglish(
   if (!("speechSynthesis" in window)) return;
   if (typeof SpeechSynthesisUtterance === "undefined") return;
 
-  stopTextReader();
-
   const speech = window.speechSynthesis;
   const utterance = new SpeechSynthesisUtterance(source);
 
@@ -46,8 +44,9 @@ export function speakEnglish(
     utterance.voice = voice;
   }
 
-  // stopTextReader() already clears the shared browser speech queue, so this
-  // pronunciation starts immediately instead of waiting behind older speech.
+  // Gameplay calls this only while the full-text reader is idle. Do not cancel
+  // the shared speech queue here: rapid completed words must be pronounced in
+  // order instead of dropping the later utterance.
   speech.speak(utterance);
 }
 
