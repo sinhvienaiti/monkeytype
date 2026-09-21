@@ -1,3 +1,4 @@
+import { notifyParentSpeech } from "./audio-focus";
 import { stopTextReader } from "./text-reader";
 import type {
   EnVnTranslationSettings,
@@ -44,6 +45,10 @@ export function speakEnglish(
     utterance.voice = voice;
   }
 
+  utterance.onstart = () => notifyParentSpeech(true);
+  utterance.onend = () => notifyParentSpeech(false);
+  utterance.onerror = () => notifyParentSpeech(false);
+
   // Gameplay calls this only while the full-text reader is idle. Do not cancel
   // the shared speech queue here: rapid completed words must be pronounced in
   // order instead of dropping the later utterance.
@@ -51,5 +56,6 @@ export function speakEnglish(
 }
 
 export function stopEnglishSpeech(): void {
+  notifyParentSpeech(false);
   stopTextReader();
 }
