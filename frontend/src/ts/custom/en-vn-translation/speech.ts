@@ -48,6 +48,7 @@ export function speakEnglish(
   utterance.onstart = () => notifyParentSpeech(true);
   utterance.onend = () => notifyParentSpeech(false);
   utterance.onerror = () => notifyParentSpeech(false);
+  notifyParentSpeech(true);
 
   // Gameplay calls this only while the full-text reader is idle. Do not cancel
   // the shared speech queue here: rapid completed words must be pronounced in
