@@ -1,3 +1,4 @@
+import { notifyParentSpeech } from "./audio-focus";
 import type {
   EnVnTranslationSettings,
   TextReaderLanguage,
@@ -19,6 +20,7 @@ let callbacks: TextReaderCallbacks = {};
 
 function setState(next: TextReaderState): void {
   state = next;
+  notifyParentSpeech(next === "playing");
   callbacks.onStateChange?.(next);
 }
 
