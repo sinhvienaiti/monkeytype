@@ -4,12 +4,15 @@ import { speakEnglish, stopEnglishSpeech } from "../../../src/ts/custom/en-vn-tr
 import type { EnVnTranslationSettings } from "../../../src/ts/custom/en-vn-translation/store";
 
 class FakeUtterance {
+  readonly text: string;
   lang = "";
   rate = 1;
   volume = 1;
   voice: SpeechSynthesisVoice | null = null;
 
-  constructor(readonly text: string) {}
+  constructor(text: string) {
+    this.text = text;
+  }
 }
 
 const settings: EnVnTranslationSettings = {
