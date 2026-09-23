@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - feature/en-vn-translation
+  pull_request:
+    branches:
+      - feature/en-vn-translation
   workflow_dispatch:
 
 concurrency:
