@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - feature/en-vn-translation
+  pull_request:
+    branches:
+      - feature/en-vn-translation
   workflow_dispatch:
 
 concurrency:
@@ -39,9 +42,10 @@ jobs:
       - name: Lint changed styles
         run: pnpm stylelint frontend/src/styles/test.scss
 
-      - name: Build frontend
-        working-directory: ./frontend
-        run: LOCAL_STATIC=true pnpm build
+      - name: Build local static frontend through Turbo
+        # Exercise the same root script used by typing-game/play.sh.
+        # Turbo strict env mode must pass LOCAL_STATIC to the frontend build.
+        run: LOCAL_STATIC=true pnpm build-fe
 
       - name: Test frontend
         run: pnpm test-fe
