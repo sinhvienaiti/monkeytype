@@ -200,7 +200,6 @@ export function recordLearningWordCompletion(options: {
 
   if (options.wordIndex !== match.endWordIndex) return null;
 
-  const settings = getSettings();
   const now = options.now ?? performance.now();
   const responseMs =
     state.presentedAt === undefined
