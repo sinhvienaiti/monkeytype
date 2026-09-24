@@ -46,9 +46,11 @@ let topicIndexCache: VocabularyTopicIndex | null = null;
 let libraryDictionaryRaw = "";
 let topicDictionaryRaw = "";
 let topicDictionaryId = "";
+let cacheLoaded = false;
 
 function readCachedDictionaries(): void {
-  if (libraryDictionaryRaw !== "" || topicDictionaryRaw !== "") return;
+  if (cacheLoaded) return;
+  cacheLoaded = true;
 
   try {
     const raw = localStorage.getItem(CACHE_KEY);
@@ -238,8 +240,8 @@ export async function prepareLibraryDictionary(
   );
   const lines = dictionaryLinesForKeys(keys, documents);
 
-  libraryDictionaryRaw = lines.join("\n");
   readCachedDictionaries();
+  libraryDictionaryRaw = lines.join("\n");
   writeCachedDictionaries();
 
   return { entries: lines.length, levels };
@@ -271,9 +273,9 @@ export async function prepareTopicDictionary(
     throw new Error(`Vocabulary topic ${topicId} has no available entries`);
   }
 
+  readCachedDictionaries();
   topicDictionaryRaw = lines.join("\n");
   topicDictionaryId = topic.id;
-  readCachedDictionaries();
   writeCachedDictionaries();
 
   return { entries: lines.length, levels, label: topic.label };
