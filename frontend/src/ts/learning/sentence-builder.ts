@@ -43,6 +43,22 @@ export type SentenceBuilderValidation = {
   normalizedAnswer: string;
 };
 
+export type SentenceBuilderLearningEvent = {
+  version: 1;
+  entityType: "sentence" | "grammar";
+  entityId: string;
+  gameId: "monkeytype";
+  activityType: "sentence-builder";
+  result: "correct" | "wrong";
+  occurredAt: string;
+  responseMs: number;
+  hintUsed: boolean;
+  replayUsed: false;
+  userAnswer: string;
+  expectedAnswer: string;
+  errorType?: SentenceBuilderErrorType;
+};
+
 const ERROR_TYPES = new Set<SentenceBuilderErrorType>([
   "word-order",
   "wrong-tense",
@@ -373,6 +389,56 @@ export function validateSentenceBuilderAnswer(
           : "wrong-form",
     normalizedAnswer,
   };
+}
+
+export function buildSentenceBuilderLearningEvents(options: {
+  exercise: SentenceBuilderExercise;
+  validation: SentenceBuilderValidation;
+  answer: string;
+  responseMs: number;
+  hintUsed: boolean;
+  occurredAt?: string;
+}): SentenceBuilderLearningEvent[] {
+  const exercise = parseSentenceBuilderExercise(options.exercise);
+  const result = options.validation.correct ? "correct" : "wrong";
+  const expectedAnswer =
+    options.validation.matchedAnswer ?? (exercise.acceptedAnswers[0] as string);
+  const occurredAt =
+    options.occurredAt ?? new Date().toISOString();
+
+  const common = {
+    version: 1 as const,
+    gameId: "monkeytype" as const,
+    activityType: "sentence-builder" as const,
+    result,
+    occurredAt,
+    responseMs: Math.max(0, Math.round(options.responseMs)),
+    hintUsed: options.hintUsed,
+    replayUsed: false as const,
+    userAnswer: options.answer,
+    expectedAnswer,
+    ...(options.validation.errorType === undefined
+      ? {}
+      : { errorType: options.validation.errorType }),
+  };
+
+  const events: SentenceBuilderLearningEvent[] = [
+    {
+      ...common,
+      entityType: "sentence",
+      entityId: exercise.sentenceId,
+    },
+  ];
+
+  if (exercise.grammarId !== undefined) {
+    events.push({
+      ...common,
+      entityType: "grammar",
+      entityId: exercise.grammarId,
+    });
+  }
+
+  return events;
 }
 
 export function sentenceBuilderHint(
