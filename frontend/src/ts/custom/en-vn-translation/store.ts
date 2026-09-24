@@ -26,12 +26,13 @@ const TranslationLineSpacingSchema = z.enum([
 const PronunciationAccentSchema = z.enum(["en-US", "en-GB"]);
 const PronunciationRateSchema = z.enum(["slow", "normal", "fast"]);
 const TextReaderLanguageSchema = z.enum(["auto", "en-US", "vi-VN"]);
-const DictionarySourceSchema = z.enum(["library", "custom"]);
+const DictionarySourceSchema = z.enum(["library", "topic", "custom"]);
 
 const EnVnTranslationSettingsSchema = z.object({
   enabled: z.boolean(),
   recallModeEnabled: z.boolean(),
   dictionarySource: DictionarySourceSchema,
+  dictionaryTopicId: z.string(),
   dictionary: z.string(),
   durationMs: z.number().int().min(500).max(10000),
   popupStyle: TranslationPopupStyleSchema,
@@ -79,6 +80,7 @@ const defaultSettings: EnVnTranslationSettings = {
   enabled: true,
   recallModeEnabled: false,
   dictionarySource: "custom",
+  dictionaryTopicId: "everyday.routine",
   dictionary: "",
   durationMs: 3000,
   popupStyle: "bubble",
@@ -119,6 +121,11 @@ const settingsStorage = new LocalStorageWithSchema({
       dictionarySource:
         DictionarySourceSchema.safeParse(oldData["dictionarySource"]).data ??
         defaultSettings.dictionarySource,
+      dictionaryTopicId:
+        typeof oldData["dictionaryTopicId"] === "string" &&
+        oldData["dictionaryTopicId"].trim() !== ""
+          ? oldData["dictionaryTopicId"]
+          : defaultSettings.dictionaryTopicId,
       dictionary:
         typeof oldData["dictionary"] === "string"
           ? oldData["dictionary"]

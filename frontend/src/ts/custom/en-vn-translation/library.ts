@@ -24,24 +24,73 @@ type VocabularyLevel = {
   entries: VocabularyEntry[];
 };
 
-let lookupCache: VocabularyLookup | null = null;
-let dictionaryRaw = "";
+export type VocabularyTopicEntry = {
+  key: string;
+  level: number;
+};
 
-function readCachedDictionary(): string {
-  if (dictionaryRaw !== "") return dictionaryRaw;
+export type VocabularyTopicMeta = {
+  id: string;
+  label: string;
+  group: string;
+  groupLabel?: string;
+  levels: string[];
+  count: number;
+  keys: string[];
+  entries?: VocabularyTopicEntry[];
+};
+
+export type VocabularyTopicIndex = {
+  version: 1;
+  totalGroups: number;
+  totalTopics: number;
+  uniqueVocabularyKeys: number;
+  topics: VocabularyTopicMeta[];
+};
+
+let lookupCache: VocabularyLookup | null = null;
+let topicIndexCache: VocabularyTopicIndex | null = null;
+let libraryDictionaryRaw = "";
+let topicDictionaryRaw = "";
+let topicDictionaryId = "";
+let cacheLoaded = false;
+
+function readCachedDictionaries(): void {
+  if (cacheLoaded) return;
+  cacheLoaded = true;
 
   try {
     const raw = localStorage.getItem(CACHE_KEY);
-    if (raw === null) return "";
+    if (raw === null) return;
     const data = JSON.parse(raw) as Record<string, unknown>;
+
+    // Backward compatibility with the old single Library cache.
     if (typeof data["dictionary"] === "string") {
-      dictionaryRaw = data["dictionary"];
+      libraryDictionaryRaw = data["dictionary"];
+    }
+    if (typeof data["libraryDictionary"] === "string") {
+      libraryDictionaryRaw = data["libraryDictionary"];
+    }
+    if (typeof data["topicDictionary"] === "string") {
+      topicDictionaryRaw = data["topicDictionary"];
+    }
+    if (typeof data["topicId"] === "string") {
+      topicDictionaryId = data["topicId"];
     }
   } catch {
     // Ignore malformed local cache; it can be rebuilt on the next submit.
   }
+}
 
-  return dictionaryRaw;
+function writeCachedDictionaries(): void {
+  localStorage.setItem(
+    CACHE_KEY,
+    JSON.stringify({
+      libraryDictionary: libraryDictionaryRaw,
+      topicDictionary: topicDictionaryRaw,
+      topicId: topicDictionaryId,
+    }),
+  );
 }
 
 async function loadLookup(): Promise<VocabularyLookup> {
@@ -68,17 +117,87 @@ async function loadLookup(): Promise<VocabularyLookup> {
   return data;
 }
 
+function isTopicMeta(value: unknown): value is VocabularyTopicMeta {
+  if (value === null || typeof value !== "object") return false;
+  const topic = value as Record<string, unknown>;
+  return (
+    typeof topic["id"] === "string" &&
+    topic["id"].trim() !== "" &&
+    typeof topic["label"] === "string" &&
+    topic["label"].trim() !== "" &&
+    typeof topic["group"] === "string" &&
+    (topic["groupLabel"] === undefined ||
+      (typeof topic["groupLabel"] === "string" &&
+        topic["groupLabel"].trim() !== "")) &&
+    Array.isArray(topic["levels"]) &&
+    Array.isArray(topic["keys"]) &&
+    topic["keys"].every((key) => typeof key === "string" && key.trim() !== "") &&
+    (topic["entries"] === undefined ||
+      (Array.isArray(topic["entries"]) &&
+        topic["entries"].every((entry) => {
+          if (entry === null || typeof entry !== "object") return false;
+          const item = entry as Record<string, unknown>;
+          return (
+            typeof item["key"] === "string" &&
+            item["key"].trim() !== "" &&
+            typeof item["level"] === "number" &&
+            Number.isInteger(item["level"]) &&
+            item["level"] >= 1 &&
+            item["level"] <= 100
+          );
+        }))) &&
+    typeof topic["count"] === "number" &&
+    Number.isInteger(topic["count"]) &&
+    topic["count"] > 0 &&
+    topic["keys"].length === topic["count"] &&
+    (topic["entries"] === undefined ||
+      topic["entries"].length === topic["count"])
+  );
+}
+
+export async function loadVocabularyTopicIndex(): Promise<VocabularyTopicIndex> {
+  if (topicIndexCache !== null) return topicIndexCache;
+
+  const response = await fetch(`${BASE_URL}/topics/index.json`, {
+    cache: "no-cache",
+  });
+  if (!response.ok) {
+    throw new Error(
+      `Vocabulary topic index request failed: ${response.status}`,
+    );
+  }
+
+  const data = (await response.json()) as VocabularyTopicIndex;
+  if (
+    data.version !== 1 ||
+    !Array.isArray(data.topics) ||
+    data.topics.length === 0 ||
+    !data.topics.every(isTopicMeta)
+  ) {
+    throw new Error("Vocabulary topic index is invalid");
+  }
+
+  topicIndexCache = data;
+  return data;
+}
+
 async function loadLevel(level: number): Promise<VocabularyLevel> {
   const file = String(level).padStart(3, "0");
   const response = await fetch(`${BASE_URL}/levels/${file}.json`, {
     cache: "no-cache",
   });
   if (!response.ok) {
-    throw new Error(`Vocabulary level ${level} request failed: ${response.status}`);
+    throw new Error(
+      `Vocabulary level ${level} request failed: ${response.status}`,
+    );
   }
 
   const data = (await response.json()) as VocabularyLevel;
-  if (data.version !== 1 || data.level !== level || !Array.isArray(data.entries)) {
+  if (
+    data.version !== 1 ||
+    data.level !== level ||
+    !Array.isArray(data.entries)
+  ) {
     throw new Error(`Vocabulary level ${level} is invalid`);
   }
   return data;
@@ -114,6 +233,24 @@ function findRequiredLevels(
   return levels;
 }
 
+function dictionaryLinesForKeys(
+  keys: readonly string[],
+  documents: readonly VocabularyLevel[],
+): string[] {
+  const byKey = new Map<string, VocabularyEntry>();
+
+  for (const document of documents) {
+    for (const entry of document.entries) {
+      byKey.set(normalizePhrase(entry.en), entry);
+    }
+  }
+
+  return keys.flatMap((key) => {
+    const entry = byKey.get(normalizePhrase(key));
+    return entry === undefined ? [] : [`${entry.en} = ${entry.vi}`];
+  });
+}
+
 export async function prepareLibraryDictionary(
   sourceText: string,
 ): Promise<{ entries: number; levels: number[] }> {
@@ -123,37 +260,77 @@ export async function prepareLibraryDictionary(
   );
 
   const documents = await Promise.all(levels.map(loadLevel));
-  const lines: string[] = [];
-  let entryCount = 0;
+  const keys = documents.flatMap((document) =>
+    document.entries
+      .map((entry) => normalizePhrase(entry.en))
+      .filter((key) => lookup.entries[key] === document.level),
+  );
+  const lines = dictionaryLinesForKeys(keys, documents);
 
-  for (const document of documents) {
-    for (const entry of document.entries) {
-      const key = normalizePhrase(entry.en);
-      if (lookup.entries[key] !== document.level) continue;
-      lines.push(`${entry.en} = ${entry.vi}`);
-      entryCount++;
+  readCachedDictionaries();
+  libraryDictionaryRaw = lines.join("\n");
+  writeCachedDictionaries();
+
+  return { entries: lines.length, levels };
+}
+
+export async function prepareTopicDictionary(
+  topicId: string,
+): Promise<{ entries: number; levels: number[]; label: string }> {
+  const topicIndex = await loadVocabularyTopicIndex();
+  const topic = topicIndex.topics.find((item) => item.id === topicId);
+  if (topic === undefined) {
+    throw new Error(`Vocabulary topic ${topicId} is unavailable`);
+  }
+
+  let levelHints: VocabularyTopicEntry[];
+  if (topic.entries !== undefined) {
+    levelHints = topic.entries;
+  } else {
+    const lookup = await loadLookup();
+    levelHints = [];
+    for (const key of topic.keys) {
+      const level = lookup.entries[normalizePhrase(key)];
+      if (level !== undefined && Number.isInteger(level)) {
+        levelHints.push({ key, level });
+      }
     }
   }
 
-  dictionaryRaw = lines.join("\n");
-  localStorage.setItem(
-    CACHE_KEY,
-    JSON.stringify({
-      dictionary: dictionaryRaw,
-      levels,
-    }),
-  );
+  const levels = [
+    ...new Set(levelHints.map((entry) => entry.level)),
+  ].sort((left, right) => left - right);
 
-  return { entries: entryCount, levels };
+  const documents = await Promise.all(levels.map(loadLevel));
+  const lines = dictionaryLinesForKeys(topic.keys, documents);
+  if (lines.length === 0) {
+    throw new Error(`Vocabulary topic ${topicId} has no available entries`);
+  }
+
+  readCachedDictionaries();
+  topicDictionaryRaw = lines.join("\n");
+  topicDictionaryId = topic.id;
+  writeCachedDictionaries();
+
+  return { entries: lines.length, levels, label: topic.label };
 }
 
 export function getLibraryDictionaryRaw(): string {
-  return readCachedDictionary();
+  readCachedDictionaries();
+  return libraryDictionaryRaw;
+}
+
+export function getTopicDictionaryRaw(topicId: string): string {
+  readCachedDictionaries();
+  return topicDictionaryId === topicId ? topicDictionaryRaw : "";
 }
 
 export function getActiveDictionaryRaw(
-  source: "library" | "custom",
+  source: "library" | "topic" | "custom",
   customDictionary: string,
+  topicId = "",
 ): string {
-  return source === "library" ? getLibraryDictionaryRaw() : customDictionary;
+  if (source === "library") return getLibraryDictionaryRaw();
+  if (source === "topic") return getTopicDictionaryRaw(topicId);
+  return customDictionary;
 }
