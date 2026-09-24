@@ -31,11 +31,14 @@ const DictionarySourceSchema = z.enum([
   "topic",
   "word-type",
   "grammar",
+  "review",
   "custom",
 ]);
+const LearningModeSchema = z.enum(["normal", "learn", "recall", "listen"]);
 
 const EnVnTranslationSettingsSchema = z.object({
   enabled: z.boolean(),
+  learningMode: LearningModeSchema,
   recallModeEnabled: z.boolean(),
   dictionarySource: DictionarySourceSchema,
   dictionaryTopicId: z.string(),
@@ -80,12 +83,14 @@ export type PronunciationAccent = z.infer<typeof PronunciationAccentSchema>;
 export type PronunciationRate = z.infer<typeof PronunciationRateSchema>;
 export type TextReaderLanguage = z.infer<typeof TextReaderLanguageSchema>;
 export type DictionarySource = z.infer<typeof DictionarySourceSchema>;
+export type LearningMode = z.infer<typeof LearningModeSchema>;
 export type EnVnTranslationSettings = z.infer<
   typeof EnVnTranslationSettingsSchema
 >;
 
 const defaultSettings: EnVnTranslationSettings = {
   enabled: true,
+  learningMode: "normal",
   recallModeEnabled: false,
   dictionarySource: "custom",
   dictionaryTopicId: "everyday.routine",
@@ -124,10 +129,13 @@ const settingsStorage = new LocalStorageWithSchema({
         typeof oldData["enabled"] === "boolean"
           ? oldData["enabled"]
           : defaultSettings.enabled,
+      learningMode:
+        LearningModeSchema.safeParse(oldData["learningMode"]).data ??
+        (oldData["recallModeEnabled"] === true ? "recall" : "normal"),
       recallModeEnabled:
-        typeof oldData["recallModeEnabled"] === "boolean"
-          ? oldData["recallModeEnabled"]
-          : defaultSettings.recallModeEnabled,
+        LearningModeSchema.safeParse(oldData["learningMode"]).data === "recall" ||
+        (oldData["learningMode"] === undefined &&
+          oldData["recallModeEnabled"] === true),
       dictionarySource:
         DictionarySourceSchema.safeParse(oldData["dictionarySource"]).data ??
         defaultSettings.dictionarySource,
