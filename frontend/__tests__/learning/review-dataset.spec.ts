@@ -8,8 +8,8 @@ const mocks = vi.hoisted(() => ({
   setText: vi.fn(),
   setLimitMode: vi.fn(),
   setLimitValue: vi.fn(),
-  prepareReviewDictionary: vi.fn(),
   setSettings: vi.fn(),
+  prepareSmartReviewItems: vi.fn(),
   settings: {
     enabled: true,
     learningMode: "normal",
@@ -56,107 +56,105 @@ vi.mock("../../src/ts/test/custom-text", () => ({
   setLimitValue: mocks.setLimitValue,
 }));
 
-vi.mock("../../src/ts/custom/en-vn-translation/library", () => ({
-  prepareReviewDictionary: mocks.prepareReviewDictionary,
-}));
-
 vi.mock("../../src/ts/custom/en-vn-translation/store", () => ({
   getSettings: () => mocks.settings,
   setSettings: mocks.setSettings,
 }));
 
+vi.mock("../../src/ts/learning/smart-review", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("../../src/ts/learning/smart-review")>();
+  return {
+    ...original,
+    prepareSmartReviewItems: mocks.prepareSmartReviewItems,
+  };
+});
+
 import {
   applyMonkeyReviewDataset,
+  clearActiveMonkeyReview,
+  getActiveMonkeyReviewDataset,
+  getActiveMonkeyReviewItems,
   parseMonkeyReviewDataset,
 } from "../../src/ts/learning/review-dataset";
 
-describe("Monkeytype review dataset input", () => {
+const dataset = {
+  version: 1 as const,
+  type: "typing-game:learning:v1:review-dataset" as const,
+  requestId: "review-1",
+  goal: "mixed" as const,
+  items: [
+    { entityType: "vocabulary" as const, entityId: "airport" },
+    {
+      entityType: "sentence" as const,
+      entityId: "sentence-1",
+      acceptedAnswers: ["I am here."],
+    },
+  ],
+};
+
+describe("Monkeytype Smart Review dataset input", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.prepareReviewDictionary.mockResolvedValue({
-      entries: 2,
-      levels: [1, 2],
-    });
-  });
-
-  it("parses and canonicalizes a vocabulary review dataset", () => {
-    expect(
-      parseMonkeyReviewDataset({
-        type: "typing-game:learning:v1:review-dataset",
-        requestId: "review-1",
-        mode: "listen",
-        items: [
-          { entityType: "vocabulary", entityId: "  Passport " },
-          { entityType: "vocabulary", entityId: "AIRPORT" },
-          { entityType: "vocabulary", entityId: "airport" },
-        ],
-      }),
-    ).toEqual({
-      requestId: "review-1",
-      mode: "listen",
-      entityIds: ["passport", "airport"],
-    });
-  });
-
-  it("rejects non-vocabulary content at the Learn/Listen boundary", () => {
-    expect(() =>
-      parseMonkeyReviewDataset({
-        type: "typing-game:learning:v1:review-dataset",
-        requestId: "review-2",
-        mode: "learn",
-        items: [{ entityType: "grammar", entityId: "time.present" }],
-      }),
-    ).toThrow("accepts vocabulary only");
-  });
-
-  it("loads shared vocabulary then configures one bounded Custom test", async () => {
-    const result = await applyMonkeyReviewDataset({
-      requestId: "review-3",
-      mode: "listen",
-      entityIds: ["dependency injection", "airport"],
-    });
-
-    expect(result).toEqual({ entries: 2, words: 3 });
-    expect(mocks.prepareReviewDictionary).toHaveBeenCalledWith([
-      "dependency injection",
-      "airport",
+    clearActiveMonkeyReview();
+    mocks.prepareSmartReviewItems.mockResolvedValue([
+      {
+        source: dataset.items[0],
+        activity: "remember",
+        title: "Remember the word",
+        prompt: "sân bay",
+        secondary: "/ˈerˌpɔrt/",
+        expectedAnswers: ["airport"],
+      },
+      {
+        source: dataset.items[1],
+        activity: "sentence-building",
+        title: "Sentence building",
+        prompt: "Build a sentence",
+        secondary: "",
+        expectedAnswers: ["I am here."],
+      },
     ]);
+  });
+
+  it("parses the parent goal + items contract", () => {
+    expect(parseMonkeyReviewDataset(dataset)).toEqual(dataset);
+  });
+
+  it("prepares the parent queue and activates only the Smart Review surface", async () => {
+    const result = await applyMonkeyReviewDataset(dataset);
+
+    expect(result).toEqual({ items: 2, vocabularyItems: 1 });
+    expect(mocks.prepareSmartReviewItems).toHaveBeenCalledWith(dataset);
     expect(mocks.setMode).toHaveBeenCalledWith("repeat");
     expect(mocks.setPipeDelimiter).toHaveBeenCalledWith(false);
-    expect(mocks.setText).toHaveBeenCalledWith([
-      "dependency",
-      "injection",
-      "airport",
-    ]);
+    expect(mocks.setText).toHaveBeenCalledWith(["review"]);
     expect(mocks.setLimitMode).toHaveBeenCalledWith("word");
-    expect(mocks.setLimitValue).toHaveBeenCalledWith(3);
+    expect(mocks.setLimitValue).toHaveBeenCalledWith(1);
     expect(mocks.setSettings).toHaveBeenCalledWith(
       expect.objectContaining({
-        enabled: true,
-        learningMode: "listen",
+        learningMode: "smart-review",
         recallModeEnabled: false,
         dictionarySource: "review",
       }),
     );
     expect(mocks.setConfig).toHaveBeenCalledWith("mode", "custom");
     expect(mocks.dispatch).toHaveBeenCalledTimes(1);
+    expect(getActiveMonkeyReviewDataset()).toEqual(dataset);
+    expect(getActiveMonkeyReviewItems()).toHaveLength(2);
   });
 
-  it("fails closed when the shared vocabulary cannot resolve every item", async () => {
-    mocks.prepareReviewDictionary.mockResolvedValue({
-      entries: 1,
-      levels: [1],
-    });
+  it("does not publish partial active state when preparation fails", async () => {
+    mocks.prepareSmartReviewItems.mockRejectedValueOnce(
+      new Error("Shared vocabulary metadata missing"),
+    );
 
-    await expect(
-      applyMonkeyReviewDataset({
-        requestId: "review-4",
-        mode: "learn",
-        entityIds: ["airport", "missing word"],
-      }),
-    ).rejects.toThrow("resolved 1/2");
+    await expect(applyMonkeyReviewDataset(dataset)).rejects.toThrow(
+      "Shared vocabulary metadata missing",
+    );
 
-    expect(mocks.setText).not.toHaveBeenCalled();
+    expect(getActiveMonkeyReviewDataset()).toBeNull();
+    expect(getActiveMonkeyReviewItems()).toEqual([]);
     expect(mocks.dispatch).not.toHaveBeenCalled();
   });
 });
