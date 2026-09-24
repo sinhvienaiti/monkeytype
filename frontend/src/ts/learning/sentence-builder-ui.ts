@@ -17,6 +17,7 @@ let revealedWords = 0;
 let hintUsed = false;
 let startedAt = 0;
 let requestSequence = 0;
+let boundPanel: HTMLElement | null = null;
 
 function byId<T extends HTMLElement>(id: string): T | null {
   return document.getElementById(id) as T | null;
@@ -56,7 +57,7 @@ function postLearningAttempt(options: {
           : { errorType: options.errorType }),
       },
     },
-    "*",
+    "https://typing-game.local",
   );
 }
 
@@ -168,7 +169,8 @@ function submitAnswer(): void {
   const validation = validateSentenceBuilderAnswer(exercise, answer);
   const responseMs = Math.max(0, Math.round(performance.now() - startedAt));
   const result = validation.correct ? "correct" : "wrong";
-  const expectedAnswer = exercise.acceptedAnswers[0] as string;
+  const expectedAnswer =
+    validation.matchedAnswer ?? (exercise.acceptedAnswers[0] as string);
 
   postLearningAttempt({
     entityType: "sentence",
@@ -240,6 +242,9 @@ function showStructureHint(): void {
 }
 
 function bindPanel(): void {
+  const panel = byId<HTMLElement>("sentenceBuilderPanel");
+  if (panel === null || panel === boundPanel) return;
+
   byId<HTMLButtonElement>("sentenceBuilderSubmit")?.addEventListener(
     "click",
     submitAnswer,
@@ -269,9 +274,12 @@ function bindPanel(): void {
       }
     },
   );
+
+  boundPanel = panel;
 }
 
 export function syncSentenceBuilderPanel(): void {
+  bindPanel();
   const panel = byId<HTMLElement>("sentenceBuilderPanel");
   const typingTest = byId<HTMLElement>("typingTest");
   if (panel === null || typingTest === null) return;
@@ -298,7 +306,6 @@ export function syncSentenceBuilderPanel(): void {
   renderExercise(exercise);
 }
 
-bindPanel();
 syncSentenceBuilderPanel();
 restartTestEvent.subscribe(() => {
   window.setTimeout(syncSentenceBuilderPanel, 0);
