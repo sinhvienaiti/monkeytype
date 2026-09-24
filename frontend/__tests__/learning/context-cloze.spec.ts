@@ -108,12 +108,12 @@ describe("Context / Cloze", () => {
     });
   });
 
-  it("scores grammar cloze errors as wrong-form and emits a grammar event", async () => {
+  it("classifies time-group grammar cloze errors as wrong-tense", async () => {
     const exercise = (await prepareContextClozeExercises(1, 1, 2))[1];
     if (exercise === undefined) throw new Error("Missing grammar exercise");
 
     const validation = validateContextClozeAnswer(exercise, "tomorrow");
-    expect(validation.errorType).toBe("wrong-form");
+    expect(validation.errorType).toBe("wrong-tense");
 
     expect(
       buildContextClozeLearningEvent({
@@ -134,7 +134,7 @@ describe("Context / Cloze", () => {
       hintUsed: true,
       userAnswer: "tomorrow",
       expectedAnswer: "today",
-      errorType: "wrong-form",
+      errorType: "wrong-tense",
     });
   });
 
