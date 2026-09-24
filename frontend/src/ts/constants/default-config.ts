@@ -42,6 +42,7 @@ const obj: Config = {
   funbox: [],
   confidenceMode: "off",
   indicateTypos: "off",
+  inputLanguage: "auto",
   compositionDisplay: "replace",
   timerStyle: "mini",
   liveSpeedStyle: "off",
