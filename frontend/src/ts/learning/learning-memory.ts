@@ -9,7 +9,6 @@ import { getActiveDictionaryRaw } from "../custom/en-vn-translation/library";
 import { getSettings } from "../custom/en-vn-translation/store";
 
 const LEARNING_ATTEMPT_MESSAGE = "typing-game:learning:v1:attempt";
-const PARENT_ORIGIN = "https://typing-game.local";
 const GAME_ID = "monkeytype";
 
 type LearningAttemptEvent = {
@@ -154,7 +153,7 @@ function postAttempt(event: LearningAttemptEvent): void {
       requestId: `monkeytype-${Date.now().toString(36)}-${requestSequence.toString(36)}`,
       event,
     },
-    PARENT_ORIGIN,
+    "*",
   );
 }
 
