@@ -46,11 +46,17 @@ import {
   setSettings as setEnVnTranslationSettings,
 } from "../../custom/en-vn-translation/store";
 import {
+  loadVocabularyGrammarIndex,
+  loadVocabularyPosIndex,
   loadVocabularyTopicIndex,
+  prepareGrammarDictionary,
   prepareLibraryDictionary,
+  preparePosDictionary,
   prepareTopicDictionary,
 } from "../../custom/en-vn-translation/library";
 import type {
+  VocabularyGrammarIndex,
+  VocabularyPosIndex,
   VocabularyTopicIndex,
   VocabularyTopicMeta,
 } from "../../custom/en-vn-translation/library";
@@ -182,6 +188,14 @@ export function CustomTextModal(): JSXElement {
     createSignal<VocabularyTopicIndex | null>(null);
   const [vocabularyTopicIndexLoading, setVocabularyTopicIndexLoading] =
     createSignal(false);
+  const [vocabularyPosIndex, setVocabularyPosIndex] =
+    createSignal<VocabularyPosIndex | null>(null);
+  const [vocabularyPosIndexLoading, setVocabularyPosIndexLoading] =
+    createSignal(false);
+  const [vocabularyGrammarIndex, setVocabularyGrammarIndex] =
+    createSignal<VocabularyGrammarIndex | null>(null);
+  const [vocabularyGrammarIndexLoading, setVocabularyGrammarIndexLoading] =
+    createSignal(false);
   const vocabularyTopicGroups = createMemo(() => {
     const groups = new Map<
       string,
@@ -224,6 +238,8 @@ export function CustomTextModal(): JSXElement {
       translationRecallMode: false,
       translationDictionarySource: "custom" as DictionarySource,
       translationDictionaryTopicId: "everyday.routine",
+      translationDictionaryPosId: "noun",
+      translationDictionaryGrammarId: "time.present",
       translationDictionary: "",
       translationDuration: "3000",
       translationPopupStyle: "bubble" as TranslationPopupStyle,
