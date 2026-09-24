@@ -110,6 +110,7 @@ export function SettingsPage(): JSXElement {
             <SearchableAutoSetting key="quickEnd" />
             <SearchableAutoSetting key="indicateTypos" />
             <SearchableAutoSetting key="hideExtraLetters" />
+            <SearchableAutoSetting key="inputLanguage" />
             <SearchableAutoSetting key="compositionDisplay" />
             <SearchableAutoSetting key="lazyMode" />
             <Layout />
