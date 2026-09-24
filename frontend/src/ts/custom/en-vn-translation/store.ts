@@ -34,7 +34,13 @@ const DictionarySourceSchema = z.enum([
   "review",
   "custom",
 ]);
-const LearningModeSchema = z.enum(["normal", "learn", "recall", "listen"]);
+const LearningModeSchema = z.enum([
+  "normal",
+  "learn",
+  "recall",
+  "listen",
+  "sentence-builder",
+]);
 
 const EnVnTranslationSettingsSchema = z.object({
   enabled: z.boolean(),
