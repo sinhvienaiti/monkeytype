@@ -48,11 +48,46 @@ export type VocabularyTopicIndex = {
   topics: VocabularyTopicMeta[];
 };
 
+export type VocabularyPosCategory = {
+  id: string;
+  tokens: string[];
+  entries: VocabularyTopicEntry[];
+  missing: string[];
+};
+
+export type VocabularyPosIndex = {
+  version: 1;
+  categories: VocabularyPosCategory[];
+};
+
+export type VocabularyGrammarModule = {
+  id: string;
+  label: string;
+  group: string;
+  focus: string[];
+  topicIds: string[];
+  signalTokens: string[];
+  signalEntries: VocabularyTopicEntry[];
+  missingSignalKeys: string[];
+};
+
+export type VocabularyGrammarIndex = {
+  version: 1;
+  primaryTimeGroups: string[];
+  modules: VocabularyGrammarModule[];
+};
+
 let lookupCache: VocabularyLookup | null = null;
 let topicIndexCache: VocabularyTopicIndex | null = null;
+let posIndexCache: VocabularyPosIndex | null = null;
+let grammarIndexCache: VocabularyGrammarIndex | null = null;
 let libraryDictionaryRaw = "";
 let topicDictionaryRaw = "";
 let topicDictionaryId = "";
+let posDictionaryRaw = "";
+let posDictionaryId = "";
+let grammarDictionaryRaw = "";
+let grammarDictionaryId = "";
 let cacheLoaded = false;
 
 function readCachedDictionaries(): void {
@@ -77,6 +112,18 @@ function readCachedDictionaries(): void {
     if (typeof data["topicId"] === "string") {
       topicDictionaryId = data["topicId"];
     }
+    if (typeof data["posDictionary"] === "string") {
+      posDictionaryRaw = data["posDictionary"];
+    }
+    if (typeof data["posId"] === "string") {
+      posDictionaryId = data["posId"];
+    }
+    if (typeof data["grammarDictionary"] === "string") {
+      grammarDictionaryRaw = data["grammarDictionary"];
+    }
+    if (typeof data["grammarId"] === "string") {
+      grammarDictionaryId = data["grammarId"];
+    }
   } catch {
     // Ignore malformed local cache; it can be rebuilt on the next submit.
   }
@@ -89,6 +136,10 @@ function writeCachedDictionaries(): void {
       libraryDictionary: libraryDictionaryRaw,
       topicDictionary: topicDictionaryRaw,
       topicId: topicDictionaryId,
+      posDictionary: posDictionaryRaw,
+      posId: posDictionaryId,
+      grammarDictionary: grammarDictionaryRaw,
+      grammarId: grammarDictionaryId,
     }),
   );
 }
@@ -117,6 +168,19 @@ async function loadLookup(): Promise<VocabularyLookup> {
   return data;
 }
 
+function isReference(value: unknown): value is VocabularyTopicEntry {
+  if (value === null || typeof value !== "object") return false;
+  const item = value as Record<string, unknown>;
+  return (
+    typeof item["key"] === "string" &&
+    item["key"].trim() !== "" &&
+    typeof item["level"] === "number" &&
+    Number.isInteger(item["level"]) &&
+    item["level"] >= 1 &&
+    item["level"] <= 100
+  );
+}
+
 function isTopicMeta(value: unknown): value is VocabularyTopicMeta {
   if (value === null || typeof value !== "object") return false;
   const topic = value as Record<string, unknown>;
@@ -134,24 +198,50 @@ function isTopicMeta(value: unknown): value is VocabularyTopicMeta {
     topic["keys"].every((key) => typeof key === "string" && key.trim() !== "") &&
     (topic["entries"] === undefined ||
       (Array.isArray(topic["entries"]) &&
-        topic["entries"].every((entry) => {
-          if (entry === null || typeof entry !== "object") return false;
-          const item = entry as Record<string, unknown>;
-          return (
-            typeof item["key"] === "string" &&
-            item["key"].trim() !== "" &&
-            typeof item["level"] === "number" &&
-            Number.isInteger(item["level"]) &&
-            item["level"] >= 1 &&
-            item["level"] <= 100
-          );
-        }))) &&
+        topic["entries"].every(isReference))) &&
     typeof topic["count"] === "number" &&
     Number.isInteger(topic["count"]) &&
     topic["count"] > 0 &&
     topic["keys"].length === topic["count"] &&
     (topic["entries"] === undefined ||
       topic["entries"].length === topic["count"])
+  );
+}
+
+function isPosCategory(value: unknown): value is VocabularyPosCategory {
+  if (value === null || typeof value !== "object") return false;
+  const category = value as Record<string, unknown>;
+  return (
+    typeof category["id"] === "string" &&
+    category["id"].trim() !== "" &&
+    Array.isArray(category["tokens"]) &&
+    category["tokens"].every((token) => typeof token === "string") &&
+    Array.isArray(category["entries"]) &&
+    category["entries"].every(isReference) &&
+    Array.isArray(category["missing"]) &&
+    category["missing"].every((token) => typeof token === "string")
+  );
+}
+
+function isGrammarModule(value: unknown): value is VocabularyGrammarModule {
+  if (value === null || typeof value !== "object") return false;
+  const module = value as Record<string, unknown>;
+  return (
+    typeof module["id"] === "string" &&
+    module["id"].trim() !== "" &&
+    typeof module["label"] === "string" &&
+    module["label"].trim() !== "" &&
+    typeof module["group"] === "string" &&
+    Array.isArray(module["focus"]) &&
+    module["focus"].every((item) => typeof item === "string") &&
+    Array.isArray(module["topicIds"]) &&
+    module["topicIds"].every((item) => typeof item === "string") &&
+    Array.isArray(module["signalTokens"]) &&
+    module["signalTokens"].every((item) => typeof item === "string") &&
+    Array.isArray(module["signalEntries"]) &&
+    module["signalEntries"].every(isReference) &&
+    Array.isArray(module["missingSignalKeys"]) &&
+    module["missingSignalKeys"].every((item) => typeof item === "string")
   );
 }
 
@@ -178,6 +268,50 @@ export async function loadVocabularyTopicIndex(): Promise<VocabularyTopicIndex> 
   }
 
   topicIndexCache = data;
+  return data;
+}
+
+
+export async function loadVocabularyPosIndex(): Promise<VocabularyPosIndex> {
+  if (posIndexCache !== null) return posIndexCache;
+  const response = await fetch(`${BASE_URL}/parts-of-speech/index.json`, {
+    cache: "no-cache",
+  });
+  if (!response.ok) {
+    throw new Error(`Vocabulary word-type index request failed: ${response.status}`);
+  }
+  const data = (await response.json()) as VocabularyPosIndex;
+  if (
+    data.version !== 1 ||
+    !Array.isArray(data.categories) ||
+    data.categories.length === 0 ||
+    !data.categories.every(isPosCategory)
+  ) {
+    throw new Error("Vocabulary word-type index is invalid");
+  }
+  posIndexCache = data;
+  return data;
+}
+
+export async function loadVocabularyGrammarIndex(): Promise<VocabularyGrammarIndex> {
+  if (grammarIndexCache !== null) return grammarIndexCache;
+  const response = await fetch(`${BASE_URL}/grammar/index.json`, {
+    cache: "no-cache",
+  });
+  if (!response.ok) {
+    throw new Error(`Vocabulary grammar index request failed: ${response.status}`);
+  }
+  const data = (await response.json()) as VocabularyGrammarIndex;
+  if (
+    data.version !== 1 ||
+    !Array.isArray(data.primaryTimeGroups) ||
+    !Array.isArray(data.modules) ||
+    data.modules.length === 0 ||
+    !data.modules.every(isGrammarModule)
+  ) {
+    throw new Error("Vocabulary grammar index is invalid");
+  }
+  grammarIndexCache = data;
   return data;
 }
 
@@ -274,6 +408,34 @@ export async function prepareLibraryDictionary(
   return { entries: lines.length, levels };
 }
 
+async function topicReferences(
+  topic: VocabularyTopicMeta,
+): Promise<VocabularyTopicEntry[]> {
+  if (topic.entries !== undefined) return topic.entries;
+  const lookup = await loadLookup();
+  return topic.keys.flatMap((key) => {
+    const level = lookup.entries[normalizePhrase(key)];
+    return level !== undefined && Number.isInteger(level)
+      ? [{ key, level }]
+      : [];
+  });
+}
+
+async function dictionaryForReferences(
+  references: readonly VocabularyTopicEntry[],
+  keys: readonly string[],
+): Promise<{ raw: string; entries: number; levels: number[] }> {
+  const levels = [
+    ...new Set(references.map((entry) => entry.level)),
+  ].sort((left, right) => left - right);
+  const documents = await Promise.all(levels.map(loadLevel));
+  const lines = dictionaryLinesForKeys(keys, documents);
+  if (lines.length === 0) {
+    throw new Error("Selected curriculum item has no available entries");
+  }
+  return { raw: lines.join("\n"), entries: lines.length, levels };
+}
+
 export async function prepareTopicDictionary(
   topicId: string,
 ): Promise<{ entries: number; levels: number[]; label: string }> {
@@ -283,36 +445,72 @@ export async function prepareTopicDictionary(
     throw new Error(`Vocabulary topic ${topicId} is unavailable`);
   }
 
-  let levelHints: VocabularyTopicEntry[];
-  if (topic.entries !== undefined) {
-    levelHints = topic.entries;
-  } else {
-    const lookup = await loadLookup();
-    levelHints = [];
-    for (const key of topic.keys) {
-      const level = lookup.entries[normalizePhrase(key)];
-      if (level !== undefined && Number.isInteger(level)) {
-        levelHints.push({ key, level });
-      }
-    }
-  }
-
-  const levels = [
-    ...new Set(levelHints.map((entry) => entry.level)),
-  ].sort((left, right) => left - right);
-
-  const documents = await Promise.all(levels.map(loadLevel));
-  const lines = dictionaryLinesForKeys(topic.keys, documents);
-  if (lines.length === 0) {
-    throw new Error(`Vocabulary topic ${topicId} has no available entries`);
-  }
+  const result = await dictionaryForReferences(
+    await topicReferences(topic),
+    topic.keys,
+  );
 
   readCachedDictionaries();
-  topicDictionaryRaw = lines.join("\n");
+  topicDictionaryRaw = result.raw;
   topicDictionaryId = topic.id;
   writeCachedDictionaries();
 
-  return { entries: lines.length, levels, label: topic.label };
+  return { entries: result.entries, levels: result.levels, label: topic.label };
+}
+
+export async function preparePosDictionary(
+  posId: string,
+): Promise<{ entries: number; levels: number[]; label: string }> {
+  const index = await loadVocabularyPosIndex();
+  const category = index.categories.find((item) => item.id === posId);
+  if (category === undefined) {
+    throw new Error(`Vocabulary word type ${posId} is unavailable`);
+  }
+
+  const result = await dictionaryForReferences(
+    category.entries,
+    category.entries.map((entry) => entry.key),
+  );
+  readCachedDictionaries();
+  posDictionaryRaw = result.raw;
+  posDictionaryId = category.id;
+  writeCachedDictionaries();
+
+  const label = category.id
+    .split("-")
+    .map((part) => part === "" ? part : part[0]!.toUpperCase() + part.slice(1))
+    .join(" ");
+  return { entries: result.entries, levels: result.levels, label };
+}
+
+export async function prepareGrammarDictionary(
+  grammarId: string,
+): Promise<{ entries: number; levels: number[]; label: string }> {
+  const [grammarIndex, topicIndex] = await Promise.all([
+    loadVocabularyGrammarIndex(),
+    loadVocabularyTopicIndex(),
+  ]);
+  const module = grammarIndex.modules.find((item) => item.id === grammarId);
+  if (module === undefined) {
+    throw new Error(`Vocabulary grammar module ${grammarId} is unavailable`);
+  }
+
+  const references: VocabularyTopicEntry[] = [...module.signalEntries];
+  const keys = module.signalEntries.map((entry) => entry.key);
+  for (const topicId of module.topicIds) {
+    const topic = topicIndex.topics.find((item) => item.id === topicId);
+    if (topic === undefined) continue;
+    references.push(...(await topicReferences(topic)));
+    keys.push(...topic.keys);
+  }
+
+  const result = await dictionaryForReferences(references, keys);
+  readCachedDictionaries();
+  grammarDictionaryRaw = result.raw;
+  grammarDictionaryId = module.id;
+  writeCachedDictionaries();
+
+  return { entries: result.entries, levels: result.levels, label: module.label };
 }
 
 export function getLibraryDictionaryRaw(): string {
@@ -325,12 +523,26 @@ export function getTopicDictionaryRaw(topicId: string): string {
   return topicDictionaryId === topicId ? topicDictionaryRaw : "";
 }
 
+export function getPosDictionaryRaw(posId: string): string {
+  readCachedDictionaries();
+  return posDictionaryId === posId ? posDictionaryRaw : "";
+}
+
+export function getGrammarDictionaryRaw(grammarId: string): string {
+  readCachedDictionaries();
+  return grammarDictionaryId === grammarId ? grammarDictionaryRaw : "";
+}
+
 export function getActiveDictionaryRaw(
-  source: "library" | "topic" | "custom",
+  source: "library" | "topic" | "word-type" | "grammar" | "custom",
   customDictionary: string,
   topicId = "",
+  posId = "",
+  grammarId = "",
 ): string {
   if (source === "library") return getLibraryDictionaryRaw();
   if (source === "topic") return getTopicDictionaryRaw(topicId);
+  if (source === "word-type") return getPosDictionaryRaw(posId);
+  if (source === "grammar") return getGrammarDictionaryRaw(grammarId);
   return customDictionary;
 }
