@@ -148,7 +148,9 @@ function editDistance(left: string, right: string): number {
   for (let i = 1; i <= left.length; i++) {
     current[0] = i;
     for (let j = 1; j <= right.length; j++) {
-      const substitution = previous[j - 1] + (left[i - 1] === right[j - 1] ? 0 : 1);
+      const substitution =
+        (previous[j - 1] ?? 0) +
+        (left[i - 1] === right[j - 1] ? 0 : 1);
       current[j] = Math.min(
         (previous[j] ?? 0) + 1,
         (current[j - 1] ?? 0) + 1,
@@ -400,11 +402,12 @@ export function buildSentenceBuilderLearningEvents(options: {
   occurredAt?: string;
 }): SentenceBuilderLearningEvent[] {
   const exercise = parseSentenceBuilderExercise(options.exercise);
-  const result = options.validation.correct ? "correct" : "wrong";
+  const result: "correct" | "wrong" = options.validation.correct
+    ? "correct"
+    : "wrong";
   const expectedAnswer =
-    options.validation.matchedAnswer ?? (exercise.acceptedAnswers[0] as string);
-  const occurredAt =
-    options.occurredAt ?? new Date().toISOString();
+    options.validation.matchedAnswer ?? exercise.acceptedAnswers[0];
+  const occurredAt = options.occurredAt ?? new Date().toISOString();
 
   const common = {
     version: 1 as const,
