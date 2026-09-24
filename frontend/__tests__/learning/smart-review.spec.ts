@@ -161,7 +161,9 @@ describe("Monkey Smart Review coordinator", () => {
       expectedAnswers: ["yesterday"],
     });
 
-    const validation = validateSmartReviewAnswer(items[0]!, "tomorrow");
+    const item = items[0];
+    if (item === undefined) throw new Error("Missing prepared grammar item");
+    const validation = validateSmartReviewAnswer(item, "tomorrow");
     expect(validation).toEqual({
       correct: false,
       errorType: "wrong-tense",
@@ -179,8 +181,10 @@ describe("Monkey Smart Review coordinator", () => {
     if (dataset === null) throw new Error("Missing dataset");
 
     const items = await prepareSmartReviewItems(dataset);
-    expect(items[0]?.expectedAnswers).toEqual(["yesterday", "ago"]);
-    expect(validateSmartReviewAnswer(items[0]!, "Ago")).toEqual({
+    const item = items[0];
+    if (item === undefined) throw new Error("Missing prepared grammar item");
+    expect(item.expectedAnswers).toEqual(["yesterday", "ago"]);
+    expect(validateSmartReviewAnswer(item, "Ago")).toEqual({
       correct: true,
       matchedAnswer: "ago",
     });
@@ -210,9 +214,11 @@ describe("Monkey Smart Review coordinator", () => {
     if (dataset === null) throw new Error("Missing dataset");
 
     const items = await prepareSmartReviewItems(dataset);
+    const item = items[0];
+    if (item === undefined) throw new Error("Missing prepared sentence item");
     expect(
       validateSmartReviewAnswer(
-        items[0]!,
+        item,
         "Since 2020, I have lived here.",
       ),
     ).toMatchObject({
@@ -220,7 +226,7 @@ describe("Monkey Smart Review coordinator", () => {
       matchedAnswer: "Since 2020, I have lived here.",
     });
     expect(
-      validateSmartReviewAnswer(items[0]!, "I lived here since 2020."),
+      validateSmartReviewAnswer(item, "I lived here since 2020."),
     ).toMatchObject({
       correct: false,
       errorType: "wrong-tense",
