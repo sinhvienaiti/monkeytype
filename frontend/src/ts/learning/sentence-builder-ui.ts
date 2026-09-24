@@ -156,8 +156,14 @@ function submitAnswer(): void {
   }
 
   if (validation.correct) {
+    const matchedAnswer =
+      validation.matchedAnswer ?? exercise.acceptedAnswers[0];
+    const acceptedAnswerIndex =
+      matchedAnswer === undefined
+        ? 1
+        : exercise.acceptedAnswers.indexOf(matchedAnswer) + 1;
     setFeedback(
-      `Correct · score 100 · accepted answer ${exercise.acceptedAnswers.indexOf(validation.matchedAnswer ?? exercise.acceptedAnswers[0]) + 1}/${exercise.acceptedAnswers.length}`,
+      `Correct · score 100 · accepted answer ${acceptedAnswerIndex}/${exercise.acceptedAnswers.length}`,
       "correct",
     );
   } else {
