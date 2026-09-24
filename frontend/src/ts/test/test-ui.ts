@@ -497,7 +497,11 @@ function getRecallTargetInfo(): {
   if (
     Config.mode !== "custom" ||
     !settings.enabled ||
-    settings.learningMode === "normal"
+    !(
+      settings.learningMode === "learn" ||
+      settings.learningMode === "recall" ||
+      settings.learningMode === "listen"
+    )
   ) {
     return { targets, starts };
   }
