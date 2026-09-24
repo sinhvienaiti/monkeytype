@@ -78,7 +78,7 @@ describe("shared typing-text passage access", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const library = await import(
-      "../../../src/ts/custom/typing-text-library"
+      "../../src/ts/custom/typing-text-library"
     );
 
     const first = await library.prepareLevelPassages(1, 1);
