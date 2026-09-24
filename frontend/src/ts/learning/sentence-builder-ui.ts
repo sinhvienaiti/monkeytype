@@ -2,15 +2,14 @@ import { restartTestEvent } from "../events/test";
 import { getSettings } from "../custom/en-vn-translation/store";
 import {
   buildSentenceBuilderLayout,
+  buildSentenceBuilderLearningEvents,
   sentenceBuilderHint,
   validateSentenceBuilderAnswer,
-  type SentenceBuilderErrorType,
   type SentenceBuilderExercise,
 } from "./sentence-builder";
 import { loadSentenceBuilderExercise } from "./sentence-builder-store";
 
 const LEARNING_ATTEMPT_MESSAGE = "typing-game:learning:v1:attempt";
-const GAME_ID = "monkeytype";
 
 let exercise: SentenceBuilderExercise | null = null;
 let revealedWords = 0;
@@ -23,15 +22,9 @@ function byId<T extends HTMLElement>(id: string): T | null {
   return document.getElementById(id) as T | null;
 }
 
-function postLearningAttempt(options: {
-  entityType: "sentence" | "grammar";
-  entityId: string;
-  result: "correct" | "wrong";
-  responseMs: number;
-  userAnswer: string;
-  expectedAnswer: string;
-  errorType?: SentenceBuilderErrorType;
-}): void {
+function postLearningAttempt(
+  event: ReturnType<typeof buildSentenceBuilderLearningEvents>[number],
+): void {
   if (window.parent === window) return;
 
   requestSequence++;
@@ -39,23 +32,7 @@ function postLearningAttempt(options: {
     {
       type: LEARNING_ATTEMPT_MESSAGE,
       requestId: `monkeytype-sentence-${Date.now().toString(36)}-${requestSequence.toString(36)}`,
-      event: {
-        version: 1,
-        entityType: options.entityType,
-        entityId: options.entityId,
-        gameId: GAME_ID,
-        activityType: "sentence-builder",
-        result: options.result,
-        occurredAt: new Date().toISOString(),
-        responseMs: options.responseMs,
-        hintUsed,
-        replayUsed: false,
-        userAnswer: options.userAnswer,
-        expectedAnswer: options.expectedAnswer,
-        ...(options.errorType === undefined
-          ? {}
-          : { errorType: options.errorType }),
-      },
+      event,
     },
     "https://typing-game.local",
   );
@@ -168,30 +145,14 @@ function submitAnswer(): void {
 
   const validation = validateSentenceBuilderAnswer(exercise, answer);
   const responseMs = Math.max(0, Math.round(performance.now() - startedAt));
-  const result = validation.correct ? "correct" : "wrong";
-  const expectedAnswer =
-    validation.matchedAnswer ?? (exercise.acceptedAnswers[0] as string);
-
-  postLearningAttempt({
-    entityType: "sentence",
-    entityId: exercise.sentenceId,
-    result,
+  for (const event of buildSentenceBuilderLearningEvents({
+    exercise,
+    validation,
+    answer,
     responseMs,
-    userAnswer: answer,
-    expectedAnswer,
-    errorType: validation.errorType,
-  });
-
-  if (exercise.grammarId !== undefined) {
-    postLearningAttempt({
-      entityType: "grammar",
-      entityId: exercise.grammarId,
-      result,
-      responseMs,
-      userAnswer: answer,
-      expectedAnswer,
-      errorType: validation.errorType,
-    });
+    hintUsed,
+  })) {
+    postLearningAttempt(event);
   }
 
   if (validation.correct) {
