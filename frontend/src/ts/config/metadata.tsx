@@ -613,6 +613,15 @@ export const configMetadata: ConfigMetadataObject = {
     description:
       'Shows typos that you\'ve made. "Below" shows what you typed below the letters, "replace" will replace the letters with the ones you typed and "both" will do the same as replace and below, but it will show the correct letters below your mistakes.',
   },
+  inputLanguage: {
+    key: "inputLanguage",
+    fa: { icon: "fa-language" },
+    displayString: "input language",
+    changeRequiresRestart: false,
+    group: "input",
+    description:
+      'Controls how committed text is scored. "English" keeps direct-input behavior. "Vietnamese" enables IME-aware NFC normalization. "Auto" enables Vietnamese handling when the selected test language is Vietnamese.',
+  },
   compositionDisplay: {
     key: "compositionDisplay",
     fa: { icon: "fa-language" },
