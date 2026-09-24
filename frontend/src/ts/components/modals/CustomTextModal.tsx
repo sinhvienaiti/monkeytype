@@ -924,14 +924,80 @@ export function CustomTextModal(): JSXElement {
     }
   };
 
+  const refreshVocabularyPosIndex = async (): Promise<void> => {
+    if (vocabularyPosIndexLoading()) return;
+    setVocabularyPosIndexLoading(true);
+
+    try {
+      const index = await loadVocabularyPosIndex();
+      setVocabularyPosIndex(index);
+
+      const selectedId = form.getFieldValue("translationDictionaryPosId");
+      const selected = index.categories.find(
+        (item) => item.id === selectedId && item.entries.length > 0,
+      );
+      if (selected === undefined) {
+        form.setFieldValue(
+          "translationDictionaryPosId",
+          index.categories.find((item) => item.entries.length > 0)?.id ?? "noun",
+        );
+      }
+    } catch (error) {
+      setVocabularyPosIndex(null);
+      showErrorNotification(
+        error instanceof Error
+          ? error.message
+          : "Failed to load vocabulary word types.",
+        { durationMs: 5000 },
+      );
+    } finally {
+      setVocabularyPosIndexLoading(false);
+    }
+  };
+
+  const refreshVocabularyGrammarIndex = async (): Promise<void> => {
+    if (vocabularyGrammarIndexLoading()) return;
+    setVocabularyGrammarIndexLoading(true);
+
+    try {
+      const index = await loadVocabularyGrammarIndex();
+      setVocabularyGrammarIndex(index);
+
+      const selectedId = form.getFieldValue("translationDictionaryGrammarId");
+      if (!index.modules.some((item) => item.id === selectedId)) {
+        form.setFieldValue(
+          "translationDictionaryGrammarId",
+          index.primaryTimeGroups[0] ?? index.modules[0]?.id ?? "time.present",
+        );
+      }
+    } catch (error) {
+      setVocabularyGrammarIndex(null);
+      showErrorNotification(
+        error instanceof Error
+          ? error.message
+          : "Failed to load vocabulary grammar.",
+        { durationMs: 5000 },
+      );
+    } finally {
+      setVocabularyGrammarIndexLoading(false);
+    }
+  };
+
+  const refreshActiveDictionaryIndex = (): void => {
+    const source = form.getFieldValue("translationDictionarySource");
+    if (source === "topic") void refreshVocabularyTopicIndex();
+    if (source === "word-type") void refreshVocabularyPosIndex();
+    if (source === "grammar") void refreshVocabularyGrammarIndex();
+  };
+
   const beforeShow = (isChained: boolean) => {
-    void refreshTypingTextIndex();
-    void refreshVocabularyTopicIndex();
     if (!isChained) {
       initState();
     } else {
       handleIncomingData();
     }
+    void refreshTypingTextIndex();
+    refreshActiveDictionaryIndex();
   };
 
   const afterShow = () => {
