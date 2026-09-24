@@ -6,13 +6,20 @@ import { showNoticeNotification } from "../../states/notifications";
 import { findDictionaryMatch, parseDictionary } from "./dictionary";
 import type { ParsedDictionary } from "./dictionary";
 import { speakEnglish, stopEnglishSpeech } from "./speech";
-import { getActiveDictionaryRaw } from "./library";
+import {
+  getActiveDictionaryRaw,
+  getCachedVocabularyEntry,
+} from "./library";
 import {
   getTextReaderState,
   startTextReader,
 } from "./text-reader";
 import { getSettings } from "./store";
-import { markLearningMatchPresented } from "../../learning/learning-memory";
+import {
+  markLearningHintUsed,
+  markLearningMatchPresented,
+  markLearningReplayUsed,
+} from "../../learning/learning-memory";
 import type {
   EnVnTranslationSettings,
   TranslationLineSpacing,
@@ -31,6 +38,15 @@ const shownTranslationMatches = new Set<string>();
 let floatingTooltip: HTMLDivElement | null = null;
 let floatingTooltipAnimation: Animation | null = null;
 let textReaderAutoStarted = false;
+let currentLearningAction:
+  | {
+      wordIndex: number;
+      speechText: string;
+      expectedText: string;
+      revealedCount: number;
+    }
+  | null = null;
+let topActionsBound = false;
 
 const popupSizeClasses: Record<TranslationPopupSize, string> = {
   small: "text-[0.8rem]",
@@ -322,26 +338,102 @@ function clearTopDisplay(): void {
   const display = getTopDisplay();
   if (display === null) return;
 
+  currentLearningAction = null;
+  const hint = display.querySelector<HTMLElement>(".translationHint");
+  if (hint !== null) hint.textContent = "";
   display.classList.remove("visible");
   display.classList.add("hidden");
   display.setAttribute("aria-hidden", "true");
 }
 
-function showTopDisplay(
-  translation: string,
-  source: string,
-  hideSource: boolean,
-): void {
+function ensureTopActionsBound(): void {
+  if (topActionsBound) return;
   const display = getTopDisplay();
   if (display === null) return;
 
-  const vietnamese = display.querySelector<HTMLElement>(".translationVietnamese");
-  const english = display.querySelector<HTMLElement>(".translationEnglish");
-  if (vietnamese === null || english === null) return;
+  const replay = display.querySelector<HTMLButtonElement>(
+    "[data-learning-action='replay']",
+  );
+  const reveal = display.querySelector<HTMLButtonElement>(
+    "[data-learning-action='reveal']",
+  );
+  const hint = display.querySelector<HTMLElement>(".translationHint");
+  if (replay === null || reveal === null || hint === null) return;
 
-  vietnamese.textContent = translation;
-  english.textContent = hideSource ? "" : source;
-  english.classList.toggle("hidden", hideSource);
+  replay.addEventListener("click", () => {
+    const action = currentLearningAction;
+    if (action === null) return;
+    markLearningReplayUsed(action.wordIndex);
+    speakEnglish(action.speechText, getSettings());
+  });
+
+  reveal.addEventListener("click", () => {
+    const action = currentLearningAction;
+    if (action === null) return;
+    const characters = Array.from(action.expectedText);
+    action.revealedCount = Math.min(
+      characters.length,
+      action.revealedCount + 1,
+    );
+    markLearningHintUsed(action.wordIndex);
+    const revealed = characters.slice(0, action.revealedCount).join("");
+    hint.textContent =
+      action.revealedCount >= characters.length
+        ? `Revealed: ${revealed}`
+        : `Revealed: ${revealed}…`;
+  });
+
+  topActionsBound = true;
+}
+
+function showTopDisplay(options: {
+  translation: string;
+  source: string;
+  ipa: string;
+  hideSource: boolean;
+  hideIpa: boolean;
+  showListenActions: boolean;
+  wordIndex: number;
+  speechText: string;
+}): void {
+  const display = getTopDisplay();
+  if (display === null) return;
+
+  ensureTopActionsBound();
+
+  const vietnamese = display.querySelector<HTMLElement>(
+    ".translationVietnamese",
+  );
+  const english = display.querySelector<HTMLElement>(".translationEnglish");
+  const ipa = display.querySelector<HTMLElement>(".translationIpa");
+  const hint = display.querySelector<HTMLElement>(".translationHint");
+  const actions = display.querySelector<HTMLElement>(".translationActions");
+  if (
+    vietnamese === null ||
+    english === null ||
+    ipa === null ||
+    hint === null ||
+    actions === null
+  ) {
+    return;
+  }
+
+  vietnamese.textContent = options.translation;
+  english.textContent = options.hideSource ? "" : options.source;
+  english.classList.toggle("hidden", options.hideSource);
+  ipa.textContent = options.hideIpa ? "" : options.ipa;
+  ipa.classList.toggle("hidden", options.hideIpa || options.ipa === "");
+  hint.textContent = "";
+  actions.classList.toggle("hidden", !options.showListenActions);
+
+  currentLearningAction = options.showListenActions
+    ? {
+        wordIndex: options.wordIndex,
+        speechText: options.speechText,
+        expectedText: options.source,
+        revealedCount: 0,
+      }
+    : null;
 
   display.classList.remove("hidden");
   display.setAttribute("aria-hidden", "false");
@@ -393,7 +485,10 @@ export function applyLearningAppearance(
   }
 
   wordsWrapper.classList.add("en-vn-learning");
-  words.classList.toggle("en-vn-recall-mode", settings.recallModeEnabled);
+  words.classList.toggle(
+    "en-vn-recall-mode",
+    settings.learningMode === "recall" || settings.learningMode === "listen",
+  );
 
   words.classList.add(lineSpacingClasses[settings.lineSpacing]);
 }
@@ -423,16 +518,33 @@ function showLearningMatch(
   shownTranslationMatches.add(matchId);
   markLearningMatchPresented(wordIndex);
 
-  if (settings.displayMode === "tooltip" || settings.displayMode === "both") {
+  const learningMode = settings.learningMode;
+  const metadata = getCachedVocabularyEntry(match.source);
+  const ipa = metadata?.ipa ?? "";
+
+  if (
+    learningMode === "normal" &&
+    (settings.displayMode === "tooltip" || settings.displayMode === "both")
+  ) {
     showTranslationTooltip(match.translation, wordIndex, settings);
   }
 
-  if (settings.displayMode === "top" || settings.displayMode === "both") {
-    showTopDisplay(
-      match.translation,
-      match.speechText,
-      settings.recallModeEnabled,
-    );
+  const shouldShowTop =
+    learningMode !== "normal" ||
+    settings.displayMode === "top" ||
+    settings.displayMode === "both";
+  if (shouldShowTop) {
+    showTopDisplay({
+      translation: match.translation,
+      source: match.speechText,
+      ipa,
+      hideSource:
+        learningMode === "recall" || learningMode === "listen",
+      hideIpa: learningMode === "listen" || learningMode === "normal",
+      showListenActions: learningMode === "listen",
+      wordIndex,
+      speechText: match.speechText,
+    });
   }
 
   // Full-text reading takes precedence while it is active. Per-word
@@ -446,8 +558,7 @@ export function handleActiveWord(wordIndex: number): void {
   if (Config.mode !== "custom") return;
 
   const settings = getSettings();
-  if (!settings.recallModeEnabled) return;
-
+  if (settings.learningMode === "normal") return;
   if (!isRecallMatchStart(wordIndex)) return;
 
   applyLearningAppearance(settings);
@@ -459,11 +570,13 @@ export function handleStartedWord(wordIndex: number): void {
 
   const settings = getSettings();
 
-  // The settings Play button is a preview. Normal gameplay automatically
-  // starts the full-text reader on the user's first real typing input.
-  maybeStartTextReader(settings);
-
-  if (settings.recallModeEnabled && !isRecallMatchStart(wordIndex)) return;
+  // The full-text reader belongs to the existing normal typing experience.
+  // Learn / Recall / Listen use item-level pronunciation instead.
+  if (settings.learningMode === "normal") {
+    maybeStartTextReader(settings);
+  } else if (!isRecallMatchStart(wordIndex)) {
+    return;
+  }
 
   applyLearningAppearance(settings);
   showLearningMatch(wordIndex, settings);
@@ -471,6 +584,7 @@ export function handleStartedWord(wordIndex: number): void {
 
 restartTestEvent.subscribe(() => {
   textReaderAutoStarted = false;
+  currentLearningAction = null;
   shownTranslationMatches.clear();
   removeFloatingTooltip();
   clearHeldTooltips();
