@@ -80,6 +80,7 @@ import {
 import type { TextReaderState } from "../../custom/en-vn-translation/text-reader";
 import type {
   DictionarySource,
+  LearningMode,
   PronunciationAccent,
   PronunciationRate,
   TextReaderLanguage,
@@ -249,7 +250,7 @@ export function CustomTextModal(): JSXElement {
       limitSection: "",
       pipeDelimiter: false,
       translationEnabled: true,
-      translationRecallMode: false,
+      translationLearningMode: "normal" as LearningMode,
       translationDictionarySource: "custom" as DictionarySource,
       translationDictionaryTopicId: "everyday.routine",
       translationDictionaryPosId: "noun",
@@ -435,7 +436,8 @@ export function CustomTextModal(): JSXElement {
 
       setEnVnTranslationSettings({
         enabled: value.translationEnabled,
-        recallModeEnabled: value.translationRecallMode,
+        learningMode: value.translationLearningMode,
+        recallModeEnabled: value.translationLearningMode === "recall",
         dictionarySource: value.translationDictionarySource,
         dictionaryTopicId: value.translationDictionaryTopicId,
         dictionaryPosId: value.translationDictionaryPosId,
@@ -666,8 +668,8 @@ export function CustomTextModal(): JSXElement {
           translationSettings.enabled,
         );
         form.setFieldValue(
-          "translationRecallMode",
-          translationSettings.recallModeEnabled,
+          "translationLearningMode",
+          translationSettings.learningMode,
         );
         form.setFieldValue(
           "translationDictionarySource",
@@ -1568,19 +1570,30 @@ export function CustomTextModal(): JSXElement {
 
                 <div class="grid gap-1">
                   <SettingHelpLabel
-                    label="recall typing"
-                    help="Hide dictionary-matched English text. Correct letters reveal as you type."
+                    label="learning mode"
+                    help="Normal keeps the existing EN-VN typing behavior. Learn shows English, Vietnamese and IPA. Recall hides English. Listen hides English and uses pronunciation with replay/reveal hints."
                   />
-                  <form.Field name="translationRecallMode">
+                  <form.Field name="translationLearningMode">
                     {(field) => (
-                      <Button
-                        variant="button"
-                        text={field().state.value ? "enabled" : "disabled"}
-                        active={field().state.value}
-                        onClick={() =>
-                          field().handleChange(!field().state.value)
-                        }
-                      />
+                      <div class="grid grid-cols-2 gap-1 sm:grid-cols-4">
+                        <For
+                          each={[
+                            { value: "normal", label: "normal" },
+                            { value: "learn", label: "learn" },
+                            { value: "recall", label: "recall" },
+                            { value: "listen", label: "listen" },
+                          ] as const}
+                        >
+                          {(option) => (
+                            <Button
+                              variant="button"
+                              text={option.label}
+                              active={field().state.value === option.value}
+                              onClick={() => field().handleChange(option.value)}
+                            />
+                          )}
+                        </For>
+                      </div>
                     )}
                   </form.Field>
                 </div>
