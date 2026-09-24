@@ -41,6 +41,53 @@
       </div>
     </div>
 
+    <section
+      id="sentenceBuilderPanel"
+      class="hidden"
+      aria-label="Sentence Builder"
+    >
+      <div class="sentenceBuilderHeader">
+        <div>
+          <div class="sentenceBuilderEyebrow">sentence builder</div>
+          <div id="sentenceBuilderPrompt" class="sentenceBuilderPrompt"></div>
+          <div id="sentenceBuilderMeaning" class="sentenceBuilderMeaning"></div>
+        </div>
+        <div id="sentenceBuilderFixedStart" class="sentenceBuilderFixedStart"></div>
+      </div>
+
+      <div id="sentenceBuilderUnits" class="sentenceBuilderUnits"></div>
+
+      <input
+        id="sentenceBuilderAnswer"
+        type="text"
+        autocomplete="off"
+        autocorrect="off"
+        spellcheck="false"
+        placeholder="Build or type your answer"
+      />
+
+      <div id="sentenceBuilderHint" class="sentenceBuilderHint"></div>
+      <div id="sentenceBuilderFeedback" class="sentenceBuilderFeedback"></div>
+
+      <div class="sentenceBuilderActions">
+        <button id="sentenceBuilderReveal" type="button">
+          reveal next word
+        </button>
+        <button id="sentenceBuilderGrammarHint" type="button">
+          grammar hint
+        </button>
+        <button id="sentenceBuilderStructureHint" type="button">
+          structure hint
+        </button>
+        <button id="sentenceBuilderReset" type="button">
+          reset
+        </button>
+        <button id="sentenceBuilderSubmit" type="button" class="primary">
+          check answer
+        </button>
+      </div>
+    </section>
+
     <mount data-component="livestatstexttop"></mount>
     <mount data-component="livestatsmini" class="full-width"></mount>
     <div id="wordsWrapper" class="content-grid full-width" translate="no">
