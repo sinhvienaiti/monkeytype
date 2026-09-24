@@ -44,7 +44,12 @@ import {
   getSettings as getEnVnTranslationSettings,
   setSettings as setEnVnTranslationSettings,
 } from "../../custom/en-vn-translation/store";
-import { prepareLibraryDictionary } from "../../custom/en-vn-translation/library";
+import {
+  loadVocabularyTopicIndex,
+  prepareLibraryDictionary,
+  prepareTopicDictionary,
+} from "../../custom/en-vn-translation/library";
+import type { VocabularyTopicIndex } from "../../custom/en-vn-translation/library";
 import {
   loadTypingTextIndex,
   loadTypingTextSettings,
@@ -169,6 +174,10 @@ export function CustomTextModal(): JSXElement {
     createSignal<TypingTextIndex | null>(null);
   const [typingTextIndexLoading, setTypingTextIndexLoading] =
     createSignal(false);
+  const [vocabularyTopicIndex, setVocabularyTopicIndex] =
+    createSignal<VocabularyTopicIndex | null>(null);
+  const [vocabularyTopicIndexLoading, setVocabularyTopicIndexLoading] =
+    createSignal(false);
 
   // oxlint-disable-next-line no-unassigned-vars -- assigned via SolidJS ref
   let fileInputRef!: HTMLInputElement;
@@ -189,6 +198,7 @@ export function CustomTextModal(): JSXElement {
       translationEnabled: true,
       translationRecallMode: false,
       translationDictionarySource: "custom" as DictionarySource,
+      translationDictionaryTopicId: "everyday.routine",
       translationDictionary: "",
       translationDuration: "3000",
       translationPopupStyle: "bubble" as TranslationPopupStyle,
@@ -313,23 +323,30 @@ export function CustomTextModal(): JSXElement {
         Math.max(500, parseInt(value.translationDuration) || 3000),
       );
 
-      if (
-        value.translationEnabled &&
-        value.translationDictionarySource === "library"
-      ) {
+      if (value.translationEnabled) {
         try {
-          const loaded = await prepareLibraryDictionary(sourceText);
-          if (loaded.entries === 0) {
+          if (value.translationDictionarySource === "library") {
+            const loaded = await prepareLibraryDictionary(sourceText);
+            if (loaded.entries === 0) {
+              showNoticeNotification(
+                "No words from the shared library were found in this text.",
+                { durationMs: 5000 },
+              );
+            }
+          } else if (value.translationDictionarySource === "topic") {
+            const loaded = await prepareTopicDictionary(
+              value.translationDictionaryTopicId,
+            );
             showNoticeNotification(
-              "No words from the shared library were found in this text.",
-              { durationMs: 5000 },
+              `${loaded.label} dictionary ready · ${loaded.entries} entries`,
+              { durationMs: 2500 },
             );
           }
         } catch (error) {
           showErrorNotification(
             error instanceof Error
               ? error.message
-              : "Failed to load the shared vocabulary library.",
+              : "Failed to load the shared vocabulary dictionary.",
             { durationMs: 5000 },
           );
           return;
@@ -349,6 +366,7 @@ export function CustomTextModal(): JSXElement {
         enabled: value.translationEnabled,
         recallModeEnabled: value.translationRecallMode,
         dictionarySource: value.translationDictionarySource,
+        dictionaryTopicId: value.translationDictionaryTopicId,
         dictionary: value.translationDictionary,
         durationMs: translationDuration,
         popupStyle: value.translationPopupStyle,
@@ -583,6 +601,10 @@ export function CustomTextModal(): JSXElement {
           translationSettings.dictionarySource,
         );
         form.setFieldValue(
+          "translationDictionaryTopicId",
+          translationSettings.dictionaryTopicId,
+        );
+        form.setFieldValue(
           "translationDictionary",
           translationSettings.dictionary,
         );
@@ -802,8 +824,42 @@ export function CustomTextModal(): JSXElement {
     }
   };
 
+  const refreshVocabularyTopicIndex = async (): Promise<void> => {
+    if (vocabularyTopicIndexLoading()) return;
+    setVocabularyTopicIndexLoading(true);
+
+    try {
+      const index = await loadVocabularyTopicIndex();
+      setVocabularyTopicIndex(index);
+
+      const selectedTopicId = form.getFieldValue(
+        "translationDictionaryTopicId",
+      );
+      if (
+        index.topics.length > 0 &&
+        !index.topics.some((item) => item.id === selectedTopicId)
+      ) {
+        form.setFieldValue(
+          "translationDictionaryTopicId",
+          index.topics[0]?.id ?? "everyday.routine",
+        );
+      }
+    } catch (error) {
+      setVocabularyTopicIndex(null);
+      showErrorNotification(
+        error instanceof Error
+          ? error.message
+          : "Failed to load vocabulary topics.",
+        { durationMs: 5000 },
+      );
+    } finally {
+      setVocabularyTopicIndexLoading(false);
+    }
+  };
+
   const beforeShow = (isChained: boolean) => {
     void refreshTypingTextIndex();
+    void refreshVocabularyTopicIndex();
     if (!isChained) {
       initState();
     } else {
@@ -1028,18 +1084,27 @@ export function CustomTextModal(): JSXElement {
                   EN-VN translation dictionary
                 </div>
                 <div class="mt-1 text-xs text-text">
-                  Use the shared library automatically, or keep your own custom dictionary.
+                  Use the current text, choose a shared learning topic, or keep your own custom dictionary.
                 </div>
               </div>
 
               <form.Field name="translationDictionarySource">
                 {(field) => (
-                  <div class="grid grid-cols-2 gap-2">
+                  <div class="grid grid-cols-3 gap-2">
                     <Button
                       variant="button"
                       text="library"
                       active={field().state.value === "library"}
                       onClick={() => field().handleChange("library")}
+                    />
+                    <Button
+                      variant="button"
+                      text="topic"
+                      active={field().state.value === "topic"}
+                      onClick={() => {
+                        field().handleChange("topic");
+                        void refreshVocabularyTopicIndex();
+                      }}
                     />
                     <Button
                       variant="button"
@@ -1055,6 +1120,43 @@ export function CustomTextModal(): JSXElement {
                 <div class="rounded bg-sub-alt px-3 py-2 text-xs text-sub">
                   Library mode uses the shared leveled vocabulary files. Monkeytype
                   automatically loads only the levels needed by the current text.
+                </div>
+              </Show>
+
+              <Show when={formValues().translationDictionarySource === "topic"}>
+                <div class="grid gap-2 rounded bg-sub-alt px-3 py-2">
+                  <label class="grid gap-1">
+                    <span class="text-xs text-sub">learning topic</span>
+                    <form.Field name="translationDictionaryTopicId">
+                      {(field) => (
+                        <select
+                          value={field().state.value}
+                          disabled={
+                            vocabularyTopicIndexLoading() ||
+                            (vocabularyTopicIndex()?.topics.length ?? 0) === 0
+                          }
+                          onChange={(e) =>
+                            field().handleChange(e.currentTarget.value)
+                          }
+                        >
+                          <For each={vocabularyTopicIndex()?.topics ?? []}>
+                            {(item) => (
+                              <option value={item.id}>
+                                {item.group} · {item.label} · {item.count}
+                              </option>
+                            )}
+                          </For>
+                        </select>
+                      )}
+                    </form.Field>
+                  </label>
+                  <div class="text-xs text-sub">
+                    {vocabularyTopicIndexLoading()
+                      ? "Loading shared topics..."
+                      : (vocabularyTopicIndex()?.topics.length ?? 0) === 0
+                        ? "No shared learning topics are available."
+                        : "Topic mode loads only the vocabulary levels needed by the selected topic."}
+                  </div>
                 </div>
               </Show>
 
