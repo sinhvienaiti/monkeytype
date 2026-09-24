@@ -212,11 +212,11 @@
   &.sentence-builder-active {
     #enVnTranslationTopDisplay,
     #wordsWrapper,
-    > mount[data-component="livestatstexttop"],
-    > mount[data-component="livestatsmini"],
-    > mount[data-component="compositiondisplay"],
-    > mount[data-component="keymap"],
-    > mount[data-component="monkey"] {
+    > [data-component="livestatstexttop"],
+    > [data-component="livestatsmini"],
+    > [data-component="compositiondisplay"],
+    > [data-component="keymap"],
+    > [data-component="monkey"] {
       display: none !important;
     }
   }
