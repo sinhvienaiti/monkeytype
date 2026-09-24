@@ -16,7 +16,7 @@ type LearningAttemptEvent = {
   entityType: "vocabulary";
   entityId: string;
   gameId: typeof GAME_ID;
-  activityType: "typing" | "recall";
+  activityType: "typing" | "learn" | "recall" | "listen";
   result: "correct" | "wrong";
   occurredAt: string;
   responseMs?: number;
@@ -137,6 +137,12 @@ function stripCommit(input: string, wordIndex: number): string {
     : input;
 }
 
+function currentActivityType(): LearningAttemptEvent["activityType"] {
+  const mode = getSettings().learningMode;
+  if (mode === "learn" || mode === "recall" || mode === "listen") return mode;
+  return "typing";
+}
+
 function postAttempt(event: LearningAttemptEvent): void {
   if (typeof window === "undefined" || window.parent === window) return;
 
@@ -206,7 +212,7 @@ export function recordLearningWordCompletion(options: {
     entityType: "vocabulary",
     entityId: match.source,
     gameId: GAME_ID,
-    activityType: settings.recallModeEnabled ? "recall" : "typing",
+    activityType: currentActivityType(),
     result: state.allCorrect ? "correct" : "wrong",
     occurredAt: new Date().toISOString(),
     ...(responseMs === undefined ? {} : { responseMs }),
