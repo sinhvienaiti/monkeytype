@@ -86,6 +86,12 @@ const lineSpacingClasses: Record<TranslationLineSpacing, string> = {
   wide: "en-vn-line-spacing-wide",
 };
 
+function isWordLearningMode(
+  mode: EnVnTranslationSettings["learningMode"],
+): boolean {
+  return mode === "learn" || mode === "recall" || mode === "listen";
+}
+
 function getCurrentTestSpeechText(): string {
   const words: string[] = [];
   for (let index = 0; index < TestWords.words.length; index++) {
@@ -476,6 +482,7 @@ export function applyLearningAppearance(
   const shouldApply =
     Config.mode === "custom" &&
     settings.enabled &&
+    settings.learningMode !== "sentence-builder" &&
     dictionaryRaw.trim() !== "";
 
   if (!shouldApply) {
@@ -558,7 +565,7 @@ export function handleActiveWord(wordIndex: number): void {
   if (Config.mode !== "custom") return;
 
   const settings = getSettings();
-  if (settings.learningMode === "normal") return;
+  if (!isWordLearningMode(settings.learningMode)) return;
   if (!isRecallMatchStart(wordIndex)) return;
 
   applyLearningAppearance(settings);
@@ -574,7 +581,10 @@ export function handleStartedWord(wordIndex: number): void {
   // Learn / Recall / Listen use item-level pronunciation instead.
   if (settings.learningMode === "normal") {
     maybeStartTextReader(settings);
-  } else if (!isRecallMatchStart(wordIndex)) {
+  } else if (
+    !isWordLearningMode(settings.learningMode) ||
+    !isRecallMatchStart(wordIndex)
+  ) {
     return;
   }
 
