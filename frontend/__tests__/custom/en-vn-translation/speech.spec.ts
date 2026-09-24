@@ -17,6 +17,7 @@ class FakeUtterance {
 
 const settings: EnVnTranslationSettings = {
   enabled: true,
+  learningMode: "normal",
   recallModeEnabled: false,
   dictionarySource: "custom",
   dictionaryTopicId: "everyday.routine",
