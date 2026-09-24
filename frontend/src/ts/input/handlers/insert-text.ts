@@ -39,7 +39,13 @@ import {
   hasCountedAccuracyErrorInWord,
   logTestEvent,
 } from "../../test/events/data";
-import { getCommitCharacterType, normalizeData } from "../helpers/util";
+import {
+  getCommitCharacterType,
+  normalizeCommittedText,
+  normalizeData,
+  normalizeTargetText,
+  splitCommittedText,
+} from "../helpers/util";
 import { areAllWordsGenerated } from "../../test/words-generator";
 import { getActiveWordIndex, isTestActive } from "../../states/test";
 import { DeleteInputType } from "../helpers/input-type";
@@ -143,20 +149,29 @@ function handleDeleteOnError(now: number): void {
 }
 
 export async function onInsertText(options: OnInsertTextParams): Promise<void> {
+  const normalizedCommittedData = normalizeCommittedText(options.data);
+  if (normalizedCommittedData !== options.data) {
+    const { inputValue: rawInputValue } = getInputElementValue();
+    setInputElementValue(normalizeCommittedText(rawInputValue));
+    options = { ...options, data: normalizedCommittedData };
+  }
+
   const { now, lastInMultiIndex, isCompositionEnding, automatic } = options;
   const { inputValue } = getInputElementValue();
+  const committedCharacters = splitCommittedText(options.data);
 
-  if (options.data.length > 1) {
-    // remove the entire data from the input value
+  if (committedCharacters.length > 1) {
+    // remove the entire committed text, then replay it one Unicode code point
+    // at a time through the normal Monkeytype scorer.
     setInputElementValue(inputValue.slice(0, -options.data.length));
-    for (let i = 0; i < options.data.length; i++) {
-      const char = options.data[i] as string;
+    for (let i = 0; i < committedCharacters.length; i++) {
+      const char = committedCharacters[i] as string;
 
       // then add it one by one
       await emulateInsertText({
         ...options,
         data: char,
-        lastInMultiIndex: i === options.data.length - 1,
+        lastInMultiIndex: i === committedCharacters.length - 1,
       });
     }
     return;
@@ -204,10 +219,10 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
   }
 
   // input and target word
-  const testInput = getCurrentInput();
+  const testInput = normalizeCommittedText(getCurrentInput());
   const currentTestWord = TestWords.words.getCurrent();
-  const currentWord = currentTestWord?.textWithCommit ?? "";
-  const currentWordText = currentTestWord?.text ?? "";
+  const currentWord = normalizeTargetText(currentTestWord?.textWithCommit ?? "");
+  const currentWordText = normalizeTargetText(currentTestWord?.text ?? "");
 
   // onBeforeInsertText normally catches this before the DOM value changes.
   // Keep this defensive guard for composition/emulated paths that can reach
