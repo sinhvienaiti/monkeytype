@@ -407,6 +407,9 @@ export function buildSentenceBuilderLearningEvents(options: {
     : "wrong";
   const expectedAnswer =
     options.validation.matchedAnswer ?? exercise.acceptedAnswers[0];
+  if (expectedAnswer === undefined) {
+    throw new Error("Sentence Builder has no accepted answer");
+  }
   const occurredAt = options.occurredAt ?? new Date().toISOString();
 
   const common = {
