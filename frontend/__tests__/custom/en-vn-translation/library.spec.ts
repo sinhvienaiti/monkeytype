@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+function requestUrl(input: RequestInfo | URL): string {
+  if (typeof input === "string") return input;
+  if (input instanceof URL) return input.href;
+  return input.url;
+}
+
 describe("EN-VN shared topic dictionary", () => {
   afterEach(() => {
     vi.resetModules();
@@ -14,7 +20,7 @@ describe("EN-VN shared topic dictionary", () => {
     });
 
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-      const url = String(input);
+      const url = requestUrl(input);
       const body =
         url.endsWith("/topics/index.json")
           ? {
@@ -87,7 +93,7 @@ describe("EN-VN shared topic dictionary", () => {
       library.getActiveDictionaryRaw("topic", "", "travel.airport"),
     ).toBe("passport = hộ chiếu\nairport = sân bay");
 
-    const urls = fetchMock.mock.calls.map(([input]) => String(input));
+    const urls = fetchMock.mock.calls.map(([input]) => requestUrl(input));
     expect(urls.some((url) => url.endsWith("/levels/001.json"))).toBe(true);
     expect(urls.some((url) => url.endsWith("/levels/002.json"))).toBe(true);
     expect(urls.some((url) => url.endsWith("/levels/003.json"))).toBe(false);
@@ -101,7 +107,7 @@ describe("EN-VN shared topic dictionary", () => {
     });
 
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-      const url = String(input);
+      const url = requestUrl(input);
       const body =
         url.endsWith("/topics/index.json")
           ? {
