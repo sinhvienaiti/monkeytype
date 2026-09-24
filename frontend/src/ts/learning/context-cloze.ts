@@ -74,18 +74,16 @@ export function maskContextTarget(
   target: string,
 ): string | null {
   const match = targetRegExp(target).exec(sentence);
-  if (match === null || match.index === undefined) return null;
+  if (match === null) return null;
 
   const prefix = match[1] ?? "";
   const matchedTarget = match[2] ?? "";
   if (matchedTarget === "") return null;
 
   const targetStart = match.index + prefix.length;
-  return (
-    sentence.slice(0, targetStart) +
-    "____" +
-    sentence.slice(targetStart + matchedTarget.length)
-  );
+  return `${sentence.slice(0, targetStart)}____${sentence.slice(
+    targetStart + matchedTarget.length,
+  )}`;
 }
 
 function vocabularyExercises(
@@ -140,7 +138,7 @@ function grammarTokenMap(
         grammarId: module.id,
         rank:
           order.get(module.id) ??
-          grammar.primaryTimeGroups.length + moduleIndex,
+          (grammar.primaryTimeGroups.length + moduleIndex),
       })),
     )
     .filter((item) => item.token !== "")
