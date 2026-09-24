@@ -84,6 +84,7 @@ import {
   loadSentenceBuilderExercise,
   saveSentenceBuilderExercise,
 } from "../../learning/sentence-builder-store";
+import type { SentenceBuilderDifficulty } from "../../learning/sentence-builder";
 import type {
   DictionarySource,
   LearningMode,
@@ -262,7 +263,7 @@ export function CustomTextModal(): JSXElement {
       sentenceBuilderPrompt: "Build a natural English sentence.",
       sentenceBuilderMeaning: "",
       sentenceBuilderAcceptedAnswers: "",
-      sentenceBuilderDifficulty: "normal" as const,
+      sentenceBuilderDifficulty: "normal" as SentenceBuilderDifficulty,
       sentenceBuilderDistractors: "",
       sentenceBuilderGrammarHint: "",
       sentenceBuilderClassifiedAnswers: "",
