@@ -7,6 +7,10 @@ import {
   sentenceBuilderHint,
   validateSentenceBuilderAnswer,
 } from "../../src/ts/learning/sentence-builder";
+import {
+  draftToExercise,
+  exerciseToDraft,
+} from "../../src/ts/learning/sentence-builder-store";
 
 const exercise = parseSentenceBuilderExercise({
   version: 1,
@@ -144,4 +148,24 @@ describe("Sentence Builder V1 engine", () => {
       "World hello.",
     ]);
   });
+  it("round-trips authored alternative answers and classified grammar errors", () => {
+    const draft = exerciseToDraft(exercise);
+    const restored = draftToExercise(draft);
+
+    expect(restored.acceptedAnswers).toEqual(exercise.acceptedAnswers);
+    expect(restored.classifiedAnswers).toEqual(exercise.classifiedAnswers);
+    expect(draft.classifiedAnswers).toContain(
+      "I lived here since 2020. => wrong-tense",
+    );
+  });
+
+  it("rejects malformed classified-answer authoring syntax", () => {
+    const draft = exerciseToDraft(exercise);
+    draft.classifiedAnswers = "I lived here since 2020. wrong-tense";
+
+    expect(() => draftToExercise(draft)).toThrow(
+      "answer => error-type",
+    );
+  });
+
 });
