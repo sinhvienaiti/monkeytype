@@ -28,7 +28,7 @@ export type ContextClozeExercise = {
 export type ContextClozeValidation = {
   correct: boolean;
   normalizedAnswer: string;
-  errorType?: "spelling" | "wrong-form";
+  errorType?: "spelling" | "wrong-form" | "wrong-tense";
 };
 
 export type ContextClozeLearningEvent = {
@@ -44,7 +44,7 @@ export type ContextClozeLearningEvent = {
   replayUsed: false;
   userAnswer: string;
   expectedAnswer: string;
-  errorType?: "spelling" | "wrong-form";
+  errorType?: "spelling" | "wrong-form" | "wrong-tense";
 };
 
 function sentenceChunks(text: string): string[] {
@@ -156,7 +156,7 @@ function grammarExercises(
   passage: TypingTextPassage,
   level: number,
   cefr: string,
-  grammar: VocabularyGrammarIndex,
+  grammarTokens: ReadonlyArray<{ token: string; grammarId: string }>,
 ): ContextClozeExercise[] {
   const sentences = sentenceChunks(passage.text);
   const exercises: ContextClozeExercise[] = [];
@@ -166,7 +166,7 @@ function grammarExercises(
     const sentence = sentences[sentenceIndex];
     if (sentence === undefined) continue;
 
-    for (const item of grammarTokenMap(grammar)) {
+    for (const item of grammarTokens) {
       const maskedSentence = maskContextTarget(sentence, item.token);
       if (maskedSentence === null) continue;
 
@@ -233,8 +233,14 @@ export async function prepareContextClozeExercises(
   const vocabulary = prepared.passages.flatMap((passage) =>
     vocabularyExercises(passage, prepared.level, prepared.cefr),
   );
+  const grammarTokens = grammarTokenMap(grammar);
   const grammarForPassages = prepared.passages.flatMap((passage) =>
-    grammarExercises(passage, prepared.level, prepared.cefr, grammar),
+    grammarExercises(
+      passage,
+      prepared.level,
+      prepared.cefr,
+      grammarTokens,
+    ),
   );
 
   const limit = Math.min(40, Math.max(1, Math.floor(maxExercises)));
@@ -260,9 +266,11 @@ export function validateContextClozeAnswer(
       ? {}
       : {
           errorType:
-            exercise.entityType === "grammar"
-              ? ("wrong-form" as const)
-              : ("spelling" as const),
+            exercise.entityType === "vocabulary"
+              ? ("spelling" as const)
+              : exercise.entityId.startsWith("time.")
+                ? ("wrong-tense" as const)
+                : ("wrong-form" as const),
         }),
   };
 }
