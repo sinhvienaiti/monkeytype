@@ -81,6 +81,7 @@ let lookupCache: VocabularyLookup | null = null;
 let topicIndexCache: VocabularyTopicIndex | null = null;
 let posIndexCache: VocabularyPosIndex | null = null;
 let grammarIndexCache: VocabularyGrammarIndex | null = null;
+const levelCache = new Map<number, Promise<VocabularyLevel>>();
 let libraryDictionaryRaw = "";
 let topicDictionaryRaw = "";
 let topicDictionaryId = "";
@@ -316,25 +317,38 @@ export async function loadVocabularyGrammarIndex(): Promise<VocabularyGrammarInd
 }
 
 async function loadLevel(level: number): Promise<VocabularyLevel> {
-  const file = String(level).padStart(3, "0");
-  const response = await fetch(`${BASE_URL}/levels/${file}.json`, {
-    cache: "no-cache",
-  });
-  if (!response.ok) {
-    throw new Error(
-      `Vocabulary level ${level} request failed: ${response.status}`,
-    );
+  let pending = levelCache.get(level);
+  if (pending === undefined) {
+    pending = (async (): Promise<VocabularyLevel> => {
+      const file = String(level).padStart(3, "0");
+      const response = await fetch(`${BASE_URL}/levels/${file}.json`, {
+        cache: "no-cache",
+      });
+      if (!response.ok) {
+        throw new Error(
+          `Vocabulary level ${level} request failed: ${response.status}`,
+        );
+      }
+
+      const data = (await response.json()) as VocabularyLevel;
+      if (
+        data.version !== 1 ||
+        data.level !== level ||
+        !Array.isArray(data.entries)
+      ) {
+        throw new Error(`Vocabulary level ${level} is invalid`);
+      }
+      return data;
+    })();
+    levelCache.set(level, pending);
   }
 
-  const data = (await response.json()) as VocabularyLevel;
-  if (
-    data.version !== 1 ||
-    data.level !== level ||
-    !Array.isArray(data.entries)
-  ) {
-    throw new Error(`Vocabulary level ${level} is invalid`);
+  try {
+    return await pending;
+  } catch (error) {
+    if (levelCache.get(level) === pending) levelCache.delete(level);
+    throw error;
   }
-  return data;
 }
 
 function findRequiredLevels(
