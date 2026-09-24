@@ -10,7 +10,7 @@ type VocabularyLookup = {
   entries: Record<string, number>;
 };
 
-type VocabularyEntry = {
+export type VocabularyEntry = {
   id: string;
   en: string;
   vi: string;
@@ -82,6 +82,7 @@ let topicIndexCache: VocabularyTopicIndex | null = null;
 let posIndexCache: VocabularyPosIndex | null = null;
 let grammarIndexCache: VocabularyGrammarIndex | null = null;
 const levelCache = new Map<number, Promise<VocabularyLevel>>();
+const entryMetadataCache = new Map<string, VocabularyEntry>();
 let libraryDictionaryRaw = "";
 let topicDictionaryRaw = "";
 let topicDictionaryId = "";
@@ -89,6 +90,7 @@ let posDictionaryRaw = "";
 let posDictionaryId = "";
 let grammarDictionaryRaw = "";
 let grammarDictionaryId = "";
+let reviewDictionaryRaw = "";
 let cacheLoaded = false;
 
 function readCachedDictionaries(): void {
@@ -125,6 +127,9 @@ function readCachedDictionaries(): void {
     if (typeof data["grammarId"] === "string") {
       grammarDictionaryId = data["grammarId"];
     }
+    if (typeof data["reviewDictionary"] === "string") {
+      reviewDictionaryRaw = data["reviewDictionary"];
+    }
   } catch {
     // Ignore malformed local cache; it can be rebuilt on the next submit.
   }
@@ -141,6 +146,7 @@ function writeCachedDictionaries(): void {
       posId: posDictionaryId,
       grammarDictionary: grammarDictionaryRaw,
       grammarId: grammarDictionaryId,
+      reviewDictionary: reviewDictionaryRaw,
     }),
   );
 }
@@ -338,6 +344,9 @@ async function loadLevel(level: number): Promise<VocabularyLevel> {
       ) {
         throw new Error(`Vocabulary level ${level} is invalid`);
       }
+      for (const entry of data.entries) {
+        entryMetadataCache.set(normalizePhrase(entry.en), entry);
+      }
       return data;
     })();
     levelCache.set(level, pending);
@@ -527,6 +536,40 @@ export async function prepareGrammarDictionary(
   return { entries: result.entries, levels: result.levels, label: module.label };
 }
 
+export async function prepareReviewDictionary(
+  entityIds: readonly string[],
+): Promise<{ entries: number; levels: number[] }> {
+  const lookup = await loadLookup();
+  const keys = [
+    ...new Set(
+      entityIds
+        .map((value) => normalizePhrase(value))
+        .filter((value) => value !== ""),
+    ),
+  ];
+  const references = keys.flatMap((key) => {
+    const level = lookup.entries[key];
+    return level === undefined ? [] : [{ key, level }];
+  });
+  const levels = [
+    ...new Set(references.map((entry) => entry.level)),
+  ].sort((left, right) => left - right);
+  const documents = await Promise.all(levels.map(loadLevel));
+  const lines = dictionaryLinesForKeys(keys, documents);
+
+  readCachedDictionaries();
+  reviewDictionaryRaw = lines.join("\n");
+  writeCachedDictionaries();
+
+  return { entries: lines.length, levels };
+}
+
+export function getCachedVocabularyEntry(
+  key: string,
+): VocabularyEntry | null {
+  return entryMetadataCache.get(normalizePhrase(key)) ?? null;
+}
+
 export function getLibraryDictionaryRaw(): string {
   readCachedDictionaries();
   return libraryDictionaryRaw;
@@ -547,8 +590,19 @@ export function getGrammarDictionaryRaw(grammarId: string): string {
   return grammarDictionaryId === grammarId ? grammarDictionaryRaw : "";
 }
 
+export function getReviewDictionaryRaw(): string {
+  readCachedDictionaries();
+  return reviewDictionaryRaw;
+}
+
 export function getActiveDictionaryRaw(
-  source: "library" | "topic" | "word-type" | "grammar" | "custom",
+  source:
+    | "library"
+    | "topic"
+    | "word-type"
+    | "grammar"
+    | "review"
+    | "custom",
   customDictionary: string,
   topicId = "",
   posId = "",
@@ -558,5 +612,6 @@ export function getActiveDictionaryRaw(
   if (source === "topic") return getTopicDictionaryRaw(topicId);
   if (source === "word-type") return getPosDictionaryRaw(posId);
   if (source === "grammar") return getGrammarDictionaryRaw(grammarId);
+  if (source === "review") return getReviewDictionaryRaw();
   return customDictionary;
 }
