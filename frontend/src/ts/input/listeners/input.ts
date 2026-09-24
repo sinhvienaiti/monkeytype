@@ -18,6 +18,10 @@ import {
 } from "../../states/test";
 import { getCurrentInput } from "../../test/events/data";
 import { areAllWordsGenerated } from "../../test/words-generator";
+import {
+  normalizeCommittedText,
+  normalizeTargetText,
+} from "../helpers/util";
 
 const inputEl = getInputElement();
 
@@ -129,10 +133,12 @@ inputEl.addEventListener("input", async (event) => {
     inputType === "insertFromComposition"
   ) {
     const allWordsTyped = getActiveWordIndex() >= TestWords.words.length - 1;
-    const inputPlusComposition =
-      getCurrentInput() + (CompositionState.getData() ?? "");
+    const inputPlusComposition = normalizeCommittedText(
+      getCurrentInput() + (CompositionState.getData() ?? ""),
+    );
     const inputPlusCompositionIsCorrect =
-      TestWords.words.getCurrent()?.textWithCommit === inputPlusComposition;
+      normalizeTargetText(TestWords.words.getCurrent()?.textWithCommit ?? "") ===
+      inputPlusComposition;
 
     // composition quick end
     // if the user typed the entire word correctly but is still in composition
