@@ -169,6 +169,24 @@ describe("EN-VN shared curriculum dictionaries", () => {
     expect(urls.some((url) => url.endsWith("/levels/003.json"))).toBe(false);
   });
 
+  it("reuses shared level documents across repeated curriculum preparation", async () => {
+    installStorage();
+    const fetchMock = installFetch();
+    const library = await import(
+      "../../../src/ts/custom/en-vn-translation/library"
+    );
+
+    await library.prepareTopicDictionary("travel.airport");
+    await library.preparePosDictionary("noun");
+    await library.prepareGrammarDictionary("time.present");
+
+    const levelUrls = fetchMock.mock.calls
+      .map(([input]) => requestUrl(input))
+      .filter((url) => url.includes("/levels/"));
+    expect(levelUrls.filter((url) => url.endsWith("/001.json"))).toHaveLength(1);
+    expect(levelUrls.filter((url) => url.endsWith("/002.json"))).toHaveLength(1);
+  });
+
   it("loads Word type from embedded level hints without the 18k lookup", async () => {
     installStorage();
     const fetchMock = installFetch();
