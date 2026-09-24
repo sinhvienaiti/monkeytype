@@ -377,6 +377,8 @@ export function applyLearningAppearance(
     settings.dictionarySource,
     settings.dictionary,
     settings.dictionaryTopicId,
+    settings.dictionaryPosId,
+    settings.dictionaryGrammarId,
   );
   const shouldApply =
     Config.mode === "custom" &&
@@ -403,6 +405,8 @@ function showLearningMatch(
     settings.dictionarySource,
     settings.dictionary,
     settings.dictionaryTopicId,
+    settings.dictionaryPosId,
+    settings.dictionaryGrammarId,
   );
   if (!settings.enabled || dictionaryRaw.trim() === "") return;
 

@@ -46,11 +46,17 @@ import {
   setSettings as setEnVnTranslationSettings,
 } from "../../custom/en-vn-translation/store";
 import {
+  loadVocabularyGrammarIndex,
+  loadVocabularyPosIndex,
   loadVocabularyTopicIndex,
+  prepareGrammarDictionary,
   prepareLibraryDictionary,
+  preparePosDictionary,
   prepareTopicDictionary,
 } from "../../custom/en-vn-translation/library";
 import type {
+  VocabularyGrammarIndex,
+  VocabularyPosIndex,
   VocabularyTopicIndex,
   VocabularyTopicMeta,
 } from "../../custom/en-vn-translation/library";
@@ -182,6 +188,14 @@ export function CustomTextModal(): JSXElement {
     createSignal<VocabularyTopicIndex | null>(null);
   const [vocabularyTopicIndexLoading, setVocabularyTopicIndexLoading] =
     createSignal(false);
+  const [vocabularyPosIndex, setVocabularyPosIndex] =
+    createSignal<VocabularyPosIndex | null>(null);
+  const [vocabularyPosIndexLoading, setVocabularyPosIndexLoading] =
+    createSignal(false);
+  const [vocabularyGrammarIndex, setVocabularyGrammarIndex] =
+    createSignal<VocabularyGrammarIndex | null>(null);
+  const [vocabularyGrammarIndexLoading, setVocabularyGrammarIndexLoading] =
+    createSignal(false);
   const vocabularyTopicGroups = createMemo(() => {
     const groups = new Map<
       string,
@@ -202,6 +216,20 @@ export function CustomTextModal(): JSXElement {
     }
 
     return [...groups.values()];
+  });
+  const vocabularyGrammarPrimary = createMemo(() => {
+    const index = vocabularyGrammarIndex();
+    if (index === null) return [];
+    return index.primaryTimeGroups.flatMap((id) => {
+      const module = index.modules.find((item) => item.id === id);
+      return module === undefined ? [] : [module];
+    });
+  });
+  const vocabularyGrammarPractical = createMemo(() => {
+    const index = vocabularyGrammarIndex();
+    if (index === null) return [];
+    const primary = new Set(index.primaryTimeGroups);
+    return index.modules.filter((item) => !primary.has(item.id));
   });
 
   // oxlint-disable-next-line no-unassigned-vars -- assigned via SolidJS ref
@@ -224,6 +252,8 @@ export function CustomTextModal(): JSXElement {
       translationRecallMode: false,
       translationDictionarySource: "custom" as DictionarySource,
       translationDictionaryTopicId: "everyday.routine",
+      translationDictionaryPosId: "noun",
+      translationDictionaryGrammarId: "time.present",
       translationDictionary: "",
       translationDuration: "3000",
       translationPopupStyle: "bubble" as TranslationPopupStyle,
@@ -366,6 +396,22 @@ export function CustomTextModal(): JSXElement {
               `${loaded.label} dictionary ready · ${loaded.entries} entries`,
               { durationMs: 2500 },
             );
+          } else if (value.translationDictionarySource === "word-type") {
+            const loaded = await preparePosDictionary(
+              value.translationDictionaryPosId,
+            );
+            showNoticeNotification(
+              `${loaded.label} dictionary ready · ${loaded.entries} entries`,
+              { durationMs: 2500 },
+            );
+          } else if (value.translationDictionarySource === "grammar") {
+            const loaded = await prepareGrammarDictionary(
+              value.translationDictionaryGrammarId,
+            );
+            showNoticeNotification(
+              `${loaded.label} dictionary ready · ${loaded.entries} entries`,
+              { durationMs: 2500 },
+            );
           }
         } catch (error) {
           showErrorNotification(
@@ -392,6 +438,8 @@ export function CustomTextModal(): JSXElement {
         recallModeEnabled: value.translationRecallMode,
         dictionarySource: value.translationDictionarySource,
         dictionaryTopicId: value.translationDictionaryTopicId,
+        dictionaryPosId: value.translationDictionaryPosId,
+        dictionaryGrammarId: value.translationDictionaryGrammarId,
         dictionary: value.translationDictionary,
         durationMs: translationDuration,
         popupStyle: value.translationPopupStyle,
@@ -628,6 +676,14 @@ export function CustomTextModal(): JSXElement {
         form.setFieldValue(
           "translationDictionaryTopicId",
           translationSettings.dictionaryTopicId,
+        );
+        form.setFieldValue(
+          "translationDictionaryPosId",
+          translationSettings.dictionaryPosId,
+        );
+        form.setFieldValue(
+          "translationDictionaryGrammarId",
+          translationSettings.dictionaryGrammarId,
         );
         form.setFieldValue(
           "translationDictionary",
@@ -882,14 +938,80 @@ export function CustomTextModal(): JSXElement {
     }
   };
 
+  const refreshVocabularyPosIndex = async (): Promise<void> => {
+    if (vocabularyPosIndexLoading()) return;
+    setVocabularyPosIndexLoading(true);
+
+    try {
+      const index = await loadVocabularyPosIndex();
+      setVocabularyPosIndex(index);
+
+      const selectedId = form.getFieldValue("translationDictionaryPosId");
+      const selected = index.categories.find(
+        (item) => item.id === selectedId && item.entries.length > 0,
+      );
+      if (selected === undefined) {
+        form.setFieldValue(
+          "translationDictionaryPosId",
+          index.categories.find((item) => item.entries.length > 0)?.id ?? "noun",
+        );
+      }
+    } catch (error) {
+      setVocabularyPosIndex(null);
+      showErrorNotification(
+        error instanceof Error
+          ? error.message
+          : "Failed to load vocabulary word types.",
+        { durationMs: 5000 },
+      );
+    } finally {
+      setVocabularyPosIndexLoading(false);
+    }
+  };
+
+  const refreshVocabularyGrammarIndex = async (): Promise<void> => {
+    if (vocabularyGrammarIndexLoading()) return;
+    setVocabularyGrammarIndexLoading(true);
+
+    try {
+      const index = await loadVocabularyGrammarIndex();
+      setVocabularyGrammarIndex(index);
+
+      const selectedId = form.getFieldValue("translationDictionaryGrammarId");
+      if (!index.modules.some((item) => item.id === selectedId)) {
+        form.setFieldValue(
+          "translationDictionaryGrammarId",
+          index.primaryTimeGroups[0] ?? index.modules[0]?.id ?? "time.present",
+        );
+      }
+    } catch (error) {
+      setVocabularyGrammarIndex(null);
+      showErrorNotification(
+        error instanceof Error
+          ? error.message
+          : "Failed to load vocabulary grammar.",
+        { durationMs: 5000 },
+      );
+    } finally {
+      setVocabularyGrammarIndexLoading(false);
+    }
+  };
+
+  const refreshActiveDictionaryIndex = (): void => {
+    const source = form.getFieldValue("translationDictionarySource");
+    if (source === "topic") void refreshVocabularyTopicIndex();
+    if (source === "word-type") void refreshVocabularyPosIndex();
+    if (source === "grammar") void refreshVocabularyGrammarIndex();
+  };
+
   const beforeShow = (isChained: boolean) => {
-    void refreshTypingTextIndex();
-    void refreshVocabularyTopicIndex();
     if (!isChained) {
       initState();
     } else {
       handleIncomingData();
     }
+    void refreshTypingTextIndex();
+    refreshActiveDictionaryIndex();
   };
 
   const afterShow = () => {
@@ -1109,13 +1231,13 @@ export function CustomTextModal(): JSXElement {
                   EN-VN translation dictionary
                 </div>
                 <div class="mt-1 text-xs text-text">
-                  Use the current text, choose a shared learning topic, or keep your own custom dictionary.
+                  Use the current text, a shared topic, a word type, a practical grammar set, or your own dictionary.
                 </div>
               </div>
 
               <form.Field name="translationDictionarySource">
                 {(field) => (
-                  <div class="grid grid-cols-3 gap-2">
+                  <div class="grid grid-cols-2 gap-2 sm:grid-cols-5">
                     <Button
                       variant="button"
                       text="library"
@@ -1129,6 +1251,24 @@ export function CustomTextModal(): JSXElement {
                       onClick={() => {
                         field().handleChange("topic");
                         void refreshVocabularyTopicIndex();
+                      }}
+                    />
+                    <Button
+                      variant="button"
+                      text="word type"
+                      active={field().state.value === "word-type"}
+                      onClick={() => {
+                        field().handleChange("word-type");
+                        void refreshVocabularyPosIndex();
+                      }}
+                    />
+                    <Button
+                      variant="button"
+                      text="grammar"
+                      active={field().state.value === "grammar"}
+                      onClick={() => {
+                        field().handleChange("grammar");
+                        void refreshVocabularyGrammarIndex();
                       }}
                     />
                     <Button
@@ -1187,6 +1327,87 @@ export function CustomTextModal(): JSXElement {
                       : (vocabularyTopicIndex()?.topics.length ?? 0) === 0
                         ? "No shared learning topics are available."
                         : "Topic mode loads only the vocabulary levels needed by the selected topic."}
+                  </div>
+                </div>
+              </Show>
+
+              <Show when={formValues().translationDictionarySource === "word-type"}>
+                <div class="grid gap-2 rounded bg-sub-alt px-3 py-2">
+                  <label class="grid gap-1">
+                    <span class="text-xs text-sub">word type</span>
+                    <form.Field name="translationDictionaryPosId">
+                      {(field) => (
+                        <select
+                          value={field().state.value}
+                          disabled={
+                            vocabularyPosIndexLoading() ||
+                            (vocabularyPosIndex()?.categories.length ?? 0) === 0
+                          }
+                          onChange={(e) =>
+                            field().handleChange(e.currentTarget.value)
+                          }
+                        >
+                          <For each={vocabularyPosIndex()?.categories ?? []}>
+                            {(item) => (
+                              <option
+                                value={item.id}
+                                disabled={item.entries.length === 0}
+                              >
+                                {item.id.replaceAll("-", " ")} ·{" "}
+                                {item.entries.length}
+                              </option>
+                            )}
+                          </For>
+                        </select>
+                      )}
+                    </form.Field>
+                  </label>
+                  <div class="text-xs text-sub">
+                    {vocabularyPosIndexLoading()
+                      ? "Loading word types..."
+                      : "Unavailable categories stay visible as coverage gaps instead of inventing vocabulary."}
+                  </div>
+                </div>
+              </Show>
+
+              <Show when={formValues().translationDictionarySource === "grammar"}>
+                <div class="grid gap-2 rounded bg-sub-alt px-3 py-2">
+                  <label class="grid gap-1">
+                    <span class="text-xs text-sub">grammar practice</span>
+                    <form.Field name="translationDictionaryGrammarId">
+                      {(field) => (
+                        <select
+                          value={field().state.value}
+                          disabled={
+                            vocabularyGrammarIndexLoading() ||
+                            (vocabularyGrammarIndex()?.modules.length ?? 0) === 0
+                          }
+                          onChange={(e) =>
+                            field().handleChange(e.currentTarget.value)
+                          }
+                        >
+                          <optgroup label="Past / Present / Future">
+                            <For each={vocabularyGrammarPrimary()}>
+                              {(item) => (
+                                <option value={item.id}>{item.label}</option>
+                              )}
+                            </For>
+                          </optgroup>
+                          <optgroup label="Practical grammar">
+                            <For each={vocabularyGrammarPractical()}>
+                              {(item) => (
+                                <option value={item.id}>{item.label}</option>
+                              )}
+                            </For>
+                          </optgroup>
+                        </select>
+                      )}
+                    </form.Field>
+                  </label>
+                  <div class="text-xs text-sub">
+                    {vocabularyGrammarIndexLoading()
+                      ? "Loading grammar practice..."
+                      : "Present, Past and Future stay primary. Each set combines grammar signals with practical topic vocabulary."}
                   </div>
                 </div>
               </Show>
