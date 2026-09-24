@@ -41,6 +41,7 @@ const LearningModeSchema = z.enum([
   "listen",
   "sentence-builder",
   "context-cloze",
+  "smart-review",
 ]);
 
 const EnVnTranslationSettingsSchema = z.object({
