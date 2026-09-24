@@ -1658,13 +1658,17 @@ export function CustomTextModal(): JSXElement {
                   />
                   <form.Field name="translationLearningMode">
                     {(field) => (
-                      <div class="grid grid-cols-2 gap-1 sm:grid-cols-4">
+                      <div class="grid grid-cols-2 gap-1 sm:grid-cols-5">
                         <For
                           each={[
                             { value: "normal", label: "normal" },
                             { value: "learn", label: "learn" },
                             { value: "recall", label: "recall" },
                             { value: "listen", label: "listen" },
+                            {
+                              value: "sentence-builder",
+                              label: "sentence",
+                            },
                           ] as const}
                         >
                           {(option) => (
@@ -1680,6 +1684,183 @@ export function CustomTextModal(): JSXElement {
                     )}
                   </form.Field>
                 </div>
+
+                <Show
+                  when={
+                    formValues().translationLearningMode ===
+                    "sentence-builder"
+                  }
+                >
+                  <div class="grid gap-2 rounded bg-sub-alt px-3 py-3">
+                    <div class="text-xs text-sub">
+                      Sentence Builder accepts multiple valid answers. Put one
+                      accepted sentence per line.
+                    </div>
+
+                    <div class="grid gap-2 sm:grid-cols-2">
+                      <form.Field name="sentenceBuilderSentenceId">
+                        {(field) => (
+                          <label class="grid gap-1">
+                            <span class="text-xs text-sub">sentence id</span>
+                            <input
+                              type="text"
+                              value={field().state.value}
+                              onInput={(e) =>
+                                field().handleChange(e.currentTarget.value)
+                              }
+                            />
+                          </label>
+                        )}
+                      </form.Field>
+
+                      <form.Field name="sentenceBuilderGrammarId">
+                        {(field) => (
+                          <label class="grid gap-1">
+                            <span class="text-xs text-sub">
+                              grammar id (optional)
+                            </span>
+                            <input
+                              type="text"
+                              value={field().state.value}
+                              onInput={(e) =>
+                                field().handleChange(e.currentTarget.value)
+                              }
+                            />
+                          </label>
+                        )}
+                      </form.Field>
+                    </div>
+
+                    <form.Field name="sentenceBuilderPrompt">
+                      {(field) => (
+                        <label class="grid gap-1">
+                          <span class="text-xs text-sub">prompt</span>
+                          <input
+                            type="text"
+                            value={field().state.value}
+                            onInput={(e) =>
+                              field().handleChange(e.currentTarget.value)
+                            }
+                          />
+                        </label>
+                      )}
+                    </form.Field>
+
+                    <form.Field name="sentenceBuilderMeaning">
+                      {(field) => (
+                        <label class="grid gap-1">
+                          <span class="text-xs text-sub">
+                            meaning / context (optional)
+                          </span>
+                          <input
+                            type="text"
+                            value={field().state.value}
+                            onInput={(e) =>
+                              field().handleChange(e.currentTarget.value)
+                            }
+                          />
+                        </label>
+                      )}
+                    </form.Field>
+
+                    <form.Field name="sentenceBuilderAcceptedAnswers">
+                      {(field) => (
+                        <TextareaField
+                          field={field}
+                          placeholder={
+                            "I have lived here since 2020.\nSince 2020, I have lived here."
+                          }
+                          class="min-h-28 max-h-44 overflow-y-auto p-3 text-sm"
+                        />
+                      )}
+                    </form.Field>
+
+                    <div class="grid gap-1">
+                      <SettingHelpLabel
+                        label="difficulty"
+                        help="Easy keeps the first word fixed. Normal shuffles required units. Hard can add distractors. Extreme uses free production."
+                      />
+                      <form.Field name="sentenceBuilderDifficulty">
+                        {(field) => (
+                          <div class="grid grid-cols-2 gap-1 sm:grid-cols-4">
+                            <For
+                              each={[
+                                "easy",
+                                "normal",
+                                "hard",
+                                "extreme",
+                              ] as const}
+                            >
+                              {(difficulty) => (
+                                <Button
+                                  variant="button"
+                                  text={difficulty}
+                                  active={field().state.value === difficulty}
+                                  onClick={() =>
+                                    field().handleChange(difficulty)
+                                  }
+                                />
+                              )}
+                            </For>
+                          </div>
+                        )}
+                      </form.Field>
+                    </div>
+
+                    <form.Field name="sentenceBuilderDistractors">
+                      {(field) => (
+                        <label class="grid gap-1">
+                          <span class="text-xs text-sub">
+                            hard-mode distractors (comma separated)
+                          </span>
+                          <input
+                            type="text"
+                            value={field().state.value}
+                            onInput={(e) =>
+                              field().handleChange(e.currentTarget.value)
+                            }
+                          />
+                        </label>
+                      )}
+                    </form.Field>
+
+                    <form.Field name="sentenceBuilderGrammarHint">
+                      {(field) => (
+                        <label class="grid gap-1">
+                          <span class="text-xs text-sub">
+                            grammar hint (optional)
+                          </span>
+                          <input
+                            type="text"
+                            placeholder="S + have/has + V3"
+                            value={field().state.value}
+                            onInput={(e) =>
+                              field().handleChange(e.currentTarget.value)
+                            }
+                          />
+                        </label>
+                      )}
+                    </form.Field>
+
+                    <form.Field name="sentenceBuilderClassifiedAnswers">
+                      {(field) => (
+                        <TextareaField
+                          field={field}
+                          placeholder={
+                            "I lived here since 2020. => wrong-tense\nHave I lived here since 2020. => word-order"
+                          }
+                          class="min-h-24 max-h-40 overflow-y-auto p-3 text-sm"
+                        />
+                      )}
+                    </form.Field>
+                    <div class="text-[0.68rem] text-sub">
+                      Optional classified mistakes use
+                      <code> answer =&gt; error-type</code>. Supported types:
+                      word-order, wrong-tense, missing-word, extra-word,
+                      wrong-form, spelling, punctuation.
+                    </div>
+                  </div>
+                </Show>
 
                 <div class="grid gap-1">
                   <SettingHelpLabel label="style" help="Choose the visual shape of translation tooltips." />
