@@ -337,6 +337,13 @@ export function CustomTextModal(): JSXElement {
         }
       }
 
+      if (
+        sourceText === "" &&
+        value.translationLearningMode === "context-cloze"
+      ) {
+        sourceText = "context";
+      }
+
       if (sourceText === "") {
         showNoticeNotification("Text cannot be empty");
         return;
@@ -423,7 +430,8 @@ export function CustomTextModal(): JSXElement {
 
       if (
         value.translationEnabled &&
-        value.translationLearningMode !== "sentence-builder"
+        value.translationLearningMode !== "sentence-builder" &&
+        value.translationLearningMode !== "context-cloze"
       ) {
         try {
           if (value.translationDictionarySource === "library") {
@@ -1657,11 +1665,11 @@ export function CustomTextModal(): JSXElement {
                 <div class="grid gap-1">
                   <SettingHelpLabel
                     label="learning mode"
-                    help="Normal keeps the existing EN-VN typing behavior. Learn shows English, Vietnamese and IPA. Recall hides English. Listen hides English and uses pronunciation with replay/reveal hints."
+                    help="Normal keeps the existing EN-VN typing behavior. Learn shows English, Vietnamese and IPA. Recall hides English. Listen uses pronunciation. Sentence practices word order. Context builds cloze exercises from shared typing-text passages."
                   />
                   <form.Field name="translationLearningMode">
                     {(field) => (
-                      <div class="grid grid-cols-2 gap-1 sm:grid-cols-5">
+                      <div class="grid grid-cols-2 gap-1 sm:grid-cols-6">
                         <For
                           each={[
                             { value: "normal", label: "normal" },
@@ -1671,6 +1679,10 @@ export function CustomTextModal(): JSXElement {
                             {
                               value: "sentence-builder",
                               label: "sentence",
+                            },
+                            {
+                              value: "context-cloze",
+                              label: "context",
                             },
                           ] as const}
                         >
