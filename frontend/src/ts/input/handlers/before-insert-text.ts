@@ -15,7 +15,12 @@ import {
   hasUnresolvedInputError,
   shouldGoToNextWord,
 } from "../helpers/validation";
-import { getCommitCharacterType, normalizeData } from "../helpers/util";
+import {
+  getCommitCharacterType,
+  normalizeCommittedText,
+  normalizeData,
+  normalizeTargetText,
+} from "../helpers/util";
 import { getCurrentInput } from "../../test/events/data";
 import { isSpace } from "../../utils/strings";
 
@@ -47,10 +52,17 @@ export function onBeforeInsertText(data: string): boolean {
     return true;
   }
 
-  const { inputValue } = getInputElementValue();
+  const { inputValue: rawInputValue } = getInputElementValue();
+  const inputValue = normalizeCommittedText(rawInputValue);
   const currentWordObj = TestWords.words.getCurrent();
-  const currentWordTextWithCommit = currentWordObj?.textWithCommit ?? "";
-  const currentWordTextDisplay = currentWordObj?.display ?? "";
+  const currentWordTextWithCommit = normalizeTargetText(
+    currentWordObj?.textWithCommit ?? "",
+  );
+  const currentWordTextDisplay = normalizeTargetText(
+    currentWordObj?.display ?? "",
+  );
+
+  data = normalizeCommittedText(data);
 
   if (
     Config.stopOnError === "letter" &&
