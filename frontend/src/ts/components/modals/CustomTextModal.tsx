@@ -686,6 +686,7 @@ export function CustomTextModal(): JSXElement {
     }
 
     const translationSettings = getEnVnTranslationSettings();
+    const sentenceBuilderDraft = exerciseToDraft(loadSentenceBuilderExercise());
     const typingTextSettings = loadTypingTextSettings();
 
     const text = CustomText.getText()
@@ -716,6 +717,42 @@ export function CustomTextModal(): JSXElement {
         form.setFieldValue(
           "translationLearningMode",
           translationSettings.learningMode,
+        );
+        form.setFieldValue(
+          "sentenceBuilderSentenceId",
+          sentenceBuilderDraft.sentenceId,
+        );
+        form.setFieldValue(
+          "sentenceBuilderGrammarId",
+          sentenceBuilderDraft.grammarId,
+        );
+        form.setFieldValue(
+          "sentenceBuilderPrompt",
+          sentenceBuilderDraft.prompt,
+        );
+        form.setFieldValue(
+          "sentenceBuilderMeaning",
+          sentenceBuilderDraft.meaning,
+        );
+        form.setFieldValue(
+          "sentenceBuilderAcceptedAnswers",
+          sentenceBuilderDraft.acceptedAnswers,
+        );
+        form.setFieldValue(
+          "sentenceBuilderDifficulty",
+          sentenceBuilderDraft.difficulty,
+        );
+        form.setFieldValue(
+          "sentenceBuilderDistractors",
+          sentenceBuilderDraft.distractors,
+        );
+        form.setFieldValue(
+          "sentenceBuilderGrammarHint",
+          sentenceBuilderDraft.grammarHint,
+        );
+        form.setFieldValue(
+          "sentenceBuilderClassifiedAnswers",
+          sentenceBuilderDraft.classifiedAnswers,
         );
         form.setFieldValue(
           "translationDictionarySource",
