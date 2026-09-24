@@ -291,8 +291,34 @@ export function CustomTextModal(): JSXElement {
     },
     onSubmit: async ({ value }) => {
       let sourceText = value.text;
+      let sentenceBuilderExercise: ReturnType<typeof draftToExercise> | null =
+        null;
 
-      if (value.typingTextSource === "level") {
+      if (value.translationLearningMode === "sentence-builder") {
+        try {
+          sentenceBuilderExercise = draftToExercise({
+            sentenceId: value.sentenceBuilderSentenceId,
+            grammarId: value.sentenceBuilderGrammarId,
+            prompt: value.sentenceBuilderPrompt,
+            meaning: value.sentenceBuilderMeaning,
+            acceptedAnswers: value.sentenceBuilderAcceptedAnswers,
+            difficulty: value.sentenceBuilderDifficulty,
+            distractors: value.sentenceBuilderDistractors,
+            grammarHint: value.sentenceBuilderGrammarHint,
+            classifiedAnswers: value.sentenceBuilderClassifiedAnswers,
+          });
+          sourceText = sentenceBuilderExercise.acceptedAnswers[0] ?? "";
+          form.setFieldValue("text", sourceText);
+        } catch (error) {
+          showErrorNotification(
+            error instanceof Error
+              ? error.message
+              : "Sentence Builder exercise is invalid.",
+            { durationMs: 5000 },
+          );
+          return;
+        }
+      } else if (value.typingTextSource === "level") {
         try {
           const prepared = await prepareLevelPassageText(
             parseInt(value.typingTextLevel) || 1,
@@ -449,6 +475,10 @@ export function CustomTextModal(): JSXElement {
           Math.max(1, parseInt(value.typingTextPassageCount) || 1),
         ),
       });
+
+      if (sentenceBuilderExercise !== null) {
+        saveSentenceBuilderExercise(sentenceBuilderExercise);
+      }
 
       setEnVnTranslationSettings({
         enabled: value.translationEnabled,
