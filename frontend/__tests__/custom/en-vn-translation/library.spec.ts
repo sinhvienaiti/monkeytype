@@ -229,6 +229,27 @@ describe("EN-VN shared curriculum dictionaries", () => {
     ).toBe("today = hôm nay\nwork = công việc");
   });
 
+  it("prepares an ordered review dictionary and exposes shared IPA metadata", async () => {
+    installStorage();
+    installFetch();
+    const library = await import(
+      "../../../src/ts/custom/en-vn-translation/library"
+    );
+
+    const result = await library.prepareReviewDictionary([
+      "passport",
+      "airport",
+    ]);
+
+    expect(result).toEqual({ entries: 2, levels: [1, 2] });
+    expect(library.getActiveDictionaryRaw("review", "")).toBe(
+      "passport = hộ chiếu\nairport = sân bay",
+    );
+    expect(library.getCachedVocabularyEntry("passport")?.ipa).toBe(
+      "/ˈpæsˌpɔrt/",
+    );
+  });
+
   it("keeps Library, Topic, Word type and Grammar caches separate", async () => {
     installStorage();
     installFetch();
