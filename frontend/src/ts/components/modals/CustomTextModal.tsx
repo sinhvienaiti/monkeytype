@@ -3,6 +3,7 @@ import type { CustomTextMode } from "@monkeytype/schemas/util";
 import { createForm } from "@tanstack/solid-form";
 import {
   batch,
+  createMemo,
   createSignal,
   For,
   JSXElement,
@@ -49,7 +50,10 @@ import {
   prepareLibraryDictionary,
   prepareTopicDictionary,
 } from "../../custom/en-vn-translation/library";
-import type { VocabularyTopicIndex } from "../../custom/en-vn-translation/library";
+import type {
+  VocabularyTopicIndex,
+  VocabularyTopicMeta,
+} from "../../custom/en-vn-translation/library";
 import {
   loadTypingTextIndex,
   loadTypingTextSettings,
@@ -178,6 +182,27 @@ export function CustomTextModal(): JSXElement {
     createSignal<VocabularyTopicIndex | null>(null);
   const [vocabularyTopicIndexLoading, setVocabularyTopicIndexLoading] =
     createSignal(false);
+  const vocabularyTopicGroups = createMemo(() => {
+    const groups = new Map<
+      string,
+      { id: string; label: string; topics: VocabularyTopicMeta[] }
+    >();
+
+    for (const topic of vocabularyTopicIndex()?.topics ?? []) {
+      let group = groups.get(topic.group);
+      if (group === undefined) {
+        group = {
+          id: topic.group,
+          label: topic.groupLabel ?? topic.group,
+          topics: [],
+        };
+        groups.set(topic.group, group);
+      }
+      group.topics.push(topic);
+    }
+
+    return [...groups.values()];
+  });
 
   // oxlint-disable-next-line no-unassigned-vars -- assigned via SolidJS ref
   let fileInputRef!: HTMLInputElement;
@@ -1139,11 +1164,17 @@ export function CustomTextModal(): JSXElement {
                             field().handleChange(e.currentTarget.value)
                           }
                         >
-                          <For each={vocabularyTopicIndex()?.topics ?? []}>
-                            {(item) => (
-                              <option value={item.id}>
-                                {item.group} · {item.label} · {item.count}
-                              </option>
+                          <For each={vocabularyTopicGroups()}>
+                            {(group) => (
+                              <optgroup label={group.label}>
+                                <For each={group.topics}>
+                                  {(item) => (
+                                    <option value={item.id}>
+                                      {item.label} · {item.count}
+                                    </option>
+                                  )}
+                                </For>
+                              </optgroup>
                             )}
                           </For>
                         </select>
