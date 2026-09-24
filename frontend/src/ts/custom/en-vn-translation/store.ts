@@ -40,6 +40,7 @@ const LearningModeSchema = z.enum([
   "recall",
   "listen",
   "sentence-builder",
+  "context-cloze",
 ]);
 
 const EnVnTranslationSettingsSchema = z.object({
