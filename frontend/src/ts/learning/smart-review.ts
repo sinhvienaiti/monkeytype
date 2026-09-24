@@ -236,18 +236,16 @@ export function parseSmartReviewDataset(value: unknown): SmartReviewDataset | nu
       Number.isFinite(raw["reviewPriority"])
         ? raw["reviewPriority"]
         : undefined;
+    const acceptedAnswers = normalizeAcceptedAnswers(raw["acceptedAnswers"]);
+    const reviewContext = parseReviewContext(raw["reviewContext"]);
 
     items.push({
       entityType,
       entityId: canonicalEntityId,
       ...(mastery === undefined ? {} : { mastery }),
       ...(reviewPriority === undefined ? {} : { reviewPriority }),
-      ...(normalizeAcceptedAnswers(raw["acceptedAnswers"]) === undefined
-        ? {}
-        : { acceptedAnswers: normalizeAcceptedAnswers(raw["acceptedAnswers"]) }),
-      ...(parseReviewContext(raw["reviewContext"]) === undefined
-        ? {}
-        : { reviewContext: parseReviewContext(raw["reviewContext"]) }),
+      ...(acceptedAnswers === undefined ? {} : { acceptedAnswers }),
+      ...(reviewContext === undefined ? {} : { reviewContext }),
     });
   }
 
