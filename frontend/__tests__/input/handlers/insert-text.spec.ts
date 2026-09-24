@@ -195,6 +195,11 @@ async function type(data: string, now = 1000): Promise<void> {
   await onInsertText({ data, now });
 }
 
+async function commitComposition(data: string, now = 1000): Promise<void> {
+  inputEl.value += data;
+  await onInsertText({ data, now, isCompositionEnding: true });
+}
+
 function inputEventsForWord(wordIndex: number): InputEventNoMs[] {
   return getEventsForWord(getAllTestEvents(), wordIndex).filter(
     (e): e is InputEventNoMs => e.type === "input",
@@ -688,5 +693,99 @@ describe("onInsertText - keep first wrong letter", () => {
     expect(getInput()).toBe("mo");
     expect(inserts).toHaveLength(3);
     expect(inserts[2]?.data.correct).toBe(true);
+  });
+});
+
+describe("onInsertText - Vietnamese IME committed text", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetTestEvents();
+    TestWords.reset();
+    mockState.activeWordIndex = 0;
+    mockState.correctShiftUsed = true;
+    mockState.wordsScrolledOff.clear();
+    setInput("");
+    replaceConfig({
+      mode: "words",
+      language: "english",
+      inputLanguage: "vietnamese",
+      deleteOnError: "off",
+      stopOnError: "off",
+      forgiveCorrectedErrors: false,
+      difficulty: "normal",
+      strictSpace: false,
+      oppositeShiftMode: "off",
+      keymapMode: "off",
+      blindMode: false,
+    });
+  });
+
+  it("scores a decomposed ấ commit as one correct committed character", async () => {
+    pushWords("ấ", "next");
+
+    await commitComposition("ấ".normalize("NFD"));
+
+    const inserts = insertEventsForWord(0);
+    expect(inserts).toHaveLength(1);
+    expect(inserts[0]?.data.data).toBe("ấ");
+    expect(inserts[0]?.data.correct).toBe(true);
+    expect(inserts[0]?.data.isCompositionEnding).toBe(true);
+    expect(getInput()).toBe("ấ");
+    expect(getAccuracy(buildEventLog())).toEqual({
+      correct: 1,
+      incorrect: 0,
+      percentage: 100,
+    });
+  });
+
+  it.each(["ộ", "ường", "nghiêng"])(
+    "scores a decomposed Vietnamese commit without intermediate penalties: %s",
+    async (word) => {
+      pushWords(word, "next");
+
+      await commitComposition(word.normalize("NFD"));
+
+      const inserts = insertEventsForWord(0);
+      expect(inserts.map((event) => event.data.data)).toEqual(Array.from(word));
+      expect(inserts.every((event) => event.data.correct)).toBe(true);
+      expect(inserts.filter((event) => !event.data.correct)).toHaveLength(0);
+      expect(getInput()).toBe(word);
+    },
+  );
+
+  it("normalizes a Vietnamese target before comparing committed text", async () => {
+    const decomposedTarget = "Việt".normalize("NFD");
+    pushWords(decomposedTarget, "next");
+
+    await commitComposition("Việt".normalize("NFD"));
+
+    const inserts = insertEventsForWord(0);
+    expect(inserts.map((event) => event.data.data)).toEqual(Array.from("Việt"));
+    expect(inserts.every((event) => event.data.correct)).toBe(true);
+  });
+
+  it("auto mode enables IME scoring when the selected language is Vietnamese", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      inputLanguage: "auto",
+      language: "vietnamese",
+    });
+    pushWords("Việt", "next");
+
+    await commitComposition("Việt".normalize("NFD"));
+
+    expect(insertEventsForWord(0).every((event) => event.data.correct)).toBe(
+      true,
+    );
+  });
+
+  it("keeps English mode unchanged instead of silently applying Vietnamese NFC", async () => {
+    replaceConfig({ ...__testing.getConfig(), inputLanguage: "english" });
+    pushWords("é", "next");
+
+    await commitComposition("é".normalize("NFD"));
+
+    const inserts = insertEventsForWord(0);
+    expect(inserts.some((event) => !event.data.correct)).toBe(true);
   });
 });
