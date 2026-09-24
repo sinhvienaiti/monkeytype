@@ -459,6 +459,9 @@ function syncEnVnLearningClasses(): void {
   const dictionaryRaw = getActiveDictionaryRaw(
     settings.dictionarySource,
     settings.dictionary,
+    settings.dictionaryTopicId,
+    settings.dictionaryPosId,
+    settings.dictionaryGrammarId,
   );
   const enabled =
     Config.mode === "custom" &&
@@ -475,7 +478,10 @@ function syncEnVnLearningClasses(): void {
     wordsEl.addClass("en-vn-line-spacing-wide");
   }
 
-  if (settings.recallModeEnabled) {
+  if (
+    settings.learningMode === "recall" ||
+    settings.learningMode === "listen"
+  ) {
     wordsEl.addClass("en-vn-recall-mode");
   }
 }
@@ -491,7 +497,7 @@ function getRecallTargetInfo(): {
   if (
     Config.mode !== "custom" ||
     !settings.enabled ||
-    !settings.recallModeEnabled
+    settings.learningMode === "normal"
   ) {
     return { targets, starts };
   }
@@ -499,6 +505,9 @@ function getRecallTargetInfo(): {
   const dictionaryRaw = getActiveDictionaryRaw(
     settings.dictionarySource,
     settings.dictionary,
+    settings.dictionaryTopicId,
+    settings.dictionaryPosId,
+    settings.dictionaryGrammarId,
   );
   if (dictionaryRaw.trim() === "") return { targets, starts };
 
