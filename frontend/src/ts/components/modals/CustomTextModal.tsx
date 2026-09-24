@@ -421,7 +421,10 @@ export function CustomTextModal(): JSXElement {
         Math.max(500, parseInt(value.translationDuration) || 3000),
       );
 
-      if (value.translationEnabled) {
+      if (
+        value.translationEnabled &&
+        value.translationLearningMode !== "sentence-builder"
+      ) {
         try {
           if (value.translationDictionarySource === "library") {
             const loaded = await prepareLibraryDictionary(sourceText);
