@@ -78,6 +78,12 @@ import {
   stopTextReader,
 } from "../../custom/en-vn-translation/text-reader";
 import type { TextReaderState } from "../../custom/en-vn-translation/text-reader";
+import {
+  draftToExercise,
+  exerciseToDraft,
+  loadSentenceBuilderExercise,
+  saveSentenceBuilderExercise,
+} from "../../learning/sentence-builder-store";
 import type {
   DictionarySource,
   LearningMode,
