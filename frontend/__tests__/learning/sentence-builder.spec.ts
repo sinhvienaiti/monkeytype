@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildSentenceBuilderLayout,
+  buildSentenceBuilderLearningEvents,
   normalizeSentenceAnswer,
   parseSentenceBuilderExercise,
   sentenceBuilderHint,
@@ -166,6 +167,54 @@ describe("Sentence Builder V1 engine", () => {
     expect(() => draftToExercise(draft)).toThrow(
       "answer => error-type",
     );
+  });
+
+  it("emits one sentence event plus one grammar event with the same classified mistake", () => {
+    const validation = validateSentenceBuilderAnswer(
+      exercise,
+      "I lived here since 2020.",
+    );
+
+    const events = buildSentenceBuilderLearningEvents({
+      exercise,
+      validation,
+      answer: "I lived here since 2020.",
+      responseMs: 1234.4,
+      hintUsed: true,
+      occurredAt: "2026-09-24T13:00:00.000Z",
+    });
+
+    expect(events).toHaveLength(2);
+    expect(events[0]).toMatchObject({
+      entityType: "sentence",
+      entityId: "present-perfect-lived-here",
+      activityType: "sentence-builder",
+      result: "wrong",
+      responseMs: 1234,
+      hintUsed: true,
+      errorType: "wrong-tense",
+    });
+    expect(events[1]).toMatchObject({
+      entityType: "grammar",
+      entityId: "present-perfect",
+      errorType: "wrong-tense",
+    });
+  });
+
+  it("records the actually matched accepted answer for a valid alternative", () => {
+    const answer = "Since 2020, I have lived here.";
+    const validation = validateSentenceBuilderAnswer(exercise, answer);
+    const events = buildSentenceBuilderLearningEvents({
+      exercise,
+      validation,
+      answer,
+      responseMs: 200,
+      hintUsed: false,
+      occurredAt: "2026-09-24T13:00:00.000Z",
+    });
+
+    expect(events[0]?.expectedAnswer).toBe(answer);
+    expect(events[0]?.result).toBe("correct");
   });
 
 });
