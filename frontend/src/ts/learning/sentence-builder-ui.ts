@@ -1,3 +1,4 @@
+import { Config } from "../config/store";
 import { restartTestEvent } from "../events/test";
 import { getSettings } from "../custom/en-vn-translation/store";
 import {
@@ -252,6 +253,7 @@ export function syncSentenceBuilderPanel(): void {
   if (panel === null || typingTest === null) return;
 
   const active =
+    Config.mode === "custom" &&
     getSettings().learningMode === "sentence-builder";
   panel.classList.toggle("hidden", !active);
   typingTest.classList.toggle("sentence-builder-active", active);
