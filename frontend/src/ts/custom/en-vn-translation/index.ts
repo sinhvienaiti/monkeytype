@@ -483,6 +483,7 @@ export function applyLearningAppearance(
     Config.mode === "custom" &&
     settings.enabled &&
     settings.learningMode !== "sentence-builder" &&
+    settings.learningMode !== "context-cloze" &&
     dictionaryRaw.trim() !== "";
 
   if (!shouldApply) {
