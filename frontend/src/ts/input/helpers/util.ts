@@ -9,6 +9,29 @@ import { Config } from "../../config/store";
  */
 export type CommitCharacterType = "separator" | "nospace";
 
+export function isVietnameseLanguage(language: string): boolean {
+  return language === "vietnamese" || language.startsWith("vietnamese_");
+}
+
+/**
+ * IMEs may commit canonically equivalent Vietnamese text in decomposed form.
+ * Normalize only the committed text, never intermediate composition updates.
+ */
+export function normalizeCommittedText(
+  data: string,
+  language: string = Config.language,
+): string {
+  return isVietnameseLanguage(language) ? data.normalize("NFC") : data;
+}
+
+/**
+ * Split committed text by Unicode code point rather than UTF-16 code unit.
+ * This keeps multi-character IME commits safe without implementing an IME.
+ */
+export function splitCommittedText(data: string): string[] {
+  return Array.from(data);
+}
+
 export function getCommitCharacterType(options: {
   data: string;
   inputValue: string;
