@@ -12,6 +12,7 @@ import {
   startTextReader,
 } from "./text-reader";
 import { getSettings } from "./store";
+import { markLearningMatchPresented } from "../../learning/learning-memory";
 import type {
   EnVnTranslationSettings,
   TranslationLineSpacing,
@@ -420,6 +421,7 @@ function showLearningMatch(
   if (shownTranslationMatches.has(matchId)) return;
 
   shownTranslationMatches.add(matchId);
+  markLearningMatchPresented(wordIndex);
 
   if (settings.displayMode === "tooltip" || settings.displayMode === "both") {
     showTranslationTooltip(match.translation, wordIndex, settings);
