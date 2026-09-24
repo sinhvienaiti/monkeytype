@@ -19,6 +19,7 @@ const settings: EnVnTranslationSettings = {
   enabled: true,
   recallModeEnabled: false,
   dictionarySource: "custom",
+  dictionaryTopicId: "everyday.routine",
   dictionary: "",
   durationMs: 3000,
   popupStyle: "bubble",
