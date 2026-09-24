@@ -14,14 +14,46 @@ export function isVietnameseLanguage(language: string): boolean {
 }
 
 /**
+ * Vietnamese IME handling is opt-in, or automatically enabled when the test
+ * language itself is Vietnamese. Auto therefore preserves existing English
+ * direct-input behavior.
+ */
+export function shouldUseVietnameseIme(
+  inputLanguage = Config.inputLanguage,
+  testLanguage = Config.language,
+): boolean {
+  return (
+    inputLanguage === "vietnamese" ||
+    (inputLanguage === "auto" && isVietnameseLanguage(testLanguage))
+  );
+}
+
+/**
  * IMEs may commit canonically equivalent Vietnamese text in decomposed form.
- * Normalize only the committed text, never intermediate composition updates.
+ * Normalize committed text only when Vietnamese IME handling is active.
  */
 export function normalizeCommittedText(
   data: string,
-  language: string = Config.language,
+  inputLanguage = Config.inputLanguage,
+  testLanguage = Config.language,
 ): string {
-  return isVietnameseLanguage(language) ? data.normalize("NFC") : data;
+  return shouldUseVietnameseIme(inputLanguage, testLanguage)
+    ? data.normalize("NFC")
+    : data;
+}
+
+/**
+ * Compare Vietnamese targets in the same canonical form as committed input.
+ * Rendering stays untouched; this function is only for input/scoring logic.
+ */
+export function normalizeTargetText(
+  data: string,
+  inputLanguage = Config.inputLanguage,
+  testLanguage = Config.language,
+): string {
+  return shouldUseVietnameseIme(inputLanguage, testLanguage)
+    ? data.normalize("NFC")
+    : data;
 }
 
 /**
