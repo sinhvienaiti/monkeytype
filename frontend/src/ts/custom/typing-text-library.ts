@@ -32,7 +32,7 @@ export type TypingTextIndex = {
   levels: TypingTextLevelMeta[];
 };
 
-type TypingTextPassage = {
+export type TypingTextPassage = {
   id: string;
   topic: string;
   style: string;
@@ -244,13 +244,13 @@ function passageSignature(document: TypingTextLevel): string {
     .join("|");
 }
 
-export async function prepareLevelPassageText(
+export async function prepareLevelPassages(
   level: number,
   passageCount: number,
 ): Promise<{
   level: number;
-  passageIds: string[];
-  text: string;
+  cefr: string;
+  passages: TypingTextPassage[];
 }> {
   const index = await loadTypingTextIndex();
   const document = await loadTypingTextLevel(level, index);
@@ -306,7 +306,24 @@ export async function prepareLevelPassageText(
 
   return {
     level,
-    passageIds,
-    text: passages.map((passage) => passage.text).join(" "),
+    cefr: document.cefr,
+    passages,
+  };
+}
+
+export async function prepareLevelPassageText(
+  level: number,
+  passageCount: number,
+): Promise<{
+  level: number;
+  passageIds: string[];
+  text: string;
+}> {
+  const prepared = await prepareLevelPassages(level, passageCount);
+
+  return {
+    level: prepared.level,
+    passageIds: prepared.passages.map((passage) => passage.id),
+    text: prepared.passages.map((passage) => passage.text).join(" "),
   };
 }
