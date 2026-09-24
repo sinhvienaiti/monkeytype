@@ -466,6 +466,8 @@ function syncEnVnLearningClasses(): void {
   const enabled =
     Config.mode === "custom" &&
     settings.enabled &&
+    settings.learningMode !== "sentence-builder" &&
+    settings.learningMode !== "context-cloze" &&
     dictionaryRaw.trim() !== "";
 
   if (!enabled) return;
