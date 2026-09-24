@@ -382,6 +382,22 @@ export function CustomTextModal(): JSXElement {
               `${loaded.label} dictionary ready · ${loaded.entries} entries`,
               { durationMs: 2500 },
             );
+          } else if (value.translationDictionarySource === "word-type") {
+            const loaded = await preparePosDictionary(
+              value.translationDictionaryPosId,
+            );
+            showNoticeNotification(
+              `${loaded.label} dictionary ready · ${loaded.entries} entries`,
+              { durationMs: 2500 },
+            );
+          } else if (value.translationDictionarySource === "grammar") {
+            const loaded = await prepareGrammarDictionary(
+              value.translationDictionaryGrammarId,
+            );
+            showNoticeNotification(
+              `${loaded.label} dictionary ready · ${loaded.entries} entries`,
+              { durationMs: 2500 },
+            );
           }
         } catch (error) {
           showErrorNotification(
@@ -408,6 +424,8 @@ export function CustomTextModal(): JSXElement {
         recallModeEnabled: value.translationRecallMode,
         dictionarySource: value.translationDictionarySource,
         dictionaryTopicId: value.translationDictionaryTopicId,
+        dictionaryPosId: value.translationDictionaryPosId,
+        dictionaryGrammarId: value.translationDictionaryGrammarId,
         dictionary: value.translationDictionary,
         durationMs: translationDuration,
         popupStyle: value.translationPopupStyle,
@@ -644,6 +662,14 @@ export function CustomTextModal(): JSXElement {
         form.setFieldValue(
           "translationDictionaryTopicId",
           translationSettings.dictionaryTopicId,
+        );
+        form.setFieldValue(
+          "translationDictionaryPosId",
+          translationSettings.dictionaryPosId,
+        );
+        form.setFieldValue(
+          "translationDictionaryGrammarId",
+          translationSettings.dictionaryGrammarId,
         );
         form.setFieldValue(
           "translationDictionary",
