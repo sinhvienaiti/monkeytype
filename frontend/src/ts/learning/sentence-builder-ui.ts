@@ -157,7 +157,7 @@ function submitAnswer(): void {
 
   if (validation.correct) {
     setFeedback(
-      `Correct · score 100 · accepted answer ${exercise.acceptedAnswers.indexOf(validation.matchedAnswer ?? expectedAnswer) + 1}/${exercise.acceptedAnswers.length}`,
+      `Correct · score 100 · accepted answer ${exercise.acceptedAnswers.indexOf(validation.matchedAnswer ?? exercise.acceptedAnswers[0]) + 1}/${exercise.acceptedAnswers.length}`,
       "correct",
     );
   } else {
@@ -182,7 +182,7 @@ function revealNextWord(): void {
 }
 
 function showGrammarHint(): void {
-  if (exercise === null || exercise.grammarHint === undefined) return;
+  if (exercise?.grammarHint === undefined) return;
   const hint = byId<HTMLElement>("sentenceBuilderHint");
   if (hint === null) return;
   hintUsed = true;
