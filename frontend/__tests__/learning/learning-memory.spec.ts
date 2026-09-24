@@ -7,6 +7,7 @@ const mockState = vi.hoisted(() => ({
   dictionaryRaw: "hello = xin chào",
   settings: {
     enabled: true,
+    learningMode: "normal",
     recallModeEnabled: false,
     dictionarySource: "custom",
     dictionaryTopicId: "everyday.routine",
@@ -68,6 +69,7 @@ describe("Monkeytype shared learning memory", () => {
     mockState.config.mode = "custom";
     mockState.dictionaryRaw = "hello = xin chào";
     mockState.settings.enabled = true;
+    mockState.settings.learningMode = "normal";
     mockState.settings.recallModeEnabled = false;
     mockState.settings.dictionary = mockState.dictionaryRaw;
     mockState.words = [
@@ -156,6 +158,7 @@ describe("Monkeytype shared learning memory", () => {
   });
 
   it("labels existing Recall mode attempts separately", () => {
+    mockState.settings.learningMode = "recall";
     mockState.settings.recallModeEnabled = true;
     __testing.reset();
 
@@ -168,6 +171,24 @@ describe("Monkeytype shared learning memory", () => {
     });
 
     expect(event?.activityType).toBe("recall");
+  });
+
+  it.each([
+    ["learn", "learn"],
+    ["listen", "listen"],
+  ] as const)("labels %s mode attempts separately", (mode, expected) => {
+    mockState.settings.learningMode = mode;
+    __testing.reset();
+
+    markLearningMatchPresented(0, 10);
+    const event = recordLearningWordCompletion({
+      wordIndex: 0,
+      input: "hello ",
+      correct: true,
+      now: 110,
+    });
+
+    expect(event?.activityType).toBe(expected);
   });
 
   it("carries hint and replay dependence only when those actions are marked", () => {
