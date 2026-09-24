@@ -88,6 +88,47 @@
       </div>
     </section>
 
+    <section
+      id="contextClozePanel"
+      class="hidden"
+      aria-label="Context Cloze"
+    >
+      <div class="contextClozeHeader">
+        <div>
+          <div class="contextClozeEyebrow">context / cloze</div>
+          <div id="contextClozeType" class="contextClozeType"></div>
+          <div id="contextClozeTopic" class="contextClozeTopic"></div>
+        </div>
+        <div id="contextClozeProgress" class="contextClozeProgress"></div>
+      </div>
+
+      <div id="contextClozePrompt" class="contextClozePrompt"></div>
+
+      <input
+        id="contextClozeAnswer"
+        type="text"
+        autocomplete="off"
+        autocorrect="off"
+        spellcheck="false"
+        placeholder="Type the missing word or phrase"
+      />
+
+      <div id="contextClozeHint" class="contextClozeHint"></div>
+      <div id="contextClozeFeedback" class="contextClozeFeedback"></div>
+
+      <div class="contextClozeActions">
+        <button id="contextClozeReveal" type="button">
+          reveal letter
+        </button>
+        <button id="contextClozeSubmit" type="button" class="primary">
+          check answer
+        </button>
+        <button id="contextClozeNext" type="button" disabled>
+          next
+        </button>
+      </div>
+    </section>
+
     <mount data-component="livestatstexttop"></mount>
     <mount data-component="livestatsmini" class="full-width"></mount>
     <div id="wordsWrapper" class="content-grid full-width" translate="no">
