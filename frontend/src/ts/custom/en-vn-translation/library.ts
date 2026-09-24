@@ -283,13 +283,18 @@ export async function prepareTopicDictionary(
     throw new Error(`Vocabulary topic ${topicId} is unavailable`);
   }
 
-  let levelHints = topic.entries;
-  if (levelHints === undefined) {
+  let levelHints: VocabularyTopicEntry[];
+  if (topic.entries !== undefined) {
+    levelHints = topic.entries;
+  } else {
     const lookup = await loadLookup();
-    levelHints = topic.keys.flatMap((key) => {
+    levelHints = [];
+    for (const key of topic.keys) {
       const level = lookup.entries[normalizePhrase(key)];
-      return Number.isInteger(level) ? [{ key, level }] : [];
-    });
+      if (level !== undefined && Number.isInteger(level)) {
+        levelHints.push({ key, level });
+      }
+    }
   }
 
   const levels = [
