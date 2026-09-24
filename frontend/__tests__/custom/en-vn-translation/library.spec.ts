@@ -33,9 +33,14 @@ describe("EN-VN shared topic dictionary", () => {
                   id: "travel.airport",
                   label: "Airport",
                   group: "travel-tourism",
+                  groupLabel: "Travel & Tourism",
                   levels: ["A1", "B1"],
                   count: 2,
                   keys: ["passport", "airport"],
+                  entries: [
+                    { key: "passport", level: 2 },
+                    { key: "airport", level: 1 },
+                  ],
                 },
               ],
             }
@@ -94,6 +99,7 @@ describe("EN-VN shared topic dictionary", () => {
     ).toBe("passport = hộ chiếu\nairport = sân bay");
 
     const urls = fetchMock.mock.calls.map(([input]) => requestUrl(input));
+    expect(urls.some((url) => url.endsWith("/lookup.json"))).toBe(false);
     expect(urls.some((url) => url.endsWith("/levels/001.json"))).toBe(true);
     expect(urls.some((url) => url.endsWith("/levels/002.json"))).toBe(true);
     expect(urls.some((url) => url.endsWith("/levels/003.json"))).toBe(false);
@@ -120,9 +126,11 @@ describe("EN-VN shared topic dictionary", () => {
                   id: "food.meals",
                   label: "Meals",
                   group: "food-drink",
+                  groupLabel: "Food & Drink",
                   levels: ["A1"],
                   count: 1,
                   keys: ["dinner"],
+                  entries: [{ key: "dinner", level: 2 }],
                 },
               ],
             }
