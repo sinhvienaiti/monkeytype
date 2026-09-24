@@ -318,7 +318,10 @@ export function CustomTextModal(): JSXElement {
           );
           return;
         }
-      } else if (value.typingTextSource === "level") {
+      } else if (
+        value.typingTextSource === "level" &&
+        value.translationLearningMode !== "context-cloze"
+      ) {
         try {
           const prepared = await prepareLevelPassageText(
             parseInt(value.typingTextLevel) || 1,
@@ -1691,7 +1694,15 @@ export function CustomTextModal(): JSXElement {
                               variant="button"
                               text={option.label}
                               active={field().state.value === option.value}
-                              onClick={() => field().handleChange(option.value)}
+                              onClick={() => {
+                                field().handleChange(option.value);
+                                if (option.value === "context-cloze") {
+                                  form.setFieldValue(
+                                    "typingTextSource",
+                                    "level",
+                                  );
+                                }
+                              }}
                             />
                           )}
                         </For>
@@ -1699,6 +1710,19 @@ export function CustomTextModal(): JSXElement {
                     )}
                   </form.Field>
                 </div>
+
+                <Show
+                  when={
+                    formValues().translationLearningMode ===
+                    "context-cloze"
+                  }
+                >
+                  <div class="rounded bg-sub-alt px-3 py-2 text-xs text-sub">
+                    Context/Cloze uses the selected shared Typing Text level and
+                    passage count above, then derives vocabulary and grammar
+                    blanks at runtime. No separate exercise corpus is stored.
+                  </div>
+                </Show>
 
                 <Show
                   when={
