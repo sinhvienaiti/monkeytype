@@ -38,6 +38,7 @@ import { setVersion } from "./states/core";
 import { loadFromLocalStorage } from "./config/lifecycle";
 
 import "./input/hotkeys";
+import "./learning/review-dataset";
 import { showModal } from "./states/modals";
 import { getLastEventLog } from "./states/test";
 import { buildEventLog } from "./test/events/data";
