@@ -126,6 +126,55 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+
+    .translationIpa,
+    .translationHint {
+      max-width: 100%;
+      color: var(--sub-color);
+      font-size: 0.76rem;
+      line-height: 1.2;
+      text-align: center;
+    }
+
+    .translationIpa {
+      font-family: var(--font);
+      font-style: italic;
+    }
+
+    .translationHint {
+      color: var(--main-color);
+      font-weight: 600;
+    }
+
+    .translationActions {
+      display: flex;
+      gap: 0.45rem;
+      margin-top: 0.25rem;
+      pointer-events: auto;
+
+      &.hidden {
+        display: none;
+      }
+
+      button {
+        margin: 0;
+        padding: 0.35rem 0.55rem;
+        border: 1px solid
+          color-mix(in srgb, var(--sub-color) 32%, transparent);
+        border-radius: 0.55rem;
+        background: color-mix(in srgb, var(--sub-alt-color) 82%, transparent);
+        color: var(--text-color);
+        font-size: 0.68rem;
+        line-height: 1;
+        cursor: pointer;
+
+        &:hover,
+        &:focus-visible {
+          border-color: var(--main-color);
+          color: var(--main-color);
+        }
+      }
+    }
   }
 
   .ssWatermark {
