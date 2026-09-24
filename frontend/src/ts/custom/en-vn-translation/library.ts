@@ -478,7 +478,7 @@ export async function preparePosDictionary(
 
   const label = category.id
     .split("-")
-    .map((part) => part === "" ? part : part[0]!.toUpperCase() + part.slice(1))
+    .map((part) => part === "" ? part : part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
   return { entries: result.entries, levels: result.levels, label };
 }
