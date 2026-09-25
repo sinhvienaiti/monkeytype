@@ -9,10 +9,7 @@ import { Config } from "../config/store";
 import { setConfig } from "../config/setters";
 import * as TestWords from "./test-words";
 import { handleActiveWord } from "../custom/en-vn-translation";
-import {
-  findDictionaryMatches,
-  parseDictionary,
-} from "../custom/en-vn-translation/dictionary";
+import { getLearningRecallTargetInfo } from "../learning/learning-memory";
 import { getSettings as getEnVnTranslationSettings } from "../custom/en-vn-translation/store";
 import { getActiveDictionaryRaw } from "../custom/en-vn-translation/library";
 import { getCurrentInput } from "./events/data";
@@ -492,10 +489,7 @@ function getRecallTargetInfo(): {
   targets: Set<number>;
   starts: Set<number>;
 } {
-  const targets = new Set<number>();
-  const starts = new Set<number>();
   const settings = getEnVnTranslationSettings();
-
   if (
     Config.mode !== "custom" ||
     !settings.enabled ||
@@ -505,34 +499,10 @@ function getRecallTargetInfo(): {
       settings.learningMode === "listen"
     )
   ) {
-    return { targets, starts };
+    return { targets: new Set(), starts: new Set() };
   }
 
-  const dictionaryRaw = getActiveDictionaryRaw(
-    settings.dictionarySource,
-    settings.dictionary,
-    settings.dictionaryTopicId,
-    settings.dictionaryPosId,
-    settings.dictionaryGrammarId,
-  );
-  if (dictionaryRaw.trim() === "") return { targets, starts };
-
-  const dictionary = parseDictionary(dictionaryRaw);
-  const words: string[] = [];
-
-  for (let index = 0; index < TestWords.words.length; index++) {
-    const word = TestWords.words.get(index);
-    words.push(word?.text ?? "");
-  }
-
-  for (const match of findDictionaryMatches(words, dictionary)) {
-    starts.add(match.startWordIndex);
-    for (let offset = 0; offset < match.wordCount; offset++) {
-      targets.add(match.startWordIndex + offset);
-    }
-  }
-
-  return { targets, starts };
+  return getLearningRecallTargetInfo();
 }
 
 function updateWordWrapperClasses(): void {
