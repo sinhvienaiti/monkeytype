@@ -11,7 +11,6 @@ import { getSettings } from "../custom/en-vn-translation/store";
 const LEARNING_ATTEMPT_MESSAGE = "typing-game:learning:v1:attempt";
 const GAME_ID = "monkeytype";
 const PARENT_ORIGIN = "https://typing-game.local";
-const PARENT_ORIGIN = "https://typing-game.local";
 
 type LearningAttemptEvent = {
   version: 1;
@@ -45,7 +44,7 @@ type AttemptState = {
 };
 
 let cachedDictionaryRaw = "";
-let cachedDictionary: ReturnType<typeof parseDictionary> | null = null;
+let cachedDictionary: ReturnType<typeof parseDictionaryCached> | null = null;
 let cachedWordCount = -1;
 let cachedWords: string[] = [];
 let cachedMatchesByWord = new Map<number, LearningMatch>();
@@ -128,14 +127,14 @@ function rebuildMatchesIfNeeded(): void {
 
   if (dictionaryChanged) {
     cachedDictionaryRaw = dictionaryRaw;
-    cachedDictionary = parseDictionary(dictionaryRaw);
+    cachedDictionary = parseDictionaryCached(dictionaryRaw);
     cachedWordCount = -1;
     cachedWords = [];
     cachedMatchesByWord = new Map();
     cachedMatchesByStart = new Map();
     attemptStates = new Map();
   } else if (cachedDictionary === null) {
-    cachedDictionary = parseDictionary(dictionaryRaw);
+    cachedDictionary = parseDictionaryCached(dictionaryRaw);
   }
 
   const sameWords =
