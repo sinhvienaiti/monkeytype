@@ -3,13 +3,14 @@ import { restartTestEvent } from "../events/test";
 import * as TestWords from "../test/test-words";
 import {
   findDictionaryMatches,
-  parseDictionary,
+  parseDictionaryCached,
 } from "../custom/en-vn-translation/dictionary";
 import { getActiveDictionaryRaw } from "../custom/en-vn-translation/library";
 import { getSettings } from "../custom/en-vn-translation/store";
 
 const LEARNING_ATTEMPT_MESSAGE = "typing-game:learning:v1:attempt";
 const GAME_ID = "monkeytype";
+const PARENT_ORIGIN = "https://typing-game.local";
 const PARENT_ORIGIN = "https://typing-game.local";
 
 type LearningAttemptEvent = {
