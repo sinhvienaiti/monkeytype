@@ -9,6 +9,89 @@ import { Config } from "../../config/store";
  */
 export type CommitCharacterType = "separator" | "nospace";
 
+export function isVietnameseLanguage(language: string): boolean {
+  return language === "vietnamese" || language.startsWith("vietnamese_");
+}
+
+/**
+ * Vietnamese IME handling is opt-in, or automatically enabled when the test
+ * language itself is Vietnamese. Auto therefore preserves existing English
+ * direct-input behavior.
+ */
+export function shouldUseVietnameseIme(
+  inputLanguage = Config.inputLanguage,
+  testLanguage = Config.language,
+): boolean {
+  return (
+    inputLanguage === "vietnamese" ||
+    (inputLanguage === "auto" && isVietnameseLanguage(testLanguage))
+  );
+}
+
+/**
+ * IMEs may commit canonically equivalent Vietnamese text in decomposed form.
+ * Normalize committed text only when Vietnamese IME handling is active.
+ */
+export function normalizeCommittedText(
+  data: string,
+  inputLanguage = Config.inputLanguage,
+  testLanguage = Config.language,
+): string {
+  return shouldUseVietnameseIme(inputLanguage, testLanguage)
+    ? data.normalize("NFC")
+    : data;
+}
+
+/**
+ * Compare Vietnamese targets in the same canonical form as committed input.
+ * Rendering stays untouched; this function is only for input/scoring logic.
+ */
+export function normalizeTargetText(
+  data: string,
+  inputLanguage = Config.inputLanguage,
+  testLanguage = Config.language,
+): string {
+  return shouldUseVietnameseIme(inputLanguage, testLanguage)
+    ? data.normalize("NFC")
+    : data;
+}
+
+/**
+ * Split committed text by Unicode code point rather than UTF-16 code unit.
+ * This keeps multi-character IME commits safe without implementing an IME.
+ */
+export function splitCommittedText(data: string): string[] {
+  return Array.from(data);
+}
+
+/**
+ * Derive the text actually committed by an IME from the event-log-backed
+ * prefix captured at compositionstart and the final input element value.
+ * Returning null means the IME replaced text outside the active composition
+ * range, so the listener must reconcile to the scorer state instead of
+ * replaying an unsafe payload.
+ */
+export function deriveCompositionCommit(
+  committedPrefix: string,
+  finalInputValue: string,
+  inputLanguage = Config.inputLanguage,
+  testLanguage = Config.language,
+): string | null {
+  const prefix = normalizeCommittedText(
+    committedPrefix,
+    inputLanguage,
+    testLanguage,
+  );
+  const finalValue = normalizeCommittedText(
+    finalInputValue,
+    inputLanguage,
+    testLanguage,
+  );
+
+  if (!finalValue.startsWith(prefix)) return null;
+  return finalValue.slice(prefix.length);
+}
+
 export function getCommitCharacterType(options: {
   data: string;
   inputValue: string;

@@ -131,6 +131,8 @@ vi.mock("../../../src/ts/input/helpers/fail-or-finish", () => ({
 
 import { onInsertText } from "../../../src/ts/input/handlers/insert-text";
 import {
+  buildEventLog,
+  logTestEvent,
   resetTestEvents,
   getAllTestEvents,
   getInputForWord,
@@ -140,6 +142,8 @@ import {
   getEventsForWord,
 } from "../../../src/ts/test/events/helpers";
 import type { InputEventNoMs } from "../../../src/ts/test/events/types";
+import { getAccuracy } from "../../../src/ts/test/events/stats";
+import { getLiveCachedAccuracy } from "../../../src/ts/test/events/live-cache";
 import { words as TestWords } from "../../../src/ts/test/test-words";
 import { __testing } from "../../../src/ts/config/testing";
 import { DeleteInputType } from "../../../src/ts/input/helpers/input-type";
@@ -191,9 +195,28 @@ async function type(data: string, now = 1000): Promise<void> {
   await onInsertText({ data, now });
 }
 
+async function commitComposition(data: string, now = 1000): Promise<void> {
+  inputEl.value += data;
+  await onInsertText({ data, now, isCompositionEnding: true });
+}
+
 function inputEventsForWord(wordIndex: number): InputEventNoMs[] {
   return getEventsForWord(getAllTestEvents(), wordIndex).filter(
     (e): e is InputEventNoMs => e.type === "input",
+  );
+}
+
+type InsertInputEventData = Extract<
+  InputEventNoMs["data"],
+  { data: string; correct: boolean }
+>;
+type InsertInputEventNoMs = Omit<InputEventNoMs, "data"> & {
+  data: InsertInputEventData;
+};
+
+function insertEventsForWord(wordIndex: number): InsertInputEventNoMs[] {
+  return inputEventsForWord(wordIndex).filter(
+    (event): event is InsertInputEventNoMs => "correct" in event.data,
   );
 }
 
@@ -220,6 +243,7 @@ describe("onInsertText - delete on error", () => {
       language: "english",
       deleteOnError: "letter",
       stopOnError: "off",
+      forgiveCorrectedErrors: false,
       difficulty: "normal",
       strictSpace: false,
       oppositeShiftMode: "off",
@@ -429,5 +453,339 @@ describe("onInsertText - delete on error", () => {
       (e) => "correct" in e.data && !e.data.correct,
     );
     expect(incorrect).toHaveLength(1);
+  });
+});
+
+
+describe("onInsertText - forgive corrected errors", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetTestEvents();
+    TestWords.reset();
+    mockState.activeWordIndex = 0;
+    mockState.correctShiftUsed = true;
+    mockState.wordsScrolledOff.clear();
+    setInput("");
+    replaceConfig({
+      mode: "words",
+      language: "english",
+      deleteOnError: "off",
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: false,
+      ignoreRepeatedBlockedErrors: false,
+      forgiveCorrectedErrors: true,
+      difficulty: "normal",
+      strictSpace: false,
+      oppositeShiftMode: "off",
+      keymapMode: "off",
+      blindMode: false,
+    });
+  });
+
+  it("counts repeated blocked attempts at one character only once", async () => {
+    pushWords("hello", "world");
+
+    await type("x");
+    await type("y");
+
+    const inserts = insertEventsForWord(0);
+    expect(inserts).toHaveLength(2);
+    expect(inserts[0]?.data.correct).toBe(false);
+    expect(inserts[0]?.data.accuracyIgnored).toBeUndefined();
+    expect(inserts[1]?.data.correct).toBe(false);
+    expect(inserts[1]?.data.accuracyIgnored).toBe(true);
+  });
+
+  it("forgives the counted error after the blocked character is corrected", async () => {
+    pushWords("hello", "world");
+
+    await type("x");
+    await type("y");
+    await type("h");
+
+    const inserts = insertEventsForWord(0);
+    expect(inserts[0]?.data.accuracyIgnored).toBe(true);
+    expect(inserts[1]?.data.accuracyIgnored).toBe(true);
+    expect(inserts[2]?.data.correct).toBe(true);
+    expect(inserts[2]?.data.accuracyIgnored).toBeUndefined();
+
+    expect(getLiveCachedAccuracy()).toBe(100);
+    expect(getAccuracy(buildEventLog())).toEqual({
+      correct: 1,
+      incorrect: 0,
+      percentage: 100,
+    });
+  });
+
+  it("treats a blocked word as one accuracy error and forgives it after correction", async () => {
+    replaceConfig({ ...__testing.getConfig(), stopOnError: "word" });
+    pushWords("hello", "world");
+
+    await type("x");
+    await type("y");
+
+    let inserts = insertEventsForWord(0);
+    expect(inserts[0]?.data.accuracyIgnored).toBeUndefined();
+    expect(inserts[1]?.data.accuracyIgnored).toBe(true);
+
+    setInput("");
+    logTestEvent("input", 1100, {
+      inputType: "deleteWordBackward",
+      wordIndex: 0,
+      charIndex: 2,
+      inputValue: "",
+    });
+
+    for (const char of "hello") await type(char);
+
+    inserts = insertEventsForWord(0);
+    expect(inserts[0]?.data.accuracyIgnored).toBe(true);
+    expect(getLiveCachedAccuracy()).toBe(100);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+  });
+
+  it("keeps the original Monkeytype accuracy behavior when disabled", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      forgiveCorrectedErrors: false,
+    });
+    pushWords("hello", "world");
+
+    await type("x");
+    await type("y");
+    await type("h");
+
+    const inserts = insertEventsForWord(0);
+    expect(inserts[0]?.data.accuracyIgnored).toBeUndefined();
+    expect(inserts[1]?.data.accuracyIgnored).toBeUndefined();
+    expect(inserts[2]?.data.correct).toBe(true);
+
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(2);
+  });
+});
+
+describe("onInsertText - ignore repeated blocked errors", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetTestEvents();
+    TestWords.reset();
+    mockState.activeWordIndex = 0;
+    mockState.correctShiftUsed = true;
+    mockState.wordsScrolledOff.clear();
+    setInput("");
+    replaceConfig({
+      mode: "words",
+      language: "english",
+      deleteOnError: "off",
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: false,
+      ignoreRepeatedBlockedErrors: true,
+      forgiveCorrectedErrors: false,
+      difficulty: "normal",
+      strictSpace: false,
+      oppositeShiftMode: "off",
+      keymapMode: "off",
+      blindMode: false,
+    });
+  });
+
+  it("ignores repeated blocked mistakes but keeps the first accuracy penalty", async () => {
+    pushWords("hello", "world");
+
+    await type("x");
+    await type("y");
+    await type("h");
+
+    const inserts = insertEventsForWord(0);
+    expect(inserts[0]?.data.correct).toBe(false);
+    expect(inserts[0]?.data.accuracyIgnored).toBeUndefined();
+    expect(inserts[1]?.data.correct).toBe(false);
+    expect(inserts[1]?.data.accuracyIgnored).toBe(true);
+    expect(inserts[2]?.data.correct).toBe(true);
+
+    expect(getAccuracy(buildEventLog())).toEqual({
+      correct: 1,
+      incorrect: 1,
+      percentage: 50,
+    });
+  });
+
+  it("keeps the first blocked-word penalty after the word is corrected", async () => {
+    replaceConfig({ ...__testing.getConfig(), stopOnError: "word" });
+    pushWords("hello", "world");
+
+    await type("x");
+    await type("y");
+
+    let inserts = insertEventsForWord(0);
+    expect(inserts[0]?.data.accuracyIgnored).toBeUndefined();
+    expect(inserts[1]?.data.accuracyIgnored).toBe(true);
+
+    setInput("");
+    logTestEvent("input", 1100, {
+      inputType: "deleteWordBackward",
+      wordIndex: 0,
+      charIndex: 2,
+      inputValue: "",
+    });
+
+    for (const char of "hello") await type(char);
+
+    inserts = insertEventsForWord(0);
+    expect(inserts[0]?.data.accuracyIgnored).toBeUndefined();
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
+  });
+});
+
+describe("onInsertText - keep first wrong letter", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetTestEvents();
+    TestWords.reset();
+    mockState.activeWordIndex = 0;
+    mockState.correctShiftUsed = true;
+    mockState.wordsScrolledOff.clear();
+    setInput("");
+    replaceConfig({
+      mode: "words",
+      language: "english",
+      deleteOnError: "off",
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: true,
+      ignoreRepeatedBlockedErrors: false,
+      forgiveCorrectedErrors: false,
+      difficulty: "normal",
+      strictSpace: false,
+      oppositeShiftMode: "off",
+      keymapMode: "off",
+      blindMode: false,
+    });
+  });
+
+  it("keeps the first wrong letter and blocks later input until it is deleted", async () => {
+    pushWords("modern", "software");
+
+    await type("m");
+    await type("a");
+
+    let inserts = insertEventsForWord(0);
+    expect(getInput()).toBe("ma");
+    expect(inserts).toHaveLength(2);
+    expect(inserts[1]?.data.correct).toBe(false);
+    expect(inserts[1]?.data.inputStopped).toBeUndefined();
+
+    // Defensive handler guard mirrors the normal before-insert block.
+    await type("x");
+    inserts = insertEventsForWord(0);
+    expect(getInput()).toBe("ma");
+    expect(inserts).toHaveLength(2);
+
+    setInput("m");
+    logTestEvent("input", 1100, {
+      inputType: "deleteContentBackward",
+      wordIndex: 0,
+      charIndex: 2,
+      inputValue: "m",
+    });
+
+    await type("o");
+    inserts = insertEventsForWord(0);
+    expect(getInput()).toBe("mo");
+    expect(inserts).toHaveLength(3);
+    expect(inserts[2]?.data.correct).toBe(true);
+  });
+});
+
+describe("onInsertText - Vietnamese IME committed text", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetTestEvents();
+    TestWords.reset();
+    mockState.activeWordIndex = 0;
+    mockState.correctShiftUsed = true;
+    mockState.wordsScrolledOff.clear();
+    setInput("");
+    replaceConfig({
+      mode: "words",
+      language: "english",
+      inputLanguage: "vietnamese",
+      deleteOnError: "off",
+      stopOnError: "off",
+      forgiveCorrectedErrors: false,
+      difficulty: "normal",
+      strictSpace: false,
+      oppositeShiftMode: "off",
+      keymapMode: "off",
+      blindMode: false,
+    });
+  });
+
+  it("scores a decomposed ấ commit as one correct committed character", async () => {
+    pushWords("ấ", "next");
+
+    await commitComposition("ấ".normalize("NFD"));
+
+    const inserts = insertEventsForWord(0);
+    expect(inserts).toHaveLength(1);
+    expect(inserts[0]?.data.data).toBe("ấ");
+    expect(inserts[0]?.data.correct).toBe(true);
+    expect(inserts[0]?.data.isCompositionEnding).toBe(true);
+    expect(getInput()).toBe("ấ");
+    expect(getAccuracy(buildEventLog())).toEqual({
+      correct: 1,
+      incorrect: 0,
+      percentage: 100,
+    });
+  });
+
+  it.each(["ộ", "ường", "nghiêng"])(
+    "scores a decomposed Vietnamese commit without intermediate penalties: %s",
+    async (word) => {
+      pushWords(word, "next");
+
+      await commitComposition(word.normalize("NFD"));
+
+      const inserts = insertEventsForWord(0);
+      expect(inserts.map((event) => event.data.data)).toEqual(Array.from(word));
+      expect(inserts.every((event) => event.data.correct)).toBe(true);
+      expect(inserts.filter((event) => !event.data.correct)).toHaveLength(0);
+      expect(getInput()).toBe(word);
+    },
+  );
+
+  it("normalizes a Vietnamese target before comparing committed text", async () => {
+    const decomposedTarget = "Việt".normalize("NFD");
+    pushWords(decomposedTarget, "next");
+
+    await commitComposition("Việt".normalize("NFD"));
+
+    const inserts = insertEventsForWord(0);
+    expect(inserts.map((event) => event.data.data)).toEqual(Array.from("Việt"));
+    expect(inserts.every((event) => event.data.correct)).toBe(true);
+  });
+
+  it("auto mode enables IME scoring when the selected language is Vietnamese", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      inputLanguage: "auto",
+      language: "vietnamese",
+    });
+    pushWords("Việt", "next");
+
+    await commitComposition("Việt".normalize("NFD"));
+
+    expect(insertEventsForWord(0).every((event) => event.data.correct)).toBe(
+      true,
+    );
+  });
+
+  it("keeps English mode unchanged instead of silently applying Vietnamese NFC", async () => {
+    replaceConfig({ ...__testing.getConfig(), inputLanguage: "english" });
+    pushWords("é", "next");
+
+    await commitComposition("é".normalize("NFD"));
+
+    const inserts = insertEventsForWord(0);
+    expect(inserts.some((event) => !event.data.correct)).toBe(true);
   });
 });

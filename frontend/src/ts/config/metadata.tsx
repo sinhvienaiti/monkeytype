@@ -515,6 +515,49 @@ export const configMetadata: ConfigMetadataObject = {
       return {};
     },
   },
+  stopOnErrorKeepFirstError: {
+    key: "stopOnErrorKeepFirstError",
+    fa: { icon: "fa-pen" },
+    displayString: "keep first wrong letter — Codex",
+    changeRequiresRestart: false,
+    group: "input",
+    description:
+      "With stop on error set to letter, keep the first wrong letter visible in red. Further typing is blocked until you backspace the wrong letter.",
+  },
+  ignoreRepeatedBlockedErrors: {
+    key: "ignoreRepeatedBlockedErrors",
+    fa: { icon: "fa-equals" },
+    displayString: "ignore repeated blocked errors — Codex",
+    changeRequiresRestart: false,
+    group: "input",
+    description:
+      "When stop on error is enabled, the first blocked error keeps its accuracy penalty. Extra wrong attempts at the same blocked character or word do not add more penalties. Correcting it does not restore the first penalty.",
+    overrideConfig: ({ value }) => {
+      if (value) {
+        return {
+          forgiveCorrectedErrors: false,
+        };
+      }
+      return {};
+    },
+  },
+  forgiveCorrectedErrors: {
+    key: "forgiveCorrectedErrors",
+    fa: { icon: "fa-check-double" },
+    displayString: "forgive corrected errors — Codex",
+    changeRequiresRestart: false,
+    group: "input",
+    description:
+      "When stop on error is enabled, repeated attempts on the same blocked character only count as one accuracy error. If you correct that character before moving on, the error is removed from accuracy.",
+    overrideConfig: ({ value }) => {
+      if (value) {
+        return {
+          ignoreRepeatedBlockedErrors: false,
+        };
+      }
+      return {};
+    },
+  },
   deleteOnError: {
     key: "deleteOnError",
     fa: { icon: "fa-eraser" },
@@ -569,6 +612,15 @@ export const configMetadata: ConfigMetadataObject = {
     group: "input",
     description:
       'Shows typos that you\'ve made. "Below" shows what you typed below the letters, "replace" will replace the letters with the ones you typed and "both" will do the same as replace and below, but it will show the correct letters below your mistakes.',
+  },
+  inputLanguage: {
+    key: "inputLanguage",
+    fa: { icon: "fa-language" },
+    displayString: "input language — Codex",
+    changeRequiresRestart: false,
+    group: "input",
+    description:
+      'Controls how committed text is scored. "English" keeps direct-input behavior. "Vietnamese" enables IME-aware NFC normalization. "Auto" enables Vietnamese handling when the selected test language is Vietnamese.',
   },
   compositionDisplay: {
     key: "compositionDisplay",

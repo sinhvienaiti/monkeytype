@@ -20,6 +20,162 @@
     <div id="layoutfluidTimer">Time left to memorise all words: 0s</div>
     <mount data-component="testmodesnotice"></mount>
 
+    <div
+      id="enVnTranslationTopDisplay"
+      class="hidden"
+      aria-hidden="true"
+    >
+      <div class="translationVietnamese"></div>
+      <div class="translationEnglish"></div>
+      <div class="translationIpa"></div>
+      <div class="translationHint"></div>
+      <div class="translationActions hidden">
+        <button type="button" data-learning-action="replay">
+          <i class="fas fa-volume-up" aria-hidden="true"></i>
+          replay
+        </button>
+        <button type="button" data-learning-action="reveal">
+          <i class="fas fa-lightbulb" aria-hidden="true"></i>
+          reveal letter
+        </button>
+      </div>
+    </div>
+
+    <section
+      id="sentenceBuilderPanel"
+      class="hidden"
+      aria-label="Sentence Builder"
+    >
+      <div class="sentenceBuilderHeader">
+        <div>
+          <div class="sentenceBuilderEyebrow">sentence builder</div>
+          <div id="sentenceBuilderPrompt" class="sentenceBuilderPrompt"></div>
+          <div id="sentenceBuilderMeaning" class="sentenceBuilderMeaning"></div>
+        </div>
+        <div id="sentenceBuilderFixedStart" class="sentenceBuilderFixedStart"></div>
+      </div>
+
+      <div id="sentenceBuilderUnits" class="sentenceBuilderUnits"></div>
+
+      <input
+        id="sentenceBuilderAnswer"
+        type="text"
+        autocomplete="off"
+        autocorrect="off"
+        spellcheck="false"
+        placeholder="Build or type your answer"
+      />
+
+      <div id="sentenceBuilderHint" class="sentenceBuilderHint"></div>
+      <div id="sentenceBuilderFeedback" class="sentenceBuilderFeedback"></div>
+
+      <div class="sentenceBuilderActions">
+        <button id="sentenceBuilderReveal" type="button">
+          reveal next word
+        </button>
+        <button id="sentenceBuilderGrammarHint" type="button">
+          grammar hint
+        </button>
+        <button id="sentenceBuilderStructureHint" type="button">
+          structure hint
+        </button>
+        <button id="sentenceBuilderReset" type="button">
+          reset
+        </button>
+        <button id="sentenceBuilderSubmit" type="button" class="primary">
+          check answer
+        </button>
+      </div>
+    </section>
+
+    <section
+      id="contextClozePanel"
+      class="hidden"
+      aria-label="Context Cloze"
+    >
+      <div class="contextClozeHeader">
+        <div>
+          <div class="contextClozeEyebrow">context / cloze</div>
+          <div id="contextClozeType" class="contextClozeType"></div>
+          <div id="contextClozeTopic" class="contextClozeTopic"></div>
+        </div>
+        <div id="contextClozeProgress" class="contextClozeProgress"></div>
+      </div>
+
+      <div id="contextClozePrompt" class="contextClozePrompt"></div>
+
+      <input
+        id="contextClozeAnswer"
+        type="text"
+        autocomplete="off"
+        autocorrect="off"
+        spellcheck="false"
+        placeholder="Type the missing word or phrase"
+      />
+
+      <div id="contextClozeHint" class="contextClozeHint"></div>
+      <div id="contextClozeFeedback" class="contextClozeFeedback"></div>
+
+      <div class="contextClozeActions">
+        <button id="contextClozeReveal" type="button">
+          reveal letter
+        </button>
+        <button id="contextClozeSubmit" type="button" class="primary">
+          check answer
+        </button>
+        <button id="contextClozeNext" type="button" disabled>
+          next
+        </button>
+      </div>
+    </section>
+
+    <section
+      id="smartReviewPanel"
+      class="hidden"
+      aria-label="Smart Review"
+    >
+      <div class="smartReviewHeader">
+        <div>
+          <div class="smartReviewEyebrow">smart review</div>
+          <div id="smartReviewType" class="smartReviewType"></div>
+          <div id="smartReviewGoal" class="smartReviewGoal"></div>
+        </div>
+        <div id="smartReviewProgress" class="smartReviewProgress"></div>
+      </div>
+
+      <div id="smartReviewPrompt" class="smartReviewPrompt"></div>
+      <div id="smartReviewSecondary" class="smartReviewSecondary"></div>
+      <div id="smartReviewMetrics" class="smartReviewMetrics"></div>
+      <div id="smartReviewUnits" class="smartReviewUnits hidden"></div>
+
+      <input
+        id="smartReviewAnswer"
+        type="text"
+        autocomplete="off"
+        autocorrect="off"
+        spellcheck="false"
+        placeholder="Type your answer"
+      />
+
+      <div id="smartReviewHint" class="smartReviewHint"></div>
+      <div id="smartReviewFeedback" class="smartReviewFeedback"></div>
+
+      <div class="smartReviewActions">
+        <button id="smartReviewReplay" type="button" hidden>
+          replay
+        </button>
+        <button id="smartReviewReveal" type="button">
+          reveal hint
+        </button>
+        <button id="smartReviewSubmit" type="button" class="primary">
+          check answer
+        </button>
+        <button id="smartReviewNext" type="button" disabled>
+          next
+        </button>
+      </div>
+    </section>
+
     <mount data-component="livestatstexttop"></mount>
     <mount data-component="livestatsmini" class="full-width"></mount>
     <div id="wordsWrapper" class="content-grid full-width" translate="no">

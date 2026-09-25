@@ -11,8 +11,16 @@ import {
   isResultCalculating,
   wordsHaveNewline,
 } from "../../states/test";
-import { shouldGoToNextWord } from "../helpers/validation";
-import { getCommitCharacterType, normalizeData } from "../helpers/util";
+import {
+  hasUnresolvedInputError,
+  shouldGoToNextWord,
+} from "../helpers/validation";
+import {
+  getCommitCharacterType,
+  normalizeCommittedText,
+  normalizeData,
+  normalizeTargetText,
+} from "../helpers/util";
 import { getCurrentInput } from "../../test/events/data";
 import { isSpace } from "../../utils/strings";
 
@@ -44,10 +52,25 @@ export function onBeforeInsertText(data: string): boolean {
     return true;
   }
 
-  const { inputValue } = getInputElementValue();
+  const { inputValue: rawInputValue } = getInputElementValue();
+  const inputValue = normalizeCommittedText(rawInputValue);
   const currentWordObj = TestWords.words.getCurrent();
-  const currentWordTextWithCommit = currentWordObj?.textWithCommit ?? "";
-  const currentWordTextDisplay = currentWordObj?.display ?? "";
+  const currentWordTextWithCommit = normalizeTargetText(
+    currentWordObj?.textWithCommit ?? "",
+  );
+  const currentWordTextDisplay = normalizeTargetText(
+    currentWordObj?.display ?? "",
+  );
+
+  data = normalizeCommittedText(data);
+
+  if (
+    Config.stopOnError === "letter" &&
+    Config.stopOnErrorKeepFirstError &&
+    hasUnresolvedInputError(getCurrentInput(), currentWordTextWithCommit)
+  ) {
+    return true;
+  }
 
   //normalize visually-equivalent chars (e.g. IME U+3000 space) to the target
   //char, matching onInsertText, so commit classification is consistent

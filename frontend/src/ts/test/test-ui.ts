@@ -8,6 +8,10 @@ import { z } from "zod";
 import { Config } from "../config/store";
 import { setConfig } from "../config/setters";
 import * as TestWords from "./test-words";
+import { handleActiveWord } from "../custom/en-vn-translation";
+import { getLearningRecallTargetInfo } from "../learning/learning-memory";
+import { getSettings as getEnVnTranslationSettings } from "../custom/en-vn-translation/store";
+import { getActiveDictionaryRaw } from "../custom/en-vn-translation/library";
 import { getCurrentInput } from "./events/data";
 import { getLiveCachedAccuracy } from "./events/live-cache";
 import * as CustomText from "./custom-text";
@@ -181,6 +185,7 @@ export function updateActiveElement(
     newActiveWord.removeClass("error");
     newActiveWord.removeClass("typed");
     Joining.set(newActiveWord, false);
+    handleActiveWord(getActiveWordIndex());
 
     activeWordTop = newActiveWord.getOffsetTop();
     activeWordHeight = newActiveWord.getOffsetHeight();
@@ -389,9 +394,31 @@ async function updateHintsPosition(): Promise<void> {
   }
 }
 
-function buildWordHTML(word: string, wordIndex: number): string {
+function recallStructuralClass(
+  character: string | undefined,
+  recallTarget: boolean,
+): string {
+  if (
+    !recallTarget ||
+    character === undefined ||
+    /[\p{L}\p{N}]/u.test(character)
+  ) {
+    return "";
+  }
+
+  return " en-vn-recall-structural";
+}
+
+function buildWordHTML(
+  word: string,
+  wordIndex: number,
+  recallTarget = false,
+  recallStart = false,
+): string {
   let newlineafter = false;
-  let retval = `<div class='word' data-wordindex='${wordIndex}'>`;
+  const recallClass = recallTarget ? " en-vn-recall-target" : "";
+  const recallStartClass = recallStart ? " en-vn-recall-start" : "";
+  let retval = `<div class='word${recallClass}${recallStartClass}' data-wordindex='${wordIndex}'>`;
 
   const funbox = findSingleActiveFunboxWithFunction("getWordHtml");
   const chars = Strings.splitIntoCharacters(word);
@@ -404,7 +431,8 @@ function buildWordHTML(word: string, wordIndex: number): string {
       newlineafter = true;
       retval += `<letter class='nlChar'><i class="fas fa-level-down-alt fa-rotate-90 fa-fw"></i></letter>`;
     } else {
-      retval += `<letter>${char}</letter>`;
+      const structuralClass = recallStructuralClass(char, recallTarget);
+      retval += `<letter class='${structuralClass.trim()}'>${char}</letter>`;
     }
   }
   retval += "</div>";
@@ -415,9 +443,72 @@ function buildWordHTML(word: string, wordIndex: number): string {
   return retval;
 }
 
+function syncEnVnLearningClasses(): void {
+  wordsEl.native.classList.remove(
+    "en-vn-line-spacing-normal",
+    "en-vn-line-spacing-comfortable",
+    "en-vn-line-spacing-wide",
+    "en-vn-recall-mode",
+  );
+  wordsWrapperEl.removeClass("en-vn-learning");
+
+  const settings = getEnVnTranslationSettings();
+  const dictionaryRaw = getActiveDictionaryRaw(
+    settings.dictionarySource,
+    settings.dictionary,
+    settings.dictionaryTopicId,
+    settings.dictionaryPosId,
+    settings.dictionaryGrammarId,
+  );
+  const enabled =
+    Config.mode === "custom" &&
+    settings.enabled &&
+    settings.learningMode !== "sentence-builder" &&
+    settings.learningMode !== "context-cloze" &&
+    dictionaryRaw.trim() !== "";
+
+  if (!enabled) return;
+
+  wordsWrapperEl.addClass("en-vn-learning");
+
+  if (settings.lineSpacing === "comfortable") {
+    wordsEl.addClass("en-vn-line-spacing-comfortable");
+  } else if (settings.lineSpacing === "wide") {
+    wordsEl.addClass("en-vn-line-spacing-wide");
+  }
+
+  if (
+    settings.learningMode === "recall" ||
+    settings.learningMode === "listen"
+  ) {
+    wordsEl.addClass("en-vn-recall-mode");
+  }
+}
+
+function getRecallTargetInfo(): {
+  targets: Set<number>;
+  starts: Set<number>;
+} {
+  const settings = getEnVnTranslationSettings();
+  if (
+    Config.mode !== "custom" ||
+    !settings.enabled ||
+    !(
+      settings.learningMode === "learn" ||
+      settings.learningMode === "recall" ||
+      settings.learningMode === "listen"
+    )
+  ) {
+    return { targets: new Set(), starts: new Set() };
+  }
+
+  return getLearningRecallTargetInfo();
+}
+
 function updateWordWrapperClasses(): void {
   // outoffocus applies transition, need to remove it
   setTestFocusState("focused");
+  syncEnVnLearningClasses();
 
   if (Config.tapeMode !== "off") {
     wordsEl.addClass("tape");
@@ -515,11 +606,17 @@ function showWords(): void {
   if (Config.mode === "zen") {
     appendEmptyWordElement(0);
   } else {
+    const recallInfo = getRecallTargetInfo();
     let wordsHTML = "";
     for (let i = 0; i < TestWords.words.length; i++) {
       const word = TestWords.words.get(i);
       if (word === undefined) continue; // won't happen, but ts complains
-      wordsHTML += buildWordHTML(word.display, i);
+      wordsHTML += buildWordHTML(
+        word.display,
+        i,
+        recallInfo.targets.has(i),
+        recallInfo.starts.has(i),
+      );
     }
     wordsEl.setHtml(wordsHTML);
   }
@@ -701,13 +798,17 @@ export function addWord(
   word: string,
   wordIndex = TestWords.words.length - 1,
 ): void {
+  const recallInfo = getRecallTargetInfo();
+  const recallTarget = recallInfo.targets.has(wordIndex);
+  const recallStart = recallInfo.starts.has(wordIndex);
+
   // if the current active word is the last word, we need to NOT use raf
   // because other ui parts depend on the word existing
   if (getActiveWordIndex() === wordIndex - 1) {
-    wordsEl.appendHtml(buildWordHTML(word, wordIndex));
+    wordsEl.appendHtml(buildWordHTML(word, wordIndex, recallTarget, recallStart));
   } else {
     requestAnimationFrame(async () => {
-      wordsEl.appendHtml(buildWordHTML(word, wordIndex));
+      wordsEl.appendHtml(buildWordHTML(word, wordIndex, recallTarget, recallStart));
     });
   }
 
@@ -767,6 +868,7 @@ export async function updateWordLetters({
       let ret = "";
       const wordAtIndex = getWordElement(wordIndex);
       if (!wordAtIndex) return;
+      const recallTarget = wordAtIndex.hasClass("en-vn-recall-target");
       const hintIndices: number[][] = [];
 
       let newlineafter = false;
@@ -813,8 +915,13 @@ export async function updateWordLetters({
             currentLetter = `<i class="fas fa-level-down-alt fa-rotate-90 fa-fw"></i>`;
           }
 
+          const structuralClass = recallStructuralClass(
+            currentWordChars[i],
+            recallTarget,
+          );
+
           if (charCorrect) {
-            ret += `<letter class="correct ${tabChar}${nlChar}">${currentLetter}</letter>`;
+            ret += `<letter class="correct ${tabChar}${nlChar}${structuralClass}">${currentLetter}</letter>`;
           } else if (currentLetter === undefined) {
             const letter = displayTypedChar(inputChars[i]);
             ret += `<letter class="incorrect extra ${tabChar}${nlChar}">${letter}</letter>`;
@@ -828,7 +935,7 @@ export async function updateWordLetters({
               charString = displayTypedChar(inputChars[i] ?? currentLetter);
             }
 
-            ret += `<letter class="incorrect ${tabChar}${nlChar}">${charString}</letter>`;
+            ret += `<letter class="incorrect ${tabChar}${nlChar}${structuralClass}">${charString}</letter>`;
             if (
               Config.indicateTypos === "below" ||
               Config.indicateTypos === "both"
@@ -873,7 +980,11 @@ export async function updateWordLetters({
           } else if (currentLetter === "\n") {
             ret += `<letter class='nlChar'><i class="fas fa-level-down-alt fa-rotate-90 fa-fw"></i></letter>`;
           } else {
-            ret += `<letter>${currentLetter}</letter>`;
+            const structuralClass = recallStructuralClass(
+              currentLetter,
+              recallTarget,
+            );
+            ret += `<letter class="${structuralClass.trim()}">${currentLetter}</letter>`;
           }
         }
       }

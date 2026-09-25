@@ -23,7 +23,7 @@ export function resetLiveCache(): void {
 
 export function recordEventForCache(event: TestEvent): void {
   if (event.type === "input") {
-    if ("correct" in event.data) {
+    if ("correct" in event.data && event.data.accuracyIgnored !== true) {
       cache.totalInputs++;
       if (event.data.correct) cache.correctInputs++;
     }
@@ -36,6 +36,11 @@ export function recordEventForCache(event: TestEvent): void {
   } else if (event.type === "timer" && event.data.event === "start") {
     cache.timerStartMs = event.ms;
   }
+}
+
+export function forgiveIncorrectInputsForAccuracy(count: number): void {
+  if (count <= 0) return;
+  cache.totalInputs = Math.max(cache.correctInputs, cache.totalInputs - count);
 }
 
 export function getLiveCachedAccuracy(): number {

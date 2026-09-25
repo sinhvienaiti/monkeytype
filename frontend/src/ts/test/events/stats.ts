@@ -564,7 +564,7 @@ export function getAccuracy(
     if (testMs !== undefined && event.testMs > testMs) break;
     if (event.type !== "input") continue;
 
-    if (!("correct" in event.data)) {
+    if (!("correct" in event.data) || event.data.accuracyIgnored === true) {
       continue;
     }
     if (event.data.correct) {
@@ -666,7 +666,8 @@ export function getErrorCountHistory(eventLog: EventLog): number[] {
     (e) =>
       e.type === "input" &&
       e.data.inputType === "insertText" &&
-      !e.data.correct,
+      !e.data.correct &&
+      e.data.accuracyIgnored !== true,
   );
   return counts;
 }
@@ -881,7 +882,8 @@ export function getMissedWords(eventLog: EventLog): Record<string, number> {
     if (
       event.type === "input" &&
       event.data.inputType === "insertText" &&
-      !event.data.correct
+      !event.data.correct &&
+      event.data.accuracyIgnored !== true
     ) {
       const word = eventLog.context.targetWords[event.data.wordIndex];
       if (word === undefined) continue;
