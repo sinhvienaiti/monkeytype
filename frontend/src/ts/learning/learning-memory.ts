@@ -10,6 +10,7 @@ import { getSettings } from "../custom/en-vn-translation/store";
 
 const LEARNING_ATTEMPT_MESSAGE = "typing-game:learning:v1:attempt";
 const GAME_ID = "monkeytype";
+const PARENT_ORIGIN = "https://typing-game.local";
 
 type LearningAttemptEvent = {
   version: 1;
@@ -43,7 +44,9 @@ type AttemptState = {
 };
 
 let cachedDictionaryRaw = "";
+let cachedDictionary: ReturnType<typeof parseDictionary> | null = null;
 let cachedWordCount = -1;
+let cachedWords: string[] = [];
 let cachedMatchesByWord = new Map<number, LearningMatch>();
 let cachedMatchesByStart = new Map<number, LearningMatch>();
 let attemptStates = new Map<string, AttemptState>();
@@ -51,7 +54,9 @@ let requestSequence = 0;
 
 function resetCache(): void {
   cachedDictionaryRaw = "";
+  cachedDictionary = null;
   cachedWordCount = -1;
+  cachedWords = [];
   cachedMatchesByWord = new Map();
   cachedMatchesByStart = new Map();
   attemptStates = new Map();
@@ -68,52 +73,130 @@ function activeDictionaryRaw(): string {
   );
 }
 
-function rebuildMatchesIfNeeded(): void {
-  const settings = getSettings();
-  const dictionaryRaw = activeDictionaryRaw();
-  const wordCount = TestWords.words.length;
+function addMatchesFrom(
+  words: string[],
+  startWordIndex: number,
+): void {
+  if (cachedDictionary === null) return;
 
-  if (
-    cachedDictionaryRaw === dictionaryRaw &&
-    cachedWordCount === wordCount
-  ) {
-    return;
-  }
+  const suffixMatches = findDictionaryMatches(
+    words.slice(startWordIndex),
+    cachedDictionary,
+  );
 
-  cachedDictionaryRaw = dictionaryRaw;
-  cachedWordCount = wordCount;
-  cachedMatchesByWord = new Map();
-  cachedMatchesByStart = new Map();
-  attemptStates = new Map();
-
-  if (
-    Config.mode !== "custom" ||
-    !settings.enabled ||
-    dictionaryRaw.trim() === ""
-  ) {
-    return;
-  }
-
-  const words = TestWords.words.get().map((word) => word.text);
-  const matches = findDictionaryMatches(words, parseDictionary(dictionaryRaw));
-
-  for (const match of matches) {
-    const endWordIndex = match.startWordIndex + match.wordCount - 1;
+  for (const match of suffixMatches) {
+    const absoluteStart = startWordIndex + match.startWordIndex;
+    const endWordIndex = absoluteStart + match.wordCount - 1;
     const learningMatch: LearningMatch = {
-      key: `${match.startWordIndex}:${endWordIndex}:${match.source}`,
+      key: `${absoluteStart}:${endWordIndex}:${match.source}`,
       source: match.source,
-      startWordIndex: match.startWordIndex,
+      startWordIndex: absoluteStart,
       endWordIndex,
-      expectedAnswer: words
-        .slice(match.startWordIndex, endWordIndex + 1)
-        .join(" "),
+      expectedAnswer: words.slice(absoluteStart, endWordIndex + 1).join(" "),
     };
 
-    cachedMatchesByStart.set(match.startWordIndex, learningMatch);
-    for (let index = match.startWordIndex; index <= endWordIndex; index++) {
+    cachedMatchesByStart.set(absoluteStart, learningMatch);
+    for (let index = absoluteStart; index <= endWordIndex; index++) {
       cachedMatchesByWord.set(index, learningMatch);
     }
   }
+}
+
+function rebuildMatchesIfNeeded(): void {
+  const settings = getSettings();
+  const dictionaryRaw = activeDictionaryRaw();
+  const words = TestWords.words.get().map((word) => word.text);
+  const wordCount = words.length;
+  const dictionaryChanged = cachedDictionaryRaw !== dictionaryRaw;
+
+  const enabled =
+    Config.mode === "custom" &&
+    settings.enabled &&
+    dictionaryRaw.trim() !== "";
+
+  if (!enabled) {
+    cachedDictionaryRaw = dictionaryRaw;
+    cachedDictionary = null;
+    cachedWordCount = wordCount;
+    cachedWords = words;
+    cachedMatchesByWord = new Map();
+    cachedMatchesByStart = new Map();
+    attemptStates = new Map();
+    return;
+  }
+
+  if (dictionaryChanged) {
+    cachedDictionaryRaw = dictionaryRaw;
+    cachedDictionary = parseDictionary(dictionaryRaw);
+    cachedWordCount = -1;
+    cachedWords = [];
+    cachedMatchesByWord = new Map();
+    cachedMatchesByStart = new Map();
+    attemptStates = new Map();
+  } else if (cachedDictionary === null) {
+    cachedDictionary = parseDictionary(dictionaryRaw);
+  }
+
+  const sameWords =
+    cachedWords.length === wordCount &&
+    cachedWords.every((word, index) => word === words[index]);
+  if (sameWords) return;
+
+  const appendOnly =
+    cachedWordCount >= 0 &&
+    wordCount >= cachedWordCount &&
+    cachedWords.every((word, index) => word === words[index]);
+
+  if (!appendOnly) {
+    cachedMatchesByWord = new Map();
+    cachedMatchesByStart = new Map();
+    attemptStates = new Map();
+    addMatchesFrom(words, 0);
+  } else {
+    const maxWordCount = cachedDictionary?.maxWordCount ?? 1;
+    const boundary = Math.max(0, cachedWordCount - maxWordCount + 1);
+    let recomputeStart = boundary;
+
+    for (const match of cachedMatchesByStart.values()) {
+      if (match.endWordIndex >= boundary) {
+        recomputeStart = Math.min(recomputeStart, match.startWordIndex);
+      }
+    }
+
+    for (const [index, match] of [...cachedMatchesByWord]) {
+      if (index >= recomputeStart || match.endWordIndex >= recomputeStart) {
+        cachedMatchesByWord.delete(index);
+      }
+    }
+    for (const [index, match] of [...cachedMatchesByStart]) {
+      if (index >= recomputeStart || match.endWordIndex >= recomputeStart) {
+        cachedMatchesByStart.delete(index);
+      }
+    }
+
+    addMatchesFrom(words, recomputeStart);
+
+    const validKeys = new Set(
+      [...cachedMatchesByStart.values()].map((match) => match.key),
+    );
+    for (const key of [...attemptStates.keys()]) {
+      if (!validKeys.has(key)) attemptStates.delete(key);
+    }
+  }
+
+  cachedWordCount = wordCount;
+  cachedWords = words;
+}
+
+export function getLearningRecallTargetInfo(): {
+  targets: Set<number>;
+  starts: Set<number>;
+} {
+  rebuildMatchesIfNeeded();
+  return {
+    targets: new Set(cachedMatchesByWord.keys()),
+    starts: new Set(cachedMatchesByStart.keys()),
+  };
 }
 
 function stateFor(match: LearningMatch): AttemptState {
@@ -153,7 +236,7 @@ function postAttempt(event: LearningAttemptEvent): void {
       requestId: `monkeytype-${Date.now().toString(36)}-${requestSequence.toString(36)}`,
       event,
     },
-    "*",
+    PARENT_ORIGIN,
   );
 }
 
