@@ -133,8 +133,8 @@ function rebuildMatchesIfNeeded(): void {
     cachedMatchesByWord = new Map();
     cachedMatchesByStart = new Map();
     attemptStates = new Map();
-  } else if (cachedDictionary === null) {
-    cachedDictionary = parseDictionaryCached(dictionaryRaw);
+  } else {
+    cachedDictionary ??= parseDictionaryCached(dictionaryRaw);
   }
 
   const sameWords =
