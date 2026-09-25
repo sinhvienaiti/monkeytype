@@ -64,6 +64,34 @@ export function splitCommittedText(data: string): string[] {
   return Array.from(data);
 }
 
+/**
+ * Derive the text actually committed by an IME from the event-log-backed
+ * prefix captured at compositionstart and the final input element value.
+ * Returning null means the IME replaced text outside the active composition
+ * range, so the listener must reconcile to the scorer state instead of
+ * replaying an unsafe payload.
+ */
+export function deriveCompositionCommit(
+  committedPrefix: string,
+  finalInputValue: string,
+  inputLanguage = Config.inputLanguage,
+  testLanguage = Config.language,
+): string | null {
+  const prefix = normalizeCommittedText(
+    committedPrefix,
+    inputLanguage,
+    testLanguage,
+  );
+  const finalValue = normalizeCommittedText(
+    finalInputValue,
+    inputLanguage,
+    testLanguage,
+  );
+
+  if (!finalValue.startsWith(prefix)) return null;
+  return finalValue.slice(prefix.length);
+}
+
 export function getCommitCharacterType(options: {
   data: string;
   inputValue: string;
