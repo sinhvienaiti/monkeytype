@@ -62,6 +62,7 @@ import {
   markLearningMatchPresented,
   markLearningReplayUsed,
   recordLearningWordCompletion,
+  getLearningRecallTargetInfo,
 } from "../../src/ts/learning/learning-memory";
 
 describe("Monkeytype shared learning memory", () => {
@@ -155,6 +156,103 @@ describe("Monkeytype shared learning memory", () => {
       userAnswer: "dependency injecton",
       expectedAnswer: "dependency injection",
     });
+  });
+
+  it("preserves a multi-word attempt when future words are appended", () => {
+    mockState.dictionaryRaw =
+      "dependency injection = tiêm phụ thuộc\nfuture = tương lai";
+    mockState.settings.dictionary = mockState.dictionaryRaw;
+    mockState.words = [
+      {
+        text: "dependency",
+        textWithCommit: "dependency ",
+        commit: " ",
+        display: "dependency",
+        sectionIndex: 0,
+      },
+      {
+        text: "injection",
+        textWithCommit: "injection ",
+        commit: " ",
+        display: "injection",
+        sectionIndex: 0,
+      },
+    ];
+    __testing.reset();
+
+    markLearningMatchPresented(0, 50);
+    markLearningHintUsed(0);
+    expect(
+      recordLearningWordCompletion({
+        wordIndex: 0,
+        input: "dependncy ",
+        correct: false,
+        now: 300,
+      }),
+    ).toBeNull();
+
+    mockState.words.push({
+      text: "future",
+      textWithCommit: "future ",
+      commit: " ",
+      display: "future",
+      sectionIndex: 0,
+    });
+
+    markLearningReplayUsed(1);
+    const event = recordLearningWordCompletion({
+      wordIndex: 1,
+      input: "injection ",
+      correct: true,
+      now: 900,
+    });
+
+    expect(event).toMatchObject({
+      entityId: "dependency injection",
+      result: "wrong",
+      responseMs: 850,
+      hintUsed: true,
+      replayUsed: true,
+      userAnswer: "dependncy injection",
+      expectedAnswer: "dependency injection",
+    });
+  });
+
+  it("exposes cached recall targets after append without rebuilding old state", () => {
+    mockState.dictionaryRaw =
+      "dependency injection = tiêm phụ thuộc\nfuture = tương lai";
+    mockState.settings.dictionary = mockState.dictionaryRaw;
+    mockState.words = [
+      {
+        text: "dependency",
+        textWithCommit: "dependency ",
+        commit: " ",
+        display: "dependency",
+        sectionIndex: 0,
+      },
+      {
+        text: "injection",
+        textWithCommit: "injection ",
+        commit: " ",
+        display: "injection",
+        sectionIndex: 0,
+      },
+    ];
+    __testing.reset();
+
+    expect([...getLearningRecallTargetInfo().targets]).toEqual([0, 1]);
+
+    mockState.words.push({
+      text: "future",
+      textWithCommit: "future ",
+      commit: " ",
+      display: "future",
+      sectionIndex: 0,
+    });
+
+    const info = getLearningRecallTargetInfo();
+    expect([...info.targets]).toEqual([0, 1, 2]);
+    expect([...info.starts]).toEqual([0, 2]);
   });
 
   it("labels existing Recall mode attempts separately", () => {
