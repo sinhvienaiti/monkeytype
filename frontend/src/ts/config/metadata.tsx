@@ -518,7 +518,7 @@ export const configMetadata: ConfigMetadataObject = {
   stopOnErrorKeepFirstError: {
     key: "stopOnErrorKeepFirstError",
     fa: { icon: "fa-pen" },
-    displayString: "keep first wrong letter",
+    displayString: "keep first wrong letter — Codex",
     changeRequiresRestart: false,
     group: "input",
     description:
@@ -527,7 +527,7 @@ export const configMetadata: ConfigMetadataObject = {
   ignoreRepeatedBlockedErrors: {
     key: "ignoreRepeatedBlockedErrors",
     fa: { icon: "fa-equals" },
-    displayString: "ignore repeated blocked errors",
+    displayString: "ignore repeated blocked errors — Codex",
     changeRequiresRestart: false,
     group: "input",
     description:
@@ -544,7 +544,7 @@ export const configMetadata: ConfigMetadataObject = {
   forgiveCorrectedErrors: {
     key: "forgiveCorrectedErrors",
     fa: { icon: "fa-check-double" },
-    displayString: "forgive corrected errors",
+    displayString: "forgive corrected errors — Codex",
     changeRequiresRestart: false,
     group: "input",
     description:
@@ -616,7 +616,7 @@ export const configMetadata: ConfigMetadataObject = {
   inputLanguage: {
     key: "inputLanguage",
     fa: { icon: "fa-language" },
-    displayString: "input language",
+    displayString: "input language — Codex",
     changeRequiresRestart: false,
     group: "input",
     description:
