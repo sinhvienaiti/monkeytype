@@ -49,6 +49,9 @@ function splitDictionaryLine(
   return null;
 }
 
+let cachedRaw: string | null = null;
+let cachedParsed: ParsedDictionary | null = null;
+
 export function parseDictionary(raw: string): ParsedDictionary {
   const translations = new Map<string, string>();
   let maxWordCount = 1;
@@ -70,6 +73,17 @@ export function parseDictionary(raw: string): ParsedDictionary {
   return { translations, maxWordCount };
 }
 
+export function parseDictionaryCached(raw: string): ParsedDictionary {
+  if (cachedRaw === raw && cachedParsed !== null) return cachedParsed;
+  cachedRaw = raw;
+  cachedParsed = parseDictionary(raw);
+  return cachedParsed;
+}
+
+export function resetDictionaryCacheForTests(): void {
+  cachedRaw = null;
+  cachedParsed = null;
+}
 
 export function findDictionaryMatch(
   words: string[],
