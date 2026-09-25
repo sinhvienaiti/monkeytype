@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
+  deriveCompositionCommit,
   getCommitCharacterType,
   normalizeCommittedText,
   normalizeTargetText,
@@ -150,5 +151,25 @@ describe("Vietnamese IME helpers", () => {
 
   it("splits a committed string by Unicode code point", () => {
     expect(splitCommittedText("ường")).toEqual(["ư", "ờ", "n", "g"]);
+  });
+
+  it.each([
+    ["T", "Tô", "ô"],
+    ["", "o\u0302", "ô"],
+    ["T", "Tường", "ường"],
+    ["typed", "typed", ""],
+  ])(
+    "derives the real Vietnamese composition delta from %s -> %s",
+    (prefix, finalValue, expected) => {
+      expect(
+        deriveCompositionCommit(prefix, finalValue, "vietnamese", "english"),
+      ).toBe(expected);
+    },
+  );
+
+  it("rejects a composition result that replaced committed prefix text", () => {
+    expect(
+      deriveCompositionCommit("Ta", "Tô", "vietnamese", "english"),
+    ).toBeNull();
   });
 });
