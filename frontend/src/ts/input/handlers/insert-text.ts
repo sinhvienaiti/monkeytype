@@ -40,9 +40,6 @@ import {
   logTestEvent,
 } from "../../test/events/data";
 import {
-  deriveVietnameseDirectInsert,
-  deriveVietnameseImeRewrites,
-  deriveVietnamesePhysicalRewrites,
   getCommitCharacterType,
   hasVietnameseImeProvisionalMismatch,
   isVietnameseImeBoundary,
@@ -57,6 +54,8 @@ import { areAllWordsGenerated } from "../../test/words-generator";
 import { getActiveWordIndex, isTestActive } from "../../states/test";
 import { DeleteInputType } from "../helpers/input-type";
 import { handleStartedWord as handleEnVnTranslationStart } from "../../custom/en-vn-translation";
+import { getAsciiTargetRestore } from "../vietnamese-ime/ascii-guard";
+import { createVietnameseCommitTransaction } from "../vietnamese-ime/transaction";
 
 const charOverrides = new Map<string, string>([
   ["…", "..."],
@@ -234,46 +233,67 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
   const currentWord = normalizeTargetText(currentTestWord?.textWithCommit ?? "");
   const currentWordText = normalizeTargetText(currentTestWord?.text ?? "");
 
-  // Windows Vietnamese IMEs may report the physical Telex/VNI key in
-  // InputEvent.data while the textarea already contains one or more rewritten
-  // Unicode characters. Reconcile the browser/physical modifier through the
-  // same scorer path used by normal input.
+  // Native Vietnamese mode trusts the browser/OS IME DOM result. Do not
+  // emulate Telex physical keys here. Convert browser-side committed rewrites
+  // into scorer transactions instead.
   let replacementCharIndex = options.replacementCharIndex;
   if (
     replacementCharIndex === undefined &&
     isCompositionEnding !== true &&
-    automatic !== true
+    automatic !== true &&
+    shouldUseVietnameseIme()
   ) {
-    const rewrites =
-      deriveVietnameseImeRewrites(testInput, inputValue, currentWord) ??
-      deriveVietnamesePhysicalRewrites(testInput, options.data, currentWord);
+    const asciiRestore = getAsciiTargetRestore({
+      scorerInput: testInput,
+      domInput: inputValue,
+      physicalData: options.data,
+      targetWord: currentWord,
+    });
 
-    if (rewrites !== null && rewrites.length > 1) {
-      const logicalChars = Array.from(testInput);
-      for (let i = 0; i < rewrites.length; i++) {
-        const rewrite = rewrites[i] as (typeof rewrites)[number];
-        logicalChars[rewrite.charIndex] = rewrite.data;
-        setInputElementValue(logicalChars.join(""));
-        await onInsertText({
-          ...options,
-          data: rewrite.data,
-          replacementCharIndex: rewrite.charIndex,
-          lastInMultiIndex: i === rewrites.length - 1,
-        });
-      }
-      return;
+    if (asciiRestore !== null) {
+      setInputElementValue(asciiRestore);
+      inputValue = asciiRestore;
     }
 
-    const rewrite = rewrites?.[0];
-    if (rewrite !== undefined) {
-      replacementCharIndex = rewrite.charIndex;
-      options = { ...options, data: rewrite.data };
+    const transaction = createVietnameseCommitTransaction({
+      wordIndex: getActiveWordIndex(),
+      before: testInput,
+      after: inputValue,
+      source: "direct",
+    });
 
-      const logicalChars = Array.from(testInput);
-      logicalChars[rewrite.charIndex] = rewrite.data;
-      const logicalInput = logicalChars.join("");
-      setInputElementValue(logicalInput);
-      inputValue = logicalInput;
+    if (transaction !== null) {
+      const insertedChars = Array.from(transaction.insertText);
+
+      if (
+        transaction.deleteCount > 0 &&
+        transaction.deleteCount === insertedChars.length
+      ) {
+        const logicalChars = Array.from(testInput);
+
+        for (let i = 0; i < insertedChars.length; i++) {
+          const charIndex = transaction.start + i;
+          const data = insertedChars[i] as string;
+          logicalChars[charIndex] = data;
+          setInputElementValue(logicalChars.join(""));
+          await onInsertText({
+            ...options,
+            data,
+            replacementCharIndex: charIndex,
+            lastInMultiIndex: i === insertedChars.length - 1,
+          });
+        }
+        return;
+      }
+
+      const scorerLength = Array.from(testInput).length;
+      if (
+        transaction.start === scorerLength &&
+        transaction.deleteCount === 0 &&
+        insertedChars.length > 0
+      ) {
+        options = { ...options, data: transaction.insertText };
+      }
     }
   }
 
@@ -281,41 +301,6 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     replacementCharIndex === undefined
       ? testInput
       : Array.from(testInput).slice(0, replacementCharIndex).join("");
-
-  if (
-    replacementCharIndex === undefined &&
-    isCompositionEnding !== true &&
-    automatic !== true &&
-    shouldUseVietnameseIme()
-  ) {
-    const expectedLiteralInput = normalizeCommittedText(testInput + options.data);
-    if (
-      inputValue !== expectedLiteralInput &&
-      currentWord.startsWith(expectedLiteralInput)
-    ) {
-      // UniKey/EVKey can transform a Telex-looking sequence even when the
-      // target contains literal English letters (e.g. "dd" in "address").
-      // When the physical append is exactly the target prefix, prefer that
-      // literal target over an unrelated browser-side Vietnamese rewrite.
-      setInputElementValue(expectedLiteralInput);
-      inputValue = expectedLiteralInput;
-    }
-  }
-
-  if (
-    replacementCharIndex === undefined &&
-    isCompositionEnding !== true &&
-    automatic !== true
-  ) {
-    const directData = deriveVietnameseDirectInsert(
-      testInput,
-      inputValue,
-      currentWord,
-    );
-    if (directData !== null && directData !== options.data) {
-      options = { ...options, data: directData };
-    }
-  }
 
   // onBeforeInsertText normally catches this before the DOM value changes.
   // Keep this defensive guard for composition/emulated paths that can reach
