@@ -49,6 +49,10 @@ export function queueVietnameseImeSeparator(value: string): void {
   queuedSeparator = value;
 }
 
+export function getVietnameseImeQueuedSeparator(): string | null {
+  return queuedSeparator;
+}
+
 export function takeVietnameseImeSeparator(): string | null {
   const value = queuedSeparator;
   queuedSeparator = null;

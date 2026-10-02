@@ -8,7 +8,10 @@ import {
   getActivePhysicalKeyCode,
   hasRecentBackspaceIntent,
 } from "./state";
-import { getVietnameseImeSession } from "./vietnamese-ime/state";
+import {
+  getVietnameseImeQueuedSeparator,
+  getVietnameseImeSession,
+} from "./vietnamese-ime/state";
 
 type ImeDebugPhase = "before" | "after";
 
@@ -202,7 +205,7 @@ export function recordImeDebugEvent(
       data: CompositionState.getData() ?? "",
       activePhysicalKeyCode: getActivePhysicalKeyCode(),
       backspaceIntent: hasRecentBackspaceIntent(performance.now()),
-      pendingSeparator: null,
+      pendingSeparator: getVietnameseImeQueuedSeparator(),
       sessionId: getVietnameseImeSession()?.id ?? null,
       sessionRevision: getVietnameseImeSession()?.revision ?? null,
     },
