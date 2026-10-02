@@ -1606,4 +1606,29 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     expect(getInput()).toBe("mụx");
   });
 
+
+  it("blocks a wrong native replacement without truncating the word suffix", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      language: "vietnamese_5k",
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: false,
+    });
+    pushWords("rằng", "next");
+
+    await commitComposition("rằng", 1800);
+    expect(getInput()).toBe("rằng");
+
+    // A wrong tone key rewrites the vowel in the middle of the committed word.
+    // Stop-on-letter must revert that replacement, not remove the final "g".
+    setInput("rắng");
+    await onInsertText({ data: "s", now: 1810 });
+
+    expect(getInput()).toBe("rằng");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+  });
+
 });

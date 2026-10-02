@@ -46,10 +46,10 @@ import {
 } from "../input/input-element";
 import * as MonkeyPower from "../elements/monkey-power";
 import {
-  isVietnameseImeProvisionalCharacter,
   normalizeCommittedText,
   shouldUseVietnameseIme,
 } from "../input/helpers/util";
+import { isVietnameseImePreviewCharacter } from "../input/vietnamese-ime/preview";
 import * as SlowTimer from "../legacy-states/slow-timer";
 import * as AdController from "../controllers/ad-controller";
 import * as Joining from "./break-joining";
@@ -908,7 +908,7 @@ export async function updateWordLetters({
             !exactCharCorrect &&
             currentWordChars[i] !== undefined &&
             inputChars[i] !== undefined &&
-            isVietnameseImeProvisionalCharacter(
+            isVietnameseImePreviewCharacter(
               inputChars[i] as string,
               currentWordChars[i] as string,
             );

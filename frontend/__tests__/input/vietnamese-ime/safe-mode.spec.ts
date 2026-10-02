@@ -1,7 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { isVietnameseImeSafeModeActive } from "../../../src/ts/input/vietnamese-ime/gate";
 import { createVietnameseCommitTransaction } from "../../../src/ts/input/vietnamese-ime/transaction";
 import { getAsciiTargetRestore } from "../../../src/ts/input/vietnamese-ime/ascii-guard";
+import { isVietnameseImePreviewCharacter } from "../../../src/ts/input/vietnamese-ime/preview";
+import { Config } from "../../../src/ts/config/store";
 import {
   beginVietnameseImeSession,
   getVietnameseImeSession,
@@ -158,5 +160,35 @@ describe("Vietnamese IME stale session protection", () => {
     expect(getVietnameseImeSession()).toEqual(second);
 
     invalidateVietnameseImeSession();
+  });
+});
+
+
+describe("Vietnamese IME preview rendering", () => {
+  afterEach(() => {
+    Config.vietnameseImeMode = "off";
+    Config.inputLanguage = "auto";
+    Config.language = "english";
+  });
+
+  it("recognizes only valid native IME preview forms", () => {
+    Config.vietnameseImeMode = "native";
+    Config.inputLanguage = "vietnamese";
+    Config.language = "vietnamese_5k";
+
+    expect(isVietnameseImePreviewCharacter("a", "à")).toBe(true);
+    expect(isVietnameseImePreviewCharacter("o", "ồ")).toBe(true);
+    expect(isVietnameseImePreviewCharacter("ô", "ồ")).toBe(true);
+    expect(isVietnameseImePreviewCharacter("d", "đ")).toBe(true);
+    expect(isVietnameseImePreviewCharacter("ă", "à")).toBe(false);
+    expect(isVietnameseImePreviewCharacter("á", "ằ")).toBe(false);
+  });
+
+  it("is disabled when Vietnamese IME safe mode is off", () => {
+    Config.vietnameseImeMode = "off";
+    Config.inputLanguage = "vietnamese";
+    Config.language = "vietnamese_5k";
+
+    expect(isVietnameseImePreviewCharacter("a", "à")).toBe(false);
   });
 });

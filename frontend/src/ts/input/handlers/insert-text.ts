@@ -430,7 +430,13 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     !Config.stopOnErrorKeepFirstError
   ) {
     if (!Config.blindMode) {
-      visualInputOverride = testInput + data;
+      if (replacementCharIndex === undefined) {
+        visualInputOverride = testInput + data;
+      } else {
+        const previewChars = Array.from(testInput);
+        previewChars[replacementCharIndex] = data;
+        visualInputOverride = previewChars.join("");
+      }
     }
     removeLastChar = true;
   }
@@ -472,7 +478,11 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
   }
 
   if (removeLastChar) {
-    replaceInputElementLastValueChar("");
+    if (replacementCharIndex === undefined) {
+      replaceInputElementLastValueChar("");
+    } else {
+      setInputElementValue(testInput);
+    }
   }
 
   // capture DOM before goToNextWord clears it for the new word
