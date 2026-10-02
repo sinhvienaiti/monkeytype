@@ -50,6 +50,7 @@ import {
   normalizeCommittedText,
   normalizeData,
   normalizeTargetText,
+  shouldUseVietnameseIme,
   splitCommittedText,
 } from "../helpers/util";
 import { areAllWordsGenerated } from "../../test/words-generator";
@@ -329,6 +330,10 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
   const wordIndex = getActiveWordIndex();
   const correctShiftUsed =
     Config.oppositeShiftMode === "off" ? null : isCorrectShiftUsed();
+  const effectiveCorrectShiftUsed =
+    replacementCharIndex !== undefined && shouldUseVietnameseIme()
+      ? null
+      : correctShiftUsed;
   const charIndex = replacementCharIndex ?? testInput.length;
   const commitCharacterType = getCommitCharacterType({
     data,
@@ -351,7 +356,7 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     data,
     inputValue: scoreInput,
     targetWord: currentWord,
-    correctShiftUsed,
+    correctShiftUsed: effectiveCorrectShiftUsed,
   });
 
   // A non-letter boundary (space, punctuation, digit, etc.) closes the
@@ -368,7 +373,7 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
   const targetChar = Array.from(currentWord)[charIndex] ?? "";
   const imeProvisional =
     !correct &&
-    correctShiftUsed !== false &&
+    effectiveCorrectShiftUsed !== false &&
     isVietnameseImeProvisionalCharacter(data, targetChar);
   const acceptedInput = correct || imeProvisional;
 
@@ -411,7 +416,7 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     removeLastChar = true;
   }
 
-  if (correctShiftUsed === false) {
+  if (effectiveCorrectShiftUsed === false) {
     removeLastChar = true;
     visualInputOverride = undefined;
     incrementIncorrectShiftsInARow();

@@ -1324,6 +1324,27 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
   });
 
+  it("does not apply opposite-shift rules to a Telex modifier replacement", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      inputLanguage: "vietnamese",
+      stopOnError: "letter",
+      oppositeShiftMode: "on",
+    });
+    pushWords("Đ", "next");
+
+    mockState.correctShiftUsed = true;
+    await type("D", 1000);
+
+    // The second d is a Telex modifier that rewrites D -> Đ. It is not the
+    // uppercase target character itself, so opposite-shift must not reject it.
+    mockState.correctShiftUsed = false;
+    await type("d", 1001);
+
+    expect(getInput()).toBe("Đ");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+  });
+
   it("treats punctuation as a boundary when a Vietnamese accent is still pending", async () => {
     replaceConfig({
       ...__testing.getConfig(),

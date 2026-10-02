@@ -438,6 +438,72 @@ export type VietnameseImeRewrite = {
   from: string;
   data: string;
 };
+export function deriveVietnameseCommittedRewrite(
+  scoredInput: string,
+  committedData: string,
+  targetWord: string,
+  inputLanguage = Config.inputLanguage,
+  testLanguage = Config.language,
+): VietnameseImeRewrite | null {
+  if (
+    !shouldUseVietnameseIme(inputLanguage, testLanguage) ||
+    Array.from(committedData).length !== 1
+  ) {
+    return null;
+  }
+
+  const data = normalizeCommittedText(
+    committedData,
+    inputLanguage,
+    testLanguage,
+  );
+  const before = Array.from(
+    normalizeCommittedText(scoredInput, inputLanguage, testLanguage),
+  );
+  const target = Array.from(
+    normalizeTargetText(targetWord, inputLanguage, testLanguage),
+  );
+
+  let runStart = before.length;
+  while (runStart > 0 && /^\p{L}$/u.test(before[runStart - 1] as string)) {
+    runStart--;
+  }
+
+  for (let charIndex = before.length - 1; charIndex >= runStart; charIndex--) {
+    const from = before[charIndex] as string;
+    const targetChar = target[charIndex];
+    if (targetChar === undefined || from === targetChar) continue;
+
+    const dataMovesTowardTarget =
+      data === targetChar ||
+      isVietnameseImeProvisionalCharacter(
+        data,
+        targetChar,
+        inputLanguage,
+        testLanguage,
+      );
+    const fromIsCompatible =
+      isVietnameseImeProvisionalCharacter(
+        from,
+        targetChar,
+        inputLanguage,
+        testLanguage,
+      ) ||
+      haveSameVietnameseBaseCharacter(
+        from,
+        targetChar,
+        inputLanguage,
+        testLanguage,
+      );
+
+    if (dataMovesTowardTarget && fromIsCompatible) {
+      return { charIndex, from, data };
+    }
+  }
+
+  return null;
+}
+
 
 const VIETNAMESE_TELEX_MODIFIER_CODES = new Set([
   "KeyS",

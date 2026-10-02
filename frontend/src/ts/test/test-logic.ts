@@ -132,6 +132,7 @@ import { isDevEnvironment } from "../utils/env";
 import { EventLog } from "./events/types";
 import { resetModifierState } from "../states/modifiers";
 import { nthElementFromArray } from "../utils/arrays";
+import { setActivePhysicalKeyCode } from "../input/state";
 
 let failReason = "";
 
@@ -295,6 +296,7 @@ export async function restart(options = {} as RestartOptions): Promise<void> {
   TestTimer.clear();
   setIsTestInvalid(false);
   resetModifierState();
+  setActivePhysicalKeyCode(null);
   setTestActive(false);
   Replay.pauseReplay();
   setBailedOut(false);

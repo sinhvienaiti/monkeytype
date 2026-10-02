@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   deriveCompositionCommit,
+  deriveVietnameseCommittedRewrite,
   deriveVietnameseDirectInsert,
   deriveVietnameseImeRewrite,
   deriveVietnameseImeRewrites,
@@ -292,6 +293,28 @@ describe("Vietnamese IME helpers", () => {
         "english",
       ),
     ).toEqual([{ charIndex: 1, from: "á", data: "a" }]);
+  });
+
+  it("allows a committed Unicode correction on the same Vietnamese base letter", () => {
+    expect(
+      deriveVietnameseCommittedRewrite(
+        "lá",
+        "à",
+        "là",
+        "vietnamese",
+        "english",
+      ),
+    ).toEqual({ charIndex: 1, from: "á", data: "à" });
+
+    expect(
+      deriveVietnameseCommittedRewrite(
+        "la,",
+        "à",
+        "là,",
+        "vietnamese",
+        "english",
+      ),
+    ).toBeNull();
   });
 
   it("treats punctuation, spaces and digits as Vietnamese IME boundaries", () => {
