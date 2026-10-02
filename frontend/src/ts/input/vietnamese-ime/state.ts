@@ -3,7 +3,6 @@ export type VietnameseImeSession = {
   revision: number;
   wordIndex: number;
   committedPrefix: string;
-  domAtStart: string;
 };
 
 let nextSessionId = 1;
@@ -14,14 +13,12 @@ let queuedSeparator: string | null = null;
 export function beginVietnameseImeSession(options: {
   wordIndex: number;
   committedPrefix: string;
-  domAtStart: string;
 }): VietnameseImeSession {
   session = {
     id: nextSessionId++,
     revision,
     wordIndex: options.wordIndex,
     committedPrefix: options.committedPrefix,
-    domAtStart: options.domAtStart,
   };
   queuedSeparator = null;
   return session;

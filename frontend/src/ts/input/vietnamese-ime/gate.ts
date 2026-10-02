@@ -1,6 +1,6 @@
 import { Config } from "../../config/store";
 
-function isVietnameseLanguage(language: string): boolean {
+export function isVietnameseLanguage(language: string): boolean {
   return language === "vietnamese" || language.startsWith("vietnamese_");
 }
 

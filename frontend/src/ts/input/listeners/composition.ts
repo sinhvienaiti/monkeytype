@@ -27,6 +27,7 @@ inputEl.addEventListener("compositionstart", (event) => {
     return;
   }
 
+  recordImeDebugEvent("compositionstart", "before", event);
   console.debug("wordsInput event compositionstart", {
     event,
     data: event.data,
@@ -46,6 +47,7 @@ inputEl.addEventListener("compositionstart", (event) => {
     event: "start",
     wordIndex: getActiveWordIndex(),
   });
+  recordImeDebugEvent("compositionstart", "after", event);
 });
 
 inputEl.addEventListener("compositionupdate", (event) => {
@@ -54,6 +56,7 @@ inputEl.addEventListener("compositionupdate", (event) => {
     return;
   }
 
+  recordImeDebugEvent("compositionupdate", "before", event);
   console.debug("wordsInput event compositionupdate", {
     event,
     data: event.data,
@@ -70,6 +73,7 @@ inputEl.addEventListener("compositionupdate", (event) => {
     data: event.data,
     wordIndex: getActiveWordIndex(),
   });
+  recordImeDebugEvent("compositionupdate", "after", event);
 });
 
 inputEl.addEventListener("compositionend", async (event) => {
@@ -78,6 +82,7 @@ inputEl.addEventListener("compositionend", async (event) => {
     return;
   }
 
+  recordImeDebugEvent("compositionend", "before", event);
   console.debug("wordsInput event compositionend", { event, data: event.data });
 
   if (isTestRestarting() || isResultCalculating()) return;

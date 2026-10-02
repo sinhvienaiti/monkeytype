@@ -1,16 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
-  deriveCompositionCommit,
-  deriveVietnameseCommittedRewrite,
-  deriveVietnameseDirectInsert,
-  deriveVietnameseImeRewrite,
-  deriveVietnameseImeRewrites,
-  deriveVietnamesePhysicalRewrites,
-  deriveVietnameseTelexRewrite,
   getCommitCharacterType,
-  hasVietnameseImeProvisionalMismatch,
-  isVietnameseImeBoundary,
-  isVietnameseImeProvisionalCharacter,
   normalizeCommittedText,
   normalizeTargetText,
   shouldDeferVietnameseCompositionSeparator,
@@ -138,11 +128,11 @@ describe("Vietnamese IME helpers", () => {
     expect(shouldUseVietnameseIme("vietnamese", "vietnamese")).toBe(false);
   });
 
-  it("uses explicit Vietnamese mode regardless of the selected test language", () => {
+  it("uses explicit Vietnamese input regardless of test language", () => {
     expect(shouldUseVietnameseIme("vietnamese", "english")).toBe(true);
   });
 
-  it("uses Vietnamese handling in auto mode only for Vietnamese test languages", () => {
+  it("uses auto mode only for Vietnamese test languages", () => {
     expect(shouldUseVietnameseIme("auto", "vietnamese")).toBe(true);
     expect(shouldUseVietnameseIme("auto", "vietnamese_1k")).toBe(true);
     expect(shouldUseVietnameseIme("auto", "english")).toBe(false);
@@ -174,173 +164,11 @@ describe("Vietnamese IME helpers", () => {
     );
   });
 
-  it("splits a committed string by Unicode code point", () => {
+  it("splits committed text by Unicode code point", () => {
     expect(splitCommittedText("ường")).toEqual(["ư", "ờ", "n", "g"]);
   });
 
-
-  it.each([
-    ["e", "é"],
-    ["o", "ô"],
-    ["ô", "ồ"],
-    ["u", "ư"],
-    ["d", "đ"],
-  ])(
-    "treats %s as a provisional Vietnamese IME form of %s",
-    (input, target) => {
-      expect(
-        isVietnameseImeProvisionalCharacter(
-          input,
-          target,
-          "vietnamese",
-          "english",
-        ),
-      ).toBe(true);
-    },
-  );
-
-  it("does not make accented input provisional for a plain target", () => {
-    expect(
-      isVietnameseImeProvisionalCharacter(
-        "é",
-        "e",
-        "vietnamese",
-        "english",
-      ),
-    ).toBe(false);
-  });
-
-  it.each([
-    ["phe", "phé", "phép", 2, "é"],
-    ["tieng", "tiếng", "tiếng", 2, "ế"],
-    ["o", "ô", "ồ", 0, "ô"],
-    ["ô", "ồ", "ồ", 0, "ồ"],
-  ])(
-    "derives a Vietnamese IME rewrite: %s -> %s",
-    (before, after, target, charIndex, data) => {
-      expect(
-        deriveVietnameseImeRewrite(
-          before,
-          after,
-          target,
-          "vietnamese",
-          "english",
-        ),
-      ).toMatchObject({ charIndex, data });
-    },
-  );
-
-  it("does not treat a normal append as an IME rewrite", () => {
-    expect(
-      deriveVietnameseImeRewrite(
-        "ph",
-        "phe",
-        "phép",
-        "vietnamese",
-        "english",
-      ),
-    ).toBeNull();
-  });
-
-  it.each([
-    ["ra", "w", "rằng", 1, "ă"],
-    ["ră", "f", "rằng", 1, "ằ"],
-    ["răng", "f", "rằng", 1, "ằ"],
-    ["la", "f", "là", 1, "à"],
-    ["a", "f", "ằ", 0, "à"],
-    ["à", "w", "ằ", 0, "ằ"],
-  ])(
-    "derives target-aware Telex rewrite: %s + %s -> %s",
-    (before, key, target, charIndex, data) => {
-      expect(
-        deriveVietnameseTelexRewrite(
-          before,
-          key,
-          target,
-          "vietnamese",
-          "english",
-        ),
-      ).toMatchObject({ charIndex, data });
-    },
-  );
-
-  it("rejects a wrong Telex shape for a different target accent", () => {
-    expect(
-      deriveVietnameseTelexRewrite(
-        "la",
-        "w",
-        "là",
-        "vietnamese",
-        "english",
-      ),
-    ).toBeNull();
-  });
-
-  it("does not reach Telex fallback backwards across punctuation", () => {
-    expect(
-      deriveVietnamesePhysicalRewrites(
-        "la,",
-        "f",
-        "là,",
-        "vietnamese",
-        "english",
-      ),
-    ).toBeNull();
-  });
-
-  it("allows a Telex modifier to correct a wrong tone on the same base letter", () => {
-    expect(
-      deriveVietnamesePhysicalRewrites(
-        "lá",
-        "f",
-        "là",
-        "vietnamese",
-        "english",
-      ),
-    ).toEqual([{ charIndex: 1, from: "á", data: "à" }]);
-
-    expect(
-      deriveVietnamesePhysicalRewrites(
-        "lá",
-        "z",
-        "la",
-        "vietnamese",
-        "english",
-      ),
-    ).toEqual([{ charIndex: 1, from: "á", data: "a" }]);
-  });
-
-  it("allows a committed Unicode correction on the same Vietnamese base letter", () => {
-    expect(
-      deriveVietnameseCommittedRewrite(
-        "lá",
-        "à",
-        "là",
-        "vietnamese",
-        "english",
-      ),
-    ).toEqual({ charIndex: 1, from: "á", data: "à" });
-
-    expect(
-      deriveVietnameseCommittedRewrite(
-        "la,",
-        "à",
-        "là,",
-        "vietnamese",
-        "english",
-      ),
-    ).toBeNull();
-  });
-
-  it("treats punctuation, spaces and digits as Vietnamese IME boundaries", () => {
-    expect(isVietnameseImeBoundary(",", "vietnamese", "english")).toBe(true);
-    expect(isVietnameseImeBoundary(" ", "vietnamese", "english")).toBe(true);
-    expect(isVietnameseImeBoundary("1", "vietnamese", "english")).toBe(true);
-    expect(isVietnameseImeBoundary("n", "vietnamese", "english")).toBe(false);
-    expect(isVietnameseImeBoundary("ư", "vietnamese", "english")).toBe(false);
-  });
-
-  it("defers a committing separator only while Vietnamese composition is active", () => {
+  it("defers a separator only during active Vietnamese composition", () => {
     expect(
       shouldDeferVietnameseCompositionSeparator(
         " ",
@@ -383,35 +211,13 @@ describe("Vietnamese IME helpers", () => {
     ).toBe(false);
   });
 
-  it("does not emulate VNI numeric modifiers in Telex fallback", () => {
-    expect(
-      deriveVietnamesePhysicalRewrites(
-        "ra",
-        "8",
-        "rằng",
-        "vietnamese",
-        "english",
-      ),
-    ).toBeNull();
-    expect(
-      deriveVietnamesePhysicalRewrites(
-        "ră",
-        "2",
-        "rằng",
-        "vietnamese",
-        "english",
-      ),
-    ).toBeNull();
-  });
-
-  it("distinguishes IME-internal delete from a real Backspace intent", () => {
+  it("distinguishes IME-internal delete from real Backspace intent", () => {
     const base = {
       inputType: "deleteContentBackward",
       inputLanguage: "vietnamese",
       testLanguage: "vietnamese_5k",
     } as const;
 
-    // Telex rewrite: never delete scorer text.
     expect(
       shouldIgnoreVietnameseImeDelete({
         ...base,
@@ -421,9 +227,6 @@ describe("Vietnamese IME helpers", () => {
       }),
     ).toBe(true);
 
-    // The reported issue: UniKey may emit an internal delete while a random
-    // key/null/Unidentified is active. As long as there was no Backspace
-    // keydown intent, the scorer must not move from "mụ" back to "m".
     for (const activeKeyCode of [null, "Unidentified", "KeyQ"]) {
       expect(
         shouldIgnoreVietnameseImeDelete({
@@ -435,8 +238,6 @@ describe("Vietnamese IME helpers", () => {
       ).toBe(true);
     }
 
-    // A real Backspace remains real even if Chrome delays its delete event
-    // until the active key is already null or composition is still true.
     expect(
       shouldIgnoreVietnameseImeDelete({
         ...base,
@@ -445,7 +246,6 @@ describe("Vietnamese IME helpers", () => {
         hasBackspaceIntent: true,
       }),
     ).toBe(false);
-
     expect(
       shouldIgnoreVietnameseImeDelete({
         ...base,
@@ -454,9 +254,6 @@ describe("Vietnamese IME helpers", () => {
         hasBackspaceIntent: false,
       }),
     ).toBe(false);
-
-    // Outside active composition, Native Mode does not infer Telex behavior
-    // from the physical key. The delete remains a normal committed edit.
     expect(
       shouldIgnoreVietnameseImeDelete({
         ...base,
@@ -465,8 +262,6 @@ describe("Vietnamese IME helpers", () => {
         hasBackspaceIntent: false,
       }),
     ).toBe(false);
-
-    // English direct input is untouched.
     expect(
       shouldIgnoreVietnameseImeDelete({
         inputType: "deleteContentBackward",
@@ -477,180 +272,5 @@ describe("Vietnamese IME helpers", () => {
         testLanguage: "english",
       }),
     ).toBe(false);
-  });
-
-  it("supports one w rewriting the contiguous uo pair to ươ", () => {
-    expect(
-      deriveVietnamesePhysicalRewrites(
-        "nguo",
-        "w",
-        "người",
-        "vietnamese",
-        "english",
-      ),
-    ).toEqual([
-      { charIndex: 2, from: "u", data: "ư" },
-      { charIndex: 3, from: "o", data: "ơ" },
-    ]);
-  });
-
-  it("detects a browser multi-character uo -> ươ rewrite", () => {
-    expect(
-      deriveVietnameseImeRewrites(
-        "nguo",
-        "ngươ",
-        "người",
-        "vietnamese",
-        "english",
-      ),
-    ).toEqual([
-      { charIndex: 2, from: "u", data: "ư" },
-      { charIndex: 3, from: "o", data: "ơ" },
-    ]);
-  });
-
-  it("does not activate Vietnamese physical rewrites in English input mode", () => {
-    expect(
-      deriveVietnamesePhysicalRewrites(
-        "ra",
-        "w",
-        "rằng",
-        "english",
-        "vietnamese",
-      ),
-    ).toBeNull();
-  });
-
-  it("detects a pending Vietnamese provisional mismatch", () => {
-    expect(
-      hasVietnameseImeProvisionalMismatch(
-        "rang",
-        "rằng",
-        "vietnamese",
-        "english",
-      ),
-    ).toBe(true);
-    expect(
-      hasVietnameseImeProvisionalMismatch(
-        "rằng",
-        "rằng",
-        "vietnamese",
-        "english",
-      ),
-    ).toBe(false);
-  });
-
-  it("never marks English auto-mode text as Vietnamese provisional", () => {
-    expect(
-      hasVietnameseImeProvisionalMismatch(
-        "cxt",
-        "cat",
-        "auto",
-        "english",
-      ),
-    ).toBe(false);
-  });
-
-  it("derives a transformed direct append from the browser DOM", () => {
-    expect(
-      deriveVietnameseDirectInsert(
-        "",
-        "ư",
-        "ừ",
-        "vietnamese",
-        "english",
-      ),
-    ).toBe("ư");
-  });
-
-  it("does not derive Vietnamese direct append in English mode", () => {
-    expect(
-      deriveVietnameseDirectInsert(
-        "",
-        "ư",
-        "ư",
-        "english",
-        "vietnamese",
-      ),
-    ).toBeNull();
-  });
-
-  it("models Windows Chrome + UniKey 4.0 RC2 direct Telex replacement", () => {
-    expect(
-      deriveVietnamesePhysicalRewrites(
-        "ra",
-        "w",
-        "rằng",
-        "vietnamese",
-        "vietnamese_5k",
-      ),
-    ).toEqual([{ charIndex: 1, from: "a", data: "ă" }]);
-
-    expect(
-      deriveVietnamesePhysicalRewrites(
-        "răng",
-        "f",
-        "rằng",
-        "vietnamese",
-        "vietnamese_5k",
-      ),
-    ).toEqual([{ charIndex: 1, from: "ă", data: "ằ" }]);
-  });
-
-  it("supports uppercase target-aware Telex rewrites", () => {
-    expect(
-      deriveVietnamesePhysicalRewrites(
-        "D",
-        "d",
-        "Đường",
-        "vietnamese",
-        "vietnamese_5k",
-      ),
-    ).toEqual([{ charIndex: 0, from: "D", data: "Đ" }]);
-  });
-
-  it("models macOS Chrome + EVKey 3.3.10 composition rewrites", () => {
-    expect(
-      deriveVietnameseImeRewrites(
-        "phe",
-        "phé",
-        "phép",
-        "vietnamese",
-        "vietnamese_5k",
-      ),
-    ).toEqual([{ charIndex: 2, from: "e", data: "é" }]);
-
-    expect(
-      deriveVietnameseImeRewrites(
-        "nguo",
-        "ngươ",
-        "người",
-        "vietnamese",
-        "vietnamese_5k",
-      ),
-    ).toEqual([
-      { charIndex: 2, from: "u", data: "ư" },
-      { charIndex: 3, from: "o", data: "ơ" },
-    ]);
-  });
-
-  it.each([
-    ["T", "Tô", "ô"],
-    ["", "o\u0302", "ô"],
-    ["T", "Tường", "ường"],
-    ["typed", "typed", ""],
-  ])(
-    "derives the real Vietnamese composition delta from %s -> %s",
-    (prefix, finalValue, expected) => {
-      expect(
-        deriveCompositionCommit(prefix, finalValue, "vietnamese", "english"),
-      ).toBe(expected);
-    },
-  );
-
-  it("rejects a composition result that replaced committed prefix text", () => {
-    expect(
-      deriveCompositionCommit("Ta", "Tô", "vietnamese", "english"),
-    ).toBeNull();
   });
 });

@@ -22,7 +22,6 @@ import {
   finishVietnameseImeSession,
   getVietnameseImeRevision,
   getVietnameseImeSession,
-  queueVietnameseImeSeparator,
   takeVietnameseImeSeparator,
 } from "./state";
 import { createVietnameseCommitTransaction } from "./transaction";
@@ -41,7 +40,6 @@ export function onVietnameseCompositionStart(event: CompositionEvent): void {
   beginVietnameseImeSession({
     wordIndex: getActiveWordIndex(),
     committedPrefix,
-    domAtStart: normalizeCommittedText(getInputElementValue().inputValue),
   });
 
   CompositionState.setComposing(true);
@@ -76,10 +74,6 @@ export function onVietnameseCompositionUpdate(event: CompositionEvent): void {
     wordIndex: getActiveWordIndex(),
   });
   recordImeDebugEvent("compositionupdate", "after", event);
-}
-
-export function queueVietnameseCompositionSeparator(value: string): void {
-  queueVietnameseImeSeparator(value);
 }
 
 export async function onVietnameseCompositionEnd(

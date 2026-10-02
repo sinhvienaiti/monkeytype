@@ -95,7 +95,6 @@ describe("Vietnamese IME commit transaction", () => {
   });
 });
 
-
 describe("Vietnamese IME ASCII target guard", () => {
   it.each([
     ["as", "a", "á", "s"],
@@ -103,16 +102,19 @@ describe("Vietnamese IME ASCII target guard", () => {
     ["book", "bo", "bô", "o"],
     ["commerce", "commerc", "commercê", "e"],
     ["address", "ad", "ađ", "d"],
-  ])("restores literal target-compatible ASCII for %s", (targetWord, scorerInput, domInput, physicalData) => {
-    expect(
-      getAsciiTargetRestore({
-        scorerInput,
-        domInput,
-        physicalData,
-        targetWord,
-      }),
-    ).toBe(scorerInput + physicalData);
-  });
+  ])(
+    "restores literal target-compatible ASCII for %s",
+    (targetWord, scorerInput, domInput, physicalData) => {
+      expect(
+        getAsciiTargetRestore({
+          scorerInput,
+          domInput,
+          physicalData,
+          targetWord,
+        }),
+      ).toBe(scorerInput + physicalData);
+    },
+  );
 
   it("does not alter a Vietnamese target", () => {
     expect(
@@ -142,7 +144,6 @@ describe("Vietnamese IME stale session protection", () => {
     const first = beginVietnameseImeSession({
       wordIndex: 0,
       committedPrefix: "la",
-      domAtStart: "la",
     });
 
     invalidateVietnameseImeSession();
@@ -150,7 +151,6 @@ describe("Vietnamese IME stale session protection", () => {
     const second = beginVietnameseImeSession({
       wordIndex: 0,
       committedPrefix: "la",
-      domAtStart: "la",
     });
 
     expect(second.id).not.toBe(first.id);

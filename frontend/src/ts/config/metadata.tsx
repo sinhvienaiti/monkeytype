@@ -616,16 +616,16 @@ export const configMetadata: ConfigMetadataObject = {
   inputLanguage: {
     key: "inputLanguage",
     fa: { icon: "fa-language" },
-    displayString: "input language — Codex",
+    displayString: "input language",
     changeRequiresRestart: false,
     group: "input",
     description:
-      'Controls how committed text is scored. "English" keeps direct-input behavior. "Vietnamese" enables IME-aware NFC normalization. "Auto" enables Vietnamese handling when the selected test language is Vietnamese.',
+      'Selects the input language. "English" keeps direct-input behavior. "Vietnamese" and Vietnamese "Auto" tests use IME-aware normalization only when Vietnamese IME mode is set to "native".',
   },
   vietnameseImeMode: {
     key: "vietnameseImeMode",
     fa: { icon: "fa-keyboard" },
-    displayString: "Vietnamese IME mode — Codex",
+    displayString: "Vietnamese IME mode",
     changeRequiresRestart: true,
     group: "input",
     description:

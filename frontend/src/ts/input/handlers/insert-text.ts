@@ -264,14 +264,22 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
 
     if (transaction !== null) {
       const insertedChars = Array.from(transaction.insertText);
+      const scorerChars = Array.from(testInput);
 
-      if (
-        transaction.deleteCount > 0 &&
-        transaction.deleteCount === insertedChars.length
-      ) {
-        const logicalChars = Array.from(testInput);
+      // insertText/composition events may rewrite committed characters, but
+      // they must never shrink scorer state. Only an explicit delete event may
+      // delete committed input. This prevents stale IME DOM mutations from
+      // pulling the scorer backwards.
+      if (transaction.deleteCount > insertedChars.length) {
+        setInputElementValue(testInput);
+        return;
+      }
 
-        for (let i = 0; i < insertedChars.length; i++) {
+      if (transaction.deleteCount > 0) {
+        const logicalChars = [...scorerChars];
+        const replaceCount = transaction.deleteCount;
+
+        for (let i = 0; i < replaceCount; i++) {
           const charIndex = transaction.start + i;
           const data = insertedChars[i] as string;
           logicalChars[charIndex] = data;
@@ -281,23 +289,38 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
             data,
             replacementCharIndex: charIndex,
             nativeImeCommit: true,
+            lastInMultiIndex:
+              i === insertedChars.length - 1 &&
+              replaceCount === insertedChars.length,
+          });
+        }
+
+        for (let i = replaceCount; i < insertedChars.length; i++) {
+          const data = insertedChars[i] as string;
+          logicalChars.splice(transaction.start + i, 0, data);
+          setInputElementValue(logicalChars.join(""));
+          await onInsertText({
+            ...options,
+            data,
+            nativeImeCommit: true,
             lastInMultiIndex: i === insertedChars.length - 1,
           });
         }
         return;
       }
 
-      const scorerLength = Array.from(testInput).length;
-      if (
-        transaction.start === scorerLength &&
-        transaction.deleteCount === 0 &&
-        insertedChars.length > 0
-      ) {
+      if (transaction.start === scorerChars.length && insertedChars.length > 0) {
         options = {
           ...options,
           data: transaction.insertText,
           nativeImeCommit: true,
         };
+      } else {
+        // The caret is expected to stay at the end of wordsInput. If an
+        // insertText event mutates an earlier committed range without a
+        // replacement transaction, keep the scorer/event log authoritative.
+        setInputElementValue(testInput);
+        return;
       }
     }
   }

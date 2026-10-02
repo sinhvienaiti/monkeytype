@@ -1548,4 +1548,62 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     });
   });
 
+
+  it("keeps commerce literal and commits Space after an IME rewrite", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      language: "vietnamese_5k",
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+      stopOnError: "letter",
+    });
+    pushWords("commerce", "next");
+
+    for (const [i, char] of Array.from("commerc").entries()) {
+      await type(char, 1600 + i);
+    }
+
+    setInput("commercê");
+    await onInsertText({ data: "e", now: 1610 });
+
+    expect(getInput()).toBe("commerce");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+
+    await type(" ", 1620);
+
+    expect(mockState.activeWordIndex).toBe(1);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+  });
+
+  it("never lets an insert event shrink committed scorer text", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      language: "vietnamese_5k",
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+      stopOnError: "off",
+    });
+    pushWords("một", "next");
+
+    await commitComposition("mụ", 1700);
+    expect(getInput()).toBe("mụ");
+
+    const eventCountBeforeStaleMutation = insertEventsForWord(0).length;
+
+    // Reproduce the dangerous shape from the reported "mụ -> m" issue:
+    // an insert event arrives while the browser DOM has moved backwards.
+    setInput("m");
+    await onInsertText({ data: "x", now: 1710 });
+
+    expect(getInput()).toBe("mụ");
+    expect(insertEventsForWord(0)).toHaveLength(
+      eventCountBeforeStaleMutation,
+    );
+
+    // Normal input can continue afterwards without inheriting the stale DOM.
+    setInput("mụx");
+    await onInsertText({ data: "x", now: 1720 });
+    expect(getInput()).toBe("mụx");
+  });
+
 });
