@@ -41,6 +41,7 @@ import {
 } from "../../test/events/data";
 import {
   getCommitCharacterType,
+  getVietnameseImeRewritePrefix,
   normalizeCommittedText,
   normalizeData,
   normalizeTargetText,
@@ -158,6 +159,40 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
 
   const { now, lastInMultiIndex, isCompositionEnding, automatic } = options;
   const { inputValue } = getInputElementValue();
+
+  // Some Windows Vietnamese IMEs do not use browser composition events.
+  // Instead they rewrite the last committed base character in-place:
+  // "phe" -> "phé", "o" -> "ô" -> "ồ". Reconcile that replacement before
+  // scoring the new Unicode character so it stays at the same char index.
+  if (isCompositionEnding !== true && automatic !== true) {
+    const scoredInput = normalizeCommittedText(getCurrentInput());
+    const rewritePrefix = getVietnameseImeRewritePrefix(
+      scoredInput,
+      inputValue,
+      options.data,
+    );
+
+    if (rewritePrefix !== null) {
+      const wordIndex = getActiveWordIndex();
+
+      // The replaced base character was an IME precursor, not a user mistake.
+      // Ignore only that exact provisional accuracy event. This is independent
+      // of "forgive corrected errors"; normal Backspace corrections still keep
+      // their penalty when that option is disabled.
+      forgiveAccuracyErrorsAt(wordIndex, rewritePrefix.length);
+
+      // Keep the event-log-backed scorer in sync with the browser's in-place
+      // replacement. The browser DOM already contains prefix + new character.
+      logTestEvent("input", now, {
+        inputType: "deleteContentBackward",
+        wordIndex,
+        charIndex: scoredInput.length,
+        inputValue: rewritePrefix,
+        automatic: true,
+      });
+    }
+  }
+
   const committedCharacters = splitCommittedText(options.data);
 
   if (committedCharacters.length > 1) {

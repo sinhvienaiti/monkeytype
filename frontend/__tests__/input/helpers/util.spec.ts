@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   deriveCompositionCommit,
   getCommitCharacterType,
+  getVietnameseImeRewritePrefix,
   normalizeCommittedText,
   normalizeTargetText,
   shouldUseVietnameseIme,
@@ -151,6 +152,50 @@ describe("Vietnamese IME helpers", () => {
 
   it("splits a committed string by Unicode code point", () => {
     expect(splitCommittedText("ường")).toEqual(["ư", "ờ", "n", "g"]);
+  });
+
+
+  it.each([
+    ["phe", "phé", "é", "ph"],
+    ["o", "ô", "ô", ""],
+    ["ô", "ồ", "ồ", ""],
+  ])(
+    "detects a Windows Vietnamese IME last-character rewrite: %s -> %s",
+    (scoredInput, domInput, data, expectedPrefix) => {
+      expect(
+        getVietnameseImeRewritePrefix(
+          scoredInput,
+          domInput,
+          data,
+          "vietnamese",
+          "english",
+        ),
+      ).toBe(expectedPrefix);
+    },
+  );
+
+  it("does not treat a normal append as an IME rewrite", () => {
+    expect(
+      getVietnameseImeRewritePrefix(
+        "ph",
+        "phe",
+        "e",
+        "vietnamese",
+        "english",
+      ),
+    ).toBeNull();
+  });
+
+  it("does not enable direct rewrite handling in English mode", () => {
+    expect(
+      getVietnameseImeRewritePrefix(
+        "phe",
+        "phé",
+        "é",
+        "english",
+        "vietnamese",
+      ),
+    ).toBeNull();
   });
 
   it.each([

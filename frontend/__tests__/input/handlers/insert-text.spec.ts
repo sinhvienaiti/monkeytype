@@ -790,54 +790,64 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     expect(inserts.some((event) => !event.data.correct)).toBe(true);
   });
 
-  it("forgives a temporary base character rewritten by a Windows Vietnamese IME", async () => {
+  it("reconciles phe -> phé as one IME replacement at the same character", async () => {
+    pushWords("phép", "next");
+
+    await type("p", 1000);
+    await type("h", 1001);
+    await type("e", 1002);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
+
+    // Browser DOM after UniKey/EVKey rewrites the last e in-place.
+    setInput("phé");
+    await onInsertText({ data: "é", now: 1010 });
+
+    expect(getInput()).toBe("phé");
+    expect(getAccuracy(buildEventLog())).toEqual({
+      correct: 3,
+      incorrect: 0,
+      percentage: 100,
+    });
+
+    const events = inputEventsForWord(0);
+    const imeDelete = events.find(
+      (event) =>
+        event.data.inputType === "deleteContentBackward" &&
+        event.data.automatic === true,
+    );
+    expect(imeDelete?.data.inputValue).toBe("ph");
+    expect(findInputValueMismatches(events)).toEqual([]);
+  });
+
+  it("reconciles each direct Telex rewrite in o -> ô -> ồ", async () => {
+    pushWords("ồ", "next");
+
+    await type("o", 1000);
+
+    setInput("ô");
+    await onInsertText({ data: "ô", now: 1010 });
+
+    setInput("ồ");
+    await onInsertText({ data: "ồ", now: 1020 });
+
+    expect(getInput()).toBe("ồ");
+    expect(getAccuracy(buildEventLog())).toEqual({
+      correct: 1,
+      incorrect: 0,
+      percentage: 100,
+    });
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+  });
+
+  it("does not forgive a real Backspace correction when forgiveness is disabled", async () => {
     pushWords("à", "next");
 
     await type("a", 1000);
     expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
 
-    logTestEvent("keydown", 1010, { code: "KeyF" });
     setInput("");
-    onDelete("deleteContentBackward", 1011);
-    await type("à", 1012);
+    onDelete("deleteContentBackward", 1010);
 
-    expect(getAccuracy(buildEventLog())).toEqual({
-      correct: 1,
-      incorrect: 0,
-      percentage: 100,
-    });
-  });
-
-  it("forgives each intermediate rewrite in a multi-stage Telex character", async () => {
-    pushWords("ồ", "next");
-
-    await type("o", 1000);
-
-    logTestEvent("keydown", 1010, { code: "KeyO" });
-    setInput("");
-    onDelete("deleteContentBackward", 1011);
-    await type("ô", 1012);
-
-    logTestEvent("keydown", 1020, { code: "KeyF" });
-    setInput("");
-    onDelete("deleteContentBackward", 1021);
-    await type("ồ", 1022);
-
-    expect(getAccuracy(buildEventLog())).toEqual({
-      correct: 1,
-      incorrect: 0,
-      percentage: 100,
-    });
-  });
-
-  it("keeps a real Backspace correction as an accuracy error", async () => {
-    pushWords("à", "next");
-
-    await type("a", 1000);
-
-    logTestEvent("keydown", 1010, { code: "Backspace" });
-    setInput("");
-    onDelete("deleteContentBackward", 1011);
     await type("à", 1020);
 
     expect(getAccuracy(buildEventLog())).toEqual({
@@ -846,4 +856,5 @@ describe("onInsertText - Vietnamese IME committed text", () => {
       percentage: 50,
     });
   });
+
 });

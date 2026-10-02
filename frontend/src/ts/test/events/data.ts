@@ -464,10 +464,6 @@ export function getPressedKeys(): Map<
   return pressedKeys;
 }
 
-export function getLastKeydownCode(): string | undefined {
-  return keydownEvents[keydownEvents.length - 1]?.data.code;
-}
-
 export function forceReleaseAllKeys(): void {
   const keydownMsByCode = new Map<string, number>();
   for (const e of keydownEvents) keydownMsByCode.set(e.data.code, e.ms);

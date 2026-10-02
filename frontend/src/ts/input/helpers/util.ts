@@ -65,6 +65,42 @@ export function splitCommittedText(data: string): string[] {
 }
 
 /**
+ * Detect direct-input Vietnamese IME rewrites used by Windows tools such as
+ * UniKey/EVKey. These tools can replace the last committed base character
+ * without browser composition events, e.g. "phe" -> "phé" when Telex "s"
+ * is pressed. Returns the scorer prefix that remains before the replacement.
+ */
+export function getVietnameseImeRewritePrefix(
+  scoredInput: string,
+  domInput: string,
+  insertedData: string,
+  inputLanguage = Config.inputLanguage,
+  testLanguage = Config.language,
+): string | null {
+  if (!shouldUseVietnameseIme(inputLanguage, testLanguage)) return null;
+
+  const before = normalizeCommittedText(
+    scoredInput,
+    inputLanguage,
+    testLanguage,
+  );
+  const after = normalizeCommittedText(domInput, inputLanguage, testLanguage);
+  const data = normalizeCommittedText(
+    insertedData,
+    inputLanguage,
+    testLanguage,
+  );
+
+  const beforeChars = Array.from(before);
+  if (beforeChars.length === 0 || data === "") return null;
+
+  beforeChars.pop();
+  const prefix = beforeChars.join("");
+
+  return after === prefix + data && after !== before + data ? prefix : null;
+}
+
+/**
  * Derive the text actually committed by an IME from the event-log-backed
  * prefix captured at compositionstart and the final input element value.
  * Returning null means the IME replaced text outside the active composition
