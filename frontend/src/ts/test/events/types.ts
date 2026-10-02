@@ -108,8 +108,6 @@ export type InputEventData =
       inputStopped?: true;
       // true when this keypress should not affect accuracy.
       accuracyIgnored?: true;
-      // Vietnamese IME is still building the final accented character.
-      imeProvisional?: true;
       // This insert replaced the character at charIndex instead of appending.
       replacesChar?: true;
       // true when this was a space that advanced to the next word (commit

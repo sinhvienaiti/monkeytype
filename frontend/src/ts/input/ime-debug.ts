@@ -9,6 +9,7 @@ import {
   hasRecentBackspaceIntent,
 } from "./state";
 import {
+  getVietnameseImeDirectPreview,
   getVietnameseImeQueuedSeparator,
   getVietnameseImeSession,
 } from "./vietnamese-ime/state";
@@ -39,6 +40,7 @@ export type ImeDebugEntry = {
     activePhysicalKeyCode: string | null;
     backspaceIntent: boolean;
     pendingSeparator: string | null;
+    directPreview: string | null;
     sessionId: number | null;
     sessionRevision: number | null;
   };
@@ -206,6 +208,7 @@ export function recordImeDebugEvent(
       activePhysicalKeyCode: getActivePhysicalKeyCode(),
       backspaceIntent: hasRecentBackspaceIntent(performance.now()),
       pendingSeparator: getVietnameseImeQueuedSeparator(),
+      directPreview: getVietnameseImeDirectPreview()?.domValue ?? null,
       sessionId: getVietnameseImeSession()?.id ?? null,
       sessionRevision: getVietnameseImeSession()?.revision ?? null,
     },
