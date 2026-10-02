@@ -40,8 +40,9 @@ import {
   logTestEvent,
 } from "../../test/events/data";
 import {
+  deriveVietnameseImeRewrite,
   getCommitCharacterType,
-  getVietnameseImeRewritePrefix,
+  isVietnameseImeProvisionalCharacter,
   normalizeCommittedText,
   normalizeData,
   normalizeTargetText,
@@ -77,6 +78,8 @@ type OnInsertTextParams = {
   lastInMultiIndex?: boolean;
   // true if monkeytype is inserting this itself, not the user
   automatic?: true;
+  // IME replaced a previously committed character at this index.
+  replacementCharIndex?: number;
 };
 
 function logDeleteOnErrorEvent(
@@ -160,39 +163,6 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
   const { now, lastInMultiIndex, isCompositionEnding, automatic } = options;
   const { inputValue } = getInputElementValue();
 
-  // Some Windows Vietnamese IMEs do not use browser composition events.
-  // Instead they rewrite the last committed base character in-place:
-  // "phe" -> "phé", "o" -> "ô" -> "ồ". Reconcile that replacement before
-  // scoring the new Unicode character so it stays at the same char index.
-  if (isCompositionEnding !== true && automatic !== true) {
-    const scoredInput = normalizeCommittedText(getCurrentInput());
-    const rewritePrefix = getVietnameseImeRewritePrefix(
-      scoredInput,
-      inputValue,
-      options.data,
-    );
-
-    if (rewritePrefix !== null) {
-      const wordIndex = getActiveWordIndex();
-
-      // The replaced base character was an IME precursor, not a user mistake.
-      // Ignore only that exact provisional accuracy event. This is independent
-      // of "forgive corrected errors"; normal Backspace corrections still keep
-      // their penalty when that option is disabled.
-      forgiveAccuracyErrorsAt(wordIndex, rewritePrefix.length);
-
-      // Keep the event-log-backed scorer in sync with the browser's in-place
-      // replacement. The browser DOM already contains prefix + new character.
-      logTestEvent("input", now, {
-        inputType: "deleteContentBackward",
-        wordIndex,
-        charIndex: scoredInput.length,
-        inputValue: rewritePrefix,
-        automatic: true,
-      });
-    }
-  }
-
   const committedCharacters = splitCommittedText(options.data);
 
   if (committedCharacters.length > 1) {
@@ -259,6 +229,31 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
   const currentWord = normalizeTargetText(currentTestWord?.textWithCommit ?? "");
   const currentWordText = normalizeTargetText(currentTestWord?.text ?? "");
 
+  // Windows Vietnamese IMEs may report the physical Telex/VNI key in
+  // InputEvent.data while the textarea already contains the rewritten Unicode
+  // character. Derive the real character from scorer-vs-DOM state instead.
+  let replacementCharIndex = options.replacementCharIndex;
+  if (
+    replacementCharIndex === undefined &&
+    isCompositionEnding !== true &&
+    automatic !== true
+  ) {
+    const rewrite = deriveVietnameseImeRewrite(
+      testInput,
+      inputValue,
+      currentWord,
+    );
+    if (rewrite !== null) {
+      replacementCharIndex = rewrite.charIndex;
+      options = { ...options, data: rewrite.data };
+    }
+  }
+
+  const scoreInput =
+    replacementCharIndex === undefined
+      ? testInput
+      : Array.from(testInput).slice(0, replacementCharIndex).join("");
+
   // onBeforeInsertText normally catches this before the DOM value changes.
   // Keep this defensive guard for composition/emulated paths that can reach
   // the handler with a character already appended.
@@ -275,7 +270,7 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
   // this ensures all future equivalence checks work correctly
   const normalizedData = normalizeDataAndUpdateInputIfNeeded(
     options.data,
-    testInput,
+    scoreInput,
     currentWord,
   );
   const data = normalizedData ?? options.data;
@@ -291,13 +286,15 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
   const wordIndex = getActiveWordIndex();
   const correctShiftUsed =
     Config.oppositeShiftMode === "off" ? null : isCorrectShiftUsed();
+  const charIndex = replacementCharIndex ?? testInput.length;
   const commitCharacterType = getCommitCharacterType({
     data,
-    inputValue: testInput,
+    inputValue: scoreInput,
     targetWord: currentWord,
   });
 
   if (
+    replacementCharIndex === undefined &&
     testInput.length === 0 &&
     commitCharacterType === false &&
     automatic !== true
@@ -305,23 +302,31 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     handleEnVnTranslationStart(wordIndex);
   }
 
-  // is char correct
+  // is char correct. Vietnamese base/partial characters are provisional while
+  // UniKey/EVKey is still building the target character.
   const correct = isCharCorrect({
     data,
-    inputValue: testInput,
+    inputValue: scoreInput,
     targetWord: currentWord,
     correctShiftUsed,
   });
+  const targetChar = Array.from(currentWord)[charIndex] ?? "";
+  const imeProvisional =
+    !correct &&
+    correctShiftUsed !== false &&
+    isVietnameseImeProvisionalCharacter(data, targetChar);
+  const acceptedInput = correct || imeProvisional;
 
   const ignoreRepeatedBlockedErrors =
     (Config.forgiveCorrectedErrors || Config.ignoreRepeatedBlockedErrors) &&
     Config.stopOnError !== "off";
   const accuracyIgnored =
-    ignoreRepeatedBlockedErrors &&
-    !correct &&
-    (Config.stopOnError === "word"
-      ? hasCountedAccuracyErrorInWord(wordIndex)
-      : hasCountedAccuracyError(wordIndex, testInput.length));
+    imeProvisional ||
+    (ignoreRepeatedBlockedErrors &&
+      !correct &&
+      (Config.stopOnError === "word"
+        ? hasCountedAccuracyErrorInWord(wordIndex)
+        : hasCountedAccuracyError(wordIndex, charIndex)));
 
   if (
     Config.forgiveCorrectedErrors &&
@@ -329,7 +334,7 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     correct
   ) {
     if (Config.stopOnError === "letter") {
-      forgiveAccuracyErrorsAt(wordIndex, testInput.length);
+      forgiveAccuracyErrorsAt(wordIndex, charIndex);
     } else if (testInput + data === currentWordText) {
       forgiveAccuracyErrorsForWord(wordIndex);
     }
@@ -342,7 +347,7 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
   let visualInputOverride: string | undefined;
   if (
     Config.stopOnError === "letter" &&
-    !correct &&
+    !acceptedInput &&
     !Config.stopOnErrorKeepFirstError
   ) {
     if (!Config.blindMode) {
@@ -370,7 +375,7 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     !removeLastChar &&
     shouldGoToNextWord({
       data,
-      inputValue: testInput,
+      inputValue: scoreInput,
       targetWord: currentWord,
       commitCharacterType,
     });
@@ -384,7 +389,7 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
   }
 
   if (Config.keymapMode === "react") {
-    flash(data, correct);
+    flash(data, acceptedInput);
   }
 
   if (removeLastChar) {
@@ -403,10 +408,12 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     data,
     correct,
     wordIndex,
-    charIndex: testInput.length,
+    charIndex,
     isCompositionEnding: isCompositionEnding ? true : undefined,
     inputStopped: removeLastChar ? true : undefined,
     accuracyIgnored: accuracyIgnored ? true : undefined,
+    imeProvisional: imeProvisional ? true : undefined,
+    replacesChar: replacementCharIndex !== undefined ? true : undefined,
     automatic: automatic ? true : undefined,
     // inputValue is captured from the input element after this event (before goToNextWord clears it).
     inputValue: inputValueAfterEvent,
@@ -415,17 +422,27 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
   });
 
   // this needs to be called after event logging
-  WeakSpot.updateScore(data, correct);
+  if (!imeProvisional) {
+    WeakSpot.updateScore(data, correct);
+  }
 
   // delete on error
   // skipped when the input was stopped - nothing was inserted to delete
   // before the UI update so it renders the input after the deletion, in one go
-  if (Config.deleteOnError !== "off" && !correct && !removeLastChar) {
+  if (
+    Config.deleteOnError !== "off" &&
+    !acceptedInput &&
+    !removeLastChar
+  ) {
     handleDeleteOnError(now);
   }
 
   if (lastInMultiOrSingle) {
-    TestUI.afterTestTextInput(correct, visualInputOverride, goingToNextWord);
+    TestUI.afterTestTextInput(
+      acceptedInput,
+      visualInputOverride,
+      goingToNextWord,
+    );
   }
 
   // going to next word
@@ -434,7 +451,11 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
   if (goingToNextWord) {
     const result = await goToNextWord({
       correctInsert:
-        Config.mode === "zen" ? true : testInput + data === currentWord,
+        Config.mode === "zen"
+          ? true
+          : replacementCharIndex !== undefined
+            ? inputValueAfterEvent === currentWord
+            : testInput + data === currentWord,
       now,
     });
     lastBurst = result.lastBurst;
@@ -458,13 +479,16 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     }, 0);
   }
 
+  const testInputAfterEvent =
+    replacementCharIndex !== undefined ? inputValueAfterEvent : testInput + data;
+
   if (!CompositionState.getComposing() && lastInMultiOrSingle) {
     if (
       checkIfFailedDueToDifficulty({
         data,
-        testInput: testInput,
+        testInput: scoreInput,
         targetWord: currentWord,
-        correct,
+        correct: acceptedInput,
         commitCharacterType,
       })
     ) {
@@ -472,7 +496,7 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     } else if (
       increasedWordIndex &&
       checkIfFailedDueToMinBurst({
-        testInputWithData: testInput + data,
+        testInputWithData: testInputAfterEvent,
         currentWord,
         lastBurst,
       })
@@ -481,7 +505,7 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     } else if (
       checkIfFinished({
         goingToNextWord,
-        testInputWithData: testInput + data,
+        testInputWithData: testInputAfterEvent,
         currentWord,
         allWordsTyped: wordIndex >= TestWords.words.length - 1,
         allWordsGenerated: areAllWordsGenerated(),

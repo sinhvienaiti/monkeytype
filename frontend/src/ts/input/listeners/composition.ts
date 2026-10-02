@@ -10,8 +10,11 @@ import { onInsertText } from "../handlers/insert-text";
 import { getCurrentInput, logTestEvent } from "../../test/events/data";
 import {
   deriveCompositionCommit,
+  deriveVietnameseImeRewrite,
   normalizeCommittedText,
+  normalizeTargetText,
 } from "../helpers/util";
+import * as TestWords from "../../test/test-words";
 import {
   isTestRestarting,
   getActiveWordIndex,
@@ -98,10 +101,30 @@ inputEl.addEventListener("compositionend", async (event) => {
     );
 
     if (derived === null) {
-      // The browser changed text outside the composition range. Keep the
-      // scorer/event-log state authoritative rather than replaying an unsafe
-      // CompositionEvent.data payload.
-      setInputElementValue(normalizeCommittedText(getCurrentInput()));
+      const currentWord = normalizeTargetText(
+        TestWords.words.getCurrent()?.textWithCommit ?? "",
+      );
+      const rewrite = deriveVietnameseImeRewrite(
+        snapshot.committedPrefix,
+        finalInputValue,
+        currentWord,
+      );
+
+      if (rewrite === null) {
+        // Unknown replacement: keep the scorer/event-log state authoritative.
+        setInputElementValue(normalizeCommittedText(getCurrentInput()));
+      } else {
+        committedData = rewrite.data;
+        // Keep the browser's rewritten Unicode value and score the resulting
+        // character at the position it replaced.
+        setInputElementValue(finalInputValue);
+        await onInsertText({
+          data: rewrite.data,
+          now,
+          isCompositionEnding: true,
+          replacementCharIndex: rewrite.charIndex,
+        });
+      }
     } else {
       committedData = derived;
       // onInsertText expects the browser-applied value to already be present.

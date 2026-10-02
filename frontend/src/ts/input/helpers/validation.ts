@@ -1,5 +1,8 @@
 import { Config } from "../../config/store";
-import { type CommitCharacterType } from "./util";
+import {
+  isVietnameseImeProvisionalCharacter,
+  type CommitCharacterType,
+} from "./util";
 
 /**
  * Check if the input data is correct
@@ -13,8 +16,19 @@ export function hasUnresolvedInputError(
   inputValue: string,
   targetWord: string,
 ): boolean {
-  for (let index = 0; index < inputValue.length; index++) {
-    if (inputValue[index] !== targetWord[index]) return true;
+  const inputChars = Array.from(inputValue);
+  const targetChars = Array.from(targetWord);
+
+  for (let index = 0; index < inputChars.length; index++) {
+    const inputChar = inputChars[index] as string;
+    const targetChar = targetChars[index];
+    if (targetChar === undefined) return true;
+    if (
+      inputChar !== targetChar &&
+      !isVietnameseImeProvisionalCharacter(inputChar, targetChar)
+    ) {
+      return true;
+    }
   }
   return false;
 }

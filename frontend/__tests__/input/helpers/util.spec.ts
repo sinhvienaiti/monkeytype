@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   deriveCompositionCommit,
+  deriveVietnameseImeRewrite,
   getCommitCharacterType,
-  getVietnameseImeRewritePrefix,
+  isVietnameseImeProvisionalCharacter,
   normalizeCommittedText,
   normalizeTargetText,
   shouldUseVietnameseIme,
@@ -156,44 +157,64 @@ describe("Vietnamese IME helpers", () => {
 
 
   it.each([
-    ["phe", "phé", "é", "ph"],
-    ["o", "ô", "ô", ""],
-    ["ô", "ồ", "ồ", ""],
+    ["e", "é"],
+    ["o", "ô"],
+    ["ô", "ồ"],
+    ["u", "ư"],
+    ["d", "đ"],
   ])(
-    "detects a Windows Vietnamese IME last-character rewrite: %s -> %s",
-    (scoredInput, domInput, data, expectedPrefix) => {
+    "treats %s as a provisional Vietnamese IME form of %s",
+    (input, target) => {
       expect(
-        getVietnameseImeRewritePrefix(
-          scoredInput,
-          domInput,
-          data,
+        isVietnameseImeProvisionalCharacter(
+          input,
+          target,
           "vietnamese",
           "english",
         ),
-      ).toBe(expectedPrefix);
+      ).toBe(true);
+    },
+  );
+
+  it("does not make accented input provisional for a plain target", () => {
+    expect(
+      isVietnameseImeProvisionalCharacter(
+        "é",
+        "e",
+        "vietnamese",
+        "english",
+      ),
+    ).toBe(false);
+  });
+
+  it.each([
+    ["phe", "phé", "phép", 2, "é"],
+    ["tieng", "tiếng", "tiếng", 2, "ế"],
+    ["o", "ô", "ồ", 0, "ô"],
+    ["ô", "ồ", "ồ", 0, "ồ"],
+  ])(
+    "derives a Vietnamese IME rewrite: %s -> %s",
+    (before, after, target, charIndex, data) => {
+      expect(
+        deriveVietnameseImeRewrite(
+          before,
+          after,
+          target,
+          "vietnamese",
+          "english",
+        ),
+      ).toMatchObject({ charIndex, data });
     },
   );
 
   it("does not treat a normal append as an IME rewrite", () => {
     expect(
-      getVietnameseImeRewritePrefix(
+      deriveVietnameseImeRewrite(
         "ph",
         "phe",
-        "e",
+        "phép",
         "vietnamese",
         "english",
-      ),
-    ).toBeNull();
-  });
-
-  it("does not enable direct rewrite handling in English mode", () => {
-    expect(
-      getVietnameseImeRewritePrefix(
-        "phe",
-        "phé",
-        "é",
-        "english",
-        "vietnamese",
       ),
     ).toBeNull();
   });

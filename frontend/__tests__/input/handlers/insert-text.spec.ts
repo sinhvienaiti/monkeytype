@@ -790,17 +790,48 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     expect(inserts.some((event) => !event.data.correct)).toBe(true);
   });
 
-  it("reconciles phe -> phé as one IME replacement at the same character", async () => {
+  it("keeps a Vietnamese base character provisional under stop-on-letter", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      stopOnError: "letter",
+      inputLanguage: "vietnamese",
+    });
     pushWords("phép", "next");
 
     await type("p", 1000);
     await type("h", 1001);
     await type("e", 1002);
-    expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
 
-    // Browser DOM after UniKey/EVKey rewrites the last e in-place.
+    expect(getInput()).toBe("phe");
+    expect(getAccuracy(buildEventLog())).toEqual({
+      correct: 2,
+      incorrect: 0,
+      percentage: 100,
+    });
+
+    const provisional = insertEventsForWord(0)[2];
+    expect(provisional?.data.correct).toBe(false);
+    expect(provisional?.data.accuracyIgnored).toBe(true);
+    expect(provisional?.data.imeProvisional).toBe(true);
+    expect(provisional?.data.inputStopped).toBeUndefined();
+  });
+
+  it("reconciles the real UniKey phe + s -> phé sequence", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      stopOnError: "letter",
+      inputLanguage: "vietnamese",
+    });
+    pushWords("phép", "next");
+
+    await type("p", 1000);
+    await type("h", 1001);
+    await type("e", 1002);
+
+    // Chrome/UniKey reports the physical Telex key but the textarea has
+    // already been rewritten to the resulting Unicode value.
     setInput("phé");
-    await onInsertText({ data: "é", now: 1010 });
+    await onInsertText({ data: "s", now: 1010 });
 
     expect(getInput()).toBe("phé");
     expect(getAccuracy(buildEventLog())).toEqual({
@@ -809,27 +840,59 @@ describe("onInsertText - Vietnamese IME committed text", () => {
       percentage: 100,
     });
 
-    const events = inputEventsForWord(0);
-    const imeDelete = events.find(
-      (event) =>
-        event.data.inputType === "deleteContentBackward" &&
-        event.data.automatic === true,
-    );
-    expect(imeDelete?.data.inputValue).toBe("ph");
-    expect(findInputValueMismatches(events)).toEqual([]);
+    const last = insertEventsForWord(0).at(-1);
+    expect(last?.data.data).toBe("é");
+    expect(last?.data.charIndex).toBe(2);
+    expect(last?.data.replacesChar).toBe(true);
+    expect(last?.data.correct).toBe(true);
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
   });
 
-  it("reconciles each direct Telex rewrite in o -> ô -> ồ", async () => {
+  it("reconciles composition-end phe -> phé at the replaced char index", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      stopOnError: "letter",
+      inputLanguage: "vietnamese",
+    });
+    pushWords("phép", "next");
+
+    await type("p", 1000);
+    await type("h", 1001);
+    await type("e", 1002);
+
+    setInput("phé");
+    await onInsertText({
+      data: "é",
+      now: 1010,
+      isCompositionEnding: true,
+      replacementCharIndex: 2,
+    });
+
+    expect(getInput()).toBe("phé");
+    expect(getAccuracy(buildEventLog()).percentage).toBe(100);
+    const last = insertEventsForWord(0).at(-1);
+    expect(last?.data.replacesChar).toBe(true);
+    expect(last?.data.charIndex).toBe(2);
+  });
+
+  it("keeps multi-stage o -> ô -> ồ provisional until the final character", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      stopOnError: "letter",
+      inputLanguage: "vietnamese",
+    });
     pushWords("ồ", "next");
 
     await type("o", 1000);
+    expect(getAccuracy(buildEventLog()).percentage).toBe(100);
 
     setInput("ô");
-    await onInsertText({ data: "ô", now: 1010 });
+    await onInsertText({ data: "o", now: 1010 });
+    expect(getInput()).toBe("ô");
+    expect(getAccuracy(buildEventLog()).percentage).toBe(100);
 
     setInput("ồ");
-    await onInsertText({ data: "ồ", now: 1020 });
-
+    await onInsertText({ data: "f", now: 1020 });
     expect(getInput()).toBe("ồ");
     expect(getAccuracy(buildEventLog())).toEqual({
       correct: 1,
@@ -839,15 +902,21 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
   });
 
-  it("does not forgive a real Backspace correction when forgiveness is disabled", async () => {
+  it("still penalizes a real Backspace correction when forgiveness is disabled", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      inputLanguage: "vietnamese",
+      forgiveCorrectedErrors: false,
+      stopOnError: "off",
+    });
     pushWords("à", "next");
 
-    await type("a", 1000);
+    // x is a genuine mistake, not a Vietnamese base form.
+    await type("x", 1000);
     expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
 
     setInput("");
     onDelete("deleteContentBackward", 1010);
-
     await type("à", 1020);
 
     expect(getAccuracy(buildEventLog())).toEqual({

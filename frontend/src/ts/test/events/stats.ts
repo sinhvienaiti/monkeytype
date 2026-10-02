@@ -916,6 +916,11 @@ export function getCorrectedWordsHistory(eventLog: EventLog): string[] {
         if (event.data.inputStopped) {
           continue;
         }
+        if (event.data.inputType === "insertText" && event.data.replacesChar) {
+          currentChars[event.data.charIndex] = event.data.data;
+          cursorPos = Math.max(cursorPos, event.data.charIndex + 1);
+          continue;
+        }
         currentChars[cursorPos] = event.data.data;
         cursorPos++;
       } else if (event.data.inputType === "deleteContentBackward") {

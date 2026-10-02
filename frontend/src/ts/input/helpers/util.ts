@@ -65,39 +65,136 @@ export function splitCommittedText(data: string): string[] {
 }
 
 /**
- * Detect direct-input Vietnamese IME rewrites used by Windows tools such as
- * UniKey/EVKey. These tools can replace the last committed base character
- * without browser composition events, e.g. "phe" -> "phé" when Telex "s"
- * is pressed. Returns the scorer prefix that remains before the replacement.
+ * Reduce one Vietnamese character to its base Latin character for IME
+ * compatibility checks. NFC/NFD are used only for scoring; rendering is not
+ * modified.
  */
-export function getVietnameseImeRewritePrefix(
-  scoredInput: string,
-  domInput: string,
-  insertedData: string,
+export function getVietnameseBaseCharacter(
+  char: string,
   inputLanguage = Config.inputLanguage,
   testLanguage = Config.language,
-): string | null {
+): string {
+  const normalized = normalizeCommittedText(
+    char,
+    inputLanguage,
+    testLanguage,
+  );
+  return normalized
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D");
+}
+
+/**
+ * A base/partially-accented Vietnamese character is provisional while the IME
+ * is still building the target character. Example: e -> é, o -> ô -> ồ.
+ * Provisional characters must not be counted as mistakes or blocked by
+ * stop-on-error.
+ */
+export function isVietnameseImeProvisionalCharacter(
+  inputChar: string,
+  targetChar: string,
+  inputLanguage = Config.inputLanguage,
+  testLanguage = Config.language,
+): boolean {
+  if (!shouldUseVietnameseIme(inputLanguage, testLanguage)) return false;
+
+  const input = normalizeCommittedText(
+    inputChar,
+    inputLanguage,
+    testLanguage,
+  );
+  const target = normalizeTargetText(
+    targetChar,
+    inputLanguage,
+    testLanguage,
+  );
+
+  if (input === "" || target === "" || input === target) return false;
+
+  const inputBase = getVietnameseBaseCharacter(
+    input,
+    inputLanguage,
+    testLanguage,
+  );
+  const targetBase = getVietnameseBaseCharacter(
+    target,
+    inputLanguage,
+    testLanguage,
+  );
+
+  // Do not make an accented input provisional for an unaccented target.
+  return inputBase === targetBase && target !== targetBase;
+}
+
+export type VietnameseImeRewrite = {
+  charIndex: number;
+  from: string;
+  data: string;
+};
+
+/**
+ * Detect a Windows Vietnamese IME rewrite by comparing the scorer snapshot
+ * with the browser DOM. UniKey/EVKey can change an already committed character
+ * in place, e.g. "phe" -> "phé" or "tieng" -> "tiếng", while InputEvent.data
+ * contains the physical Telex key instead of the resulting Unicode character.
+ */
+export function deriveVietnameseImeRewrite(
+  scoredInput: string,
+  domInput: string,
+  targetWord: string,
+  inputLanguage = Config.inputLanguage,
+  testLanguage = Config.language,
+): VietnameseImeRewrite | null {
   if (!shouldUseVietnameseIme(inputLanguage, testLanguage)) return null;
 
-  const before = normalizeCommittedText(
-    scoredInput,
-    inputLanguage,
-    testLanguage,
+  const before = Array.from(
+    normalizeCommittedText(scoredInput, inputLanguage, testLanguage),
   );
-  const after = normalizeCommittedText(domInput, inputLanguage, testLanguage);
-  const data = normalizeCommittedText(
-    insertedData,
-    inputLanguage,
-    testLanguage,
+  const after = Array.from(
+    normalizeCommittedText(domInput, inputLanguage, testLanguage),
+  );
+  const target = Array.from(
+    normalizeTargetText(targetWord, inputLanguage, testLanguage),
   );
 
-  const beforeChars = Array.from(before);
-  if (beforeChars.length === 0 || data === "") return null;
+  if (before.length !== after.length || before.length === 0) return null;
 
-  beforeChars.pop();
-  const prefix = beforeChars.join("");
+  let charIndex = -1;
+  for (let i = 0; i < before.length; i++) {
+    if (before[i] === after[i]) continue;
+    if (charIndex !== -1) return null;
+    charIndex = i;
+  }
 
-  return after === prefix + data && after !== before + data ? prefix : null;
+  if (charIndex === -1) return null;
+
+  const from = before[charIndex] as string;
+  const data = after[charIndex] as string;
+  const targetChar = target[charIndex];
+  if (targetChar === undefined) return null;
+
+  const fromCompatible =
+    from === targetChar ||
+    isVietnameseImeProvisionalCharacter(
+      from,
+      targetChar,
+      inputLanguage,
+      testLanguage,
+    );
+  const dataCompatible =
+    data === targetChar ||
+    isVietnameseImeProvisionalCharacter(
+      data,
+      targetChar,
+      inputLanguage,
+      testLanguage,
+    );
+
+  return fromCompatible && dataCompatible
+    ? { charIndex, from, data }
+    : null;
 }
 
 /**

@@ -96,6 +96,11 @@ export function getTestEventCode(event: KeyboardEvent): Keycode | "NoCode" {
 export function applyInputEvent(input: string, event: InputEventNoMs): string {
   if (event.data.inputType === "insertText") {
     if (event.data.inputStopped) return input;
+    if (event.data.replacesChar) {
+      const chars = Array.from(input);
+      chars[event.data.charIndex] = event.data.data;
+      return chars.join("");
+    }
     if (
       event.data.data === " " &&
       event.data.lastWord &&

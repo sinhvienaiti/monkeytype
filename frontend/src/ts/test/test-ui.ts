@@ -41,9 +41,15 @@ import {
   blurInputElement,
   focusInputElement,
   getInputElement,
+  getInputElementValue,
   isInputElementFocused,
 } from "../input/input-element";
 import * as MonkeyPower from "../elements/monkey-power";
+import {
+  isVietnameseImeProvisionalCharacter,
+  normalizeCommittedText,
+  shouldUseVietnameseIme,
+} from "../input/helpers/util";
 import * as SlowTimer from "../legacy-states/slow-timer";
 import * as AdController from "../controllers/ad-controller";
 import * as Joining from "./break-joining";
@@ -897,7 +903,16 @@ export async function updateWordLetters({
         const inputChars = Strings.splitIntoCharacters(input);
         const currentWordChars = Strings.splitIntoCharacters(currentWord ?? "");
         for (let i = 0; i < inputChars.length; i++) {
-          const charCorrect = currentWordChars[i] === inputChars[i];
+          const exactCharCorrect = currentWordChars[i] === inputChars[i];
+          const imeProvisional =
+            !exactCharCorrect &&
+            currentWordChars[i] !== undefined &&
+            inputChars[i] !== undefined &&
+            isVietnameseImeProvisionalCharacter(
+              inputChars[i] as string,
+              currentWordChars[i] as string,
+            );
+          const charCorrect = exactCharCorrect || imeProvisional;
 
           let currentLetter = currentWordChars[i] as string;
           let tabChar = "";
@@ -920,7 +935,9 @@ export async function updateWordLetters({
             recallTarget,
           );
 
-          if (charCorrect) {
+          if (imeProvisional) {
+            ret += `<letter class="dead ${tabChar}${nlChar}${structuralClass}">${displayTypedChar(inputChars[i])}</letter>`;
+          } else if (charCorrect) {
             ret += `<letter class="correct ${tabChar}${nlChar}${structuralClass}">${currentLetter}</letter>`;
           } else if (currentLetter === undefined) {
             const letter = displayTypedChar(inputChars[i]);
@@ -1822,10 +1839,16 @@ export function afterTestTextInput(
 }
 
 export function afterTestCompositionUpdate(): void {
+  const vietnameseIme = shouldUseVietnameseIme();
   void updateWordLetters({
-    input: getCurrentInput(),
+    // UniKey/EVKey can rewrite an already committed vowel during composition.
+    // The textarea contains the correct live shape; rendering scorer prefix +
+    // compositionData would place that vowel at the next character instead.
+    input: vietnameseIme
+      ? normalizeCommittedText(getInputElementValue().inputValue)
+      : getCurrentInput(),
     wordIndex: getActiveWordIndex(),
-    compositionData: CompositionState.getData(),
+    compositionData: vietnameseIme ? "" : CompositionState.getData(),
   });
   // correct needs to be true to get the normal click sound
   afterAnyTestInput("compositionUpdate", true);
