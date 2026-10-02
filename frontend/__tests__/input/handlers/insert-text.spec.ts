@@ -96,6 +96,7 @@ vi.mock("../../../src/ts/test/custom-text", () => ({
 // peripheral collaborators - none of them feed back into the events we assert
 vi.mock("../../../src/ts/test/test-ui", () => ({
   afterTestTextInput: vi.fn(),
+  afterTestDelete: vi.fn(),
   // words scrolled off the screen are removed from the dom
   getWordElement: vi.fn((index: number) =>
     mockState.wordsScrolledOff.has(index) ? null : {},
@@ -884,12 +885,12 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     pushWords("ồ", "next");
 
     await type("o", 1000);
-    expect(getAccuracy(buildEventLog()).percentage).toBe(100);
+    expect(getLiveCachedAccuracy()).toBe(100);
 
     setInput("ô");
     await onInsertText({ data: "o", now: 1010 });
     expect(getInput()).toBe("ô");
-    expect(getAccuracy(buildEventLog()).percentage).toBe(100);
+    expect(getLiveCachedAccuracy()).toBe(100);
 
     setInput("ồ");
     await onInsertText({ data: "f", now: 1020 });
