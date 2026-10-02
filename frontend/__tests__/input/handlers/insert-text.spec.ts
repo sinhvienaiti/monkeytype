@@ -179,6 +179,10 @@ import { getLiveCachedAccuracy } from "../../../src/ts/test/events/live-cache";
 import { words as TestWords } from "../../../src/ts/test/test-words";
 import { __testing } from "../../../src/ts/config/testing";
 import { DeleteInputType } from "../../../src/ts/input/helpers/input-type";
+import {
+  onVietnameseCompositionEnd,
+  onVietnameseCompositionStart,
+} from "../../../src/ts/input/vietnamese-ime/native-events";
 
 const { replaceConfig } = __testing;
 
@@ -1628,6 +1632,62 @@ describe("onInsertText - Vietnamese IME committed text", () => {
 
     expect(getInput()).toBe("rằng");
     expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+  });
+
+
+  it("aborts a multi-step native DOM transaction when its first rewrite is blocked", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      language: "vietnamese_5k",
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: false,
+    });
+    pushWords("àz", "next");
+
+    await type("à", 1900);
+    expect(getInput()).toBe("à");
+
+    // One browser input event both rewrites the committed vowel incorrectly
+    // and appends another character. The rejected rewrite must abort the
+    // transaction before the appended character reaches the scorer.
+    setInput("áx");
+    await onInsertText({ data: "x", now: 1910 });
+
+    expect(getInput()).toBe("à");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
+    expect(insertEventsForWord(0).at(-1)?.data.data).toBe("á");
+    expect(insertEventsForWord(0).at(-1)?.data.inputStopped).toBe(true);
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+  });
+
+  it("aborts composition replay when a replacement is rejected", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      language: "vietnamese_5k",
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: false,
+    });
+    pushWords("àz", "next");
+
+    await type("à", 2000);
+    onVietnameseCompositionStart(
+      new CompositionEvent("compositionstart", { data: "" }),
+    );
+
+    setInput("áx");
+    await onVietnameseCompositionEnd(
+      new CompositionEvent("compositionend", { data: "áx" }),
+    );
+
+    expect(getInput()).toBe("à");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
+    expect(insertEventsForWord(0).at(-1)?.data.data).toBe("á");
+    expect(insertEventsForWord(0).at(-1)?.data.inputStopped).toBe(true);
     expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
   });
 

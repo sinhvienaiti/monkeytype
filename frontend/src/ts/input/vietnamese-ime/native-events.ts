@@ -140,36 +140,79 @@ export async function onVietnameseCompositionEnd(
           setInputElementValue(scorerInput);
         } else {
           const logicalChars = [...beforeChars];
+          let transactionApplied = true;
 
           for (let i = 0; i < replaceCount; i++) {
             const charIndex = transaction.start + i;
             const data = insertChars[i] as string;
             logicalChars[charIndex] = data;
-            setInputElementValue(logicalChars.join(""));
+            const expectedInput = logicalChars.join("");
+            setInputElementValue(expectedInput);
             await onInsertText({
               data,
               now,
               isCompositionEnding: true,
               replacementCharIndex: charIndex,
               lastInMultiIndex:
-                i === insertChars.length - 1 && replaceCount === insertChars.length,
+                i === insertChars.length - 1 &&
+                replaceCount === insertChars.length,
             });
+
+            const scorerAfterStep = normalizeCommittedText(getCurrentInput());
+            if (getActiveWordIndex() !== session.wordIndex) {
+              committedData += data;
+              setInputElementValue(scorerAfterStep);
+              transactionApplied = false;
+              break;
+            }
+            if (scorerAfterStep !== expectedInput) {
+              setInputElementValue(scorerAfterStep);
+              transactionApplied = false;
+              break;
+            }
+            committedData += data;
           }
 
-          for (let i = replaceCount; i < insertChars.length; i++) {
-            const data = insertChars[i] as string;
-            logicalChars.splice(transaction.start + i, 0, data);
-            setInputElementValue(logicalChars.join(""));
-            await onInsertText({
-              data,
-              now,
-              isCompositionEnding: true,
-              lastInMultiIndex: i === insertChars.length - 1,
-            });
+          if (transactionApplied) {
+            for (let i = replaceCount; i < insertChars.length; i++) {
+              const data = insertChars[i] as string;
+              logicalChars.splice(transaction.start + i, 0, data);
+              const expectedInput = logicalChars.join("");
+              setInputElementValue(expectedInput);
+              await onInsertText({
+                data,
+                now,
+                isCompositionEnding: true,
+                lastInMultiIndex: i === insertChars.length - 1,
+              });
+
+              const scorerAfterStep = normalizeCommittedText(getCurrentInput());
+              if (getActiveWordIndex() !== session.wordIndex) {
+                committedData += data;
+                setInputElementValue(scorerAfterStep);
+                transactionApplied = false;
+                break;
+              }
+              if (scorerAfterStep !== expectedInput) {
+                setInputElementValue(scorerAfterStep);
+                transactionApplied = false;
+                break;
+              }
+              committedData += data;
+            }
           }
 
-          committedData = transaction.insertText;
-          setInputElementValue(transaction.after);
+          if (transactionApplied) {
+            const scorerAfterTransaction = normalizeCommittedText(
+              getCurrentInput(),
+            );
+            if (scorerAfterTransaction === transaction.after) {
+              setInputElementValue(scorerAfterTransaction);
+            } else {
+              committedData = "";
+              setInputElementValue(scorerAfterTransaction);
+            }
+          }
         }
       }
     }

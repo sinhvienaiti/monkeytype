@@ -278,12 +278,14 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
       if (transaction.deleteCount > 0) {
         const logicalChars = [...scorerChars];
         const replaceCount = transaction.deleteCount;
+        const transactionWordIndex = getActiveWordIndex();
 
         for (let i = 0; i < replaceCount; i++) {
           const charIndex = transaction.start + i;
           const data = insertedChars[i] as string;
           logicalChars[charIndex] = data;
-          setInputElementValue(logicalChars.join(""));
+          const expectedInput = logicalChars.join("");
+          setInputElementValue(expectedInput);
           await onInsertText({
             ...options,
             data,
@@ -293,18 +295,37 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
               i === insertedChars.length - 1 &&
               replaceCount === insertedChars.length,
           });
+
+          const scorerAfterStep = normalizeCommittedText(getCurrentInput());
+          if (
+            getActiveWordIndex() !== transactionWordIndex ||
+            scorerAfterStep !== expectedInput
+          ) {
+            setInputElementValue(scorerAfterStep);
+            return;
+          }
         }
 
         for (let i = replaceCount; i < insertedChars.length; i++) {
           const data = insertedChars[i] as string;
           logicalChars.splice(transaction.start + i, 0, data);
-          setInputElementValue(logicalChars.join(""));
+          const expectedInput = logicalChars.join("");
+          setInputElementValue(expectedInput);
           await onInsertText({
             ...options,
             data,
             nativeImeCommit: true,
             lastInMultiIndex: i === insertedChars.length - 1,
           });
+
+          const scorerAfterStep = normalizeCommittedText(getCurrentInput());
+          if (
+            getActiveWordIndex() !== transactionWordIndex ||
+            scorerAfterStep !== expectedInput
+          ) {
+            setInputElementValue(scorerAfterStep);
+            return;
+          }
         }
         return;
       }
