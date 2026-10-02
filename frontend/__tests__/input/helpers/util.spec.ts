@@ -339,6 +339,17 @@ describe("Vietnamese IME helpers", () => {
     ).toBe(false);
   });
 
+  it("never marks English auto-mode text as Vietnamese provisional", () => {
+    expect(
+      hasVietnameseImeProvisionalMismatch(
+        "cxt",
+        "cat",
+        "auto",
+        "english",
+      ),
+    ).toBe(false);
+  });
+
   it("derives a transformed direct append from the browser DOM", () => {
     expect(
       deriveVietnameseDirectInsert(
