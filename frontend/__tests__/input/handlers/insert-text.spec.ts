@@ -183,7 +183,10 @@ import {
   onVietnameseCompositionEnd,
   onVietnameseCompositionStart,
 } from "../../../src/ts/input/vietnamese-ime/native-events";
-import { queueVietnameseImeSeparator } from "../../../src/ts/input/vietnamese-ime/state";
+import {
+  invalidateVietnameseImeSession,
+  queueVietnameseImeSeparator,
+} from "../../../src/ts/input/vietnamese-ime/state";
 
 const { replaceConfig } = __testing;
 
@@ -749,7 +752,14 @@ describe("onInsertText - keep first wrong letter", () => {
 
 describe("onInsertText - Vietnamese IME committed text", () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
     vi.clearAllMocks();
+    mockImeState.composing = false;
+    mockImeState.data = "";
+    mockImeState.compositionText = "";
+    mockImeState.lastInsertCompositionTextData = "";
+    mockImeState.revision = 0;
+    invalidateVietnameseImeSession();
     resetTestEvents();
     TestWords.reset();
     mockState.activeWordIndex = 0;
