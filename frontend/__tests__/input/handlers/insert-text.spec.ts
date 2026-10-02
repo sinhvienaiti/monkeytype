@@ -1118,6 +1118,82 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
   });
 
+  it.each([
+    ["as", "a", "á", "s"],
+    ["raw", "ra", "ră", "w"],
+    ["book", "bo", "bô", "o"],
+  ])(
+    "restores a literal English target after an incompatible Telex DOM rewrite: %s",
+    async (word, prefix, rewrittenDom, physicalKey) => {
+      replaceConfig({
+        ...__testing.getConfig(),
+        language: "vietnamese_5k",
+        inputLanguage: "vietnamese",
+        stopOnError: "letter",
+        stopOnErrorKeepFirstError: true,
+      });
+      pushWords(word, "next");
+
+      for (const [i, char] of Array.from(prefix).entries()) {
+        await type(char, 1100 + i);
+      }
+
+      setInput(rewrittenDom);
+      await onInsertText({ data: physicalKey, now: 1200 });
+
+      expect(getInput()).toBe(prefix + physicalKey);
+      expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+      expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+      expect(insertEventsForWord(0).at(-1)?.data.replacesChar).toBeUndefined();
+    },
+  );
+
+  it.each(["off", "word", "letter"] as const)(
+    "keeps a correct Vietnamese Telex sequence clean with stop on error=%s",
+    async (stopOnError) => {
+      replaceConfig({
+        ...__testing.getConfig(),
+        language: "vietnamese_5k",
+        inputLanguage: "vietnamese",
+        stopOnError,
+        stopOnErrorKeepFirstError: true,
+      });
+      pushWords("đường", "next");
+
+      for (const [i, char] of Array.from("dduowngf").entries()) {
+        await type(char, 1300 + i);
+      }
+
+      expect(getInput()).toBe("đường");
+      expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+      expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+    },
+  );
+
+  it("does not trigger delete-on-error for a valid Vietnamese provisional character", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      language: "vietnamese_5k",
+      inputLanguage: "vietnamese",
+      stopOnError: "off",
+      deleteOnError: "letter",
+    });
+    pushWords("là", "next");
+
+    await type("l", 1400);
+    await type("a", 1401);
+
+    expect(getInput()).toBe("la");
+    expect(deletesForWord(0)).toEqual([]);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+
+    await type("f", 1402);
+
+    expect(getInput()).toBe("là");
+    expect(deletesForWord(0)).toEqual([]);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+  });
+
   it("counts an unresolved Vietnamese provisional as an error on word commit", async () => {
     replaceConfig({
       ...__testing.getConfig(),
