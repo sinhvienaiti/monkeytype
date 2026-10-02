@@ -350,7 +350,7 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     shouldUseVietnameseIme() &&
     (replacementCharIndex !== undefined ||
       isCompositionEnding === true ||
-      nativeImeCommit === true)
+      options.nativeImeCommit === true)
       ? null
       : correctShiftUsed;
   const charIndex = replacementCharIndex ?? testInput.length;

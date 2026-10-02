@@ -61,6 +61,19 @@ export function onDelete(inputType: DeleteInputType, now: number): void {
     .getCurrent()
     ?.textWithCommit.startsWith(inputAfterDelete);
 
+  // A physical Backspace can cancel only the browser's active IME preview.
+  // In that case committed DOM text is unchanged. Reset stale IME state, but
+  // do not emit a scorer delete event for a character that was never deleted.
+  if (
+    shouldUseVietnameseIme() &&
+    normalizeCommittedText(inputAfterDelete) ===
+      normalizeCommittedText(inputBeforeDelete)
+  ) {
+    resetVietnameseImeAfterDelete();
+    TestUI.afterTestDelete();
+    return;
+  }
+
   //special check for code languages
   if (
     Config.language.startsWith("code") &&
