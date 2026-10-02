@@ -544,7 +544,7 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     handleDeleteOnError(now);
   }
 
-  if (lastInMultiOrSingle) {
+  if (lastInMultiOrSingle || options.nativeImeCommit === true) {
     TestUI.afterTestTextInput(
       acceptedInput,
       visualInputOverride,
@@ -589,36 +589,42 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
   const testInputAfterEvent =
     replacementCharIndex !== undefined ? inputValueAfterEvent : testInput + data;
 
-  if (!CompositionState.getComposing() && lastInMultiOrSingle) {
-    if (
+  if (!CompositionState.getComposing()) {
+    const shouldCheckDifficulty =
+      lastInMultiOrSingle || options.nativeImeCommit === true;
+    const difficultyFailed =
+      shouldCheckDifficulty &&
       checkIfFailedDueToDifficulty({
         data,
         testInput: scoreInput,
         targetWord: currentWord,
         correct: acceptedInput,
         commitCharacterType,
-      })
-    ) {
+      });
+
+    if (difficultyFailed) {
       TestLogic.fail("difficulty");
-    } else if (
-      increasedWordIndex &&
-      checkIfFailedDueToMinBurst({
-        testInputWithData: testInputAfterEvent,
-        currentWord,
-        lastBurst,
-      })
-    ) {
-      TestLogic.fail("min burst");
-    } else if (
-      checkIfFinished({
-        goingToNextWord,
-        testInputWithData: testInputAfterEvent,
-        currentWord,
-        allWordsTyped: wordIndex >= TestWords.words.length - 1,
-        allWordsGenerated: areAllWordsGenerated(),
-      })
-    ) {
-      void TestLogic.finish();
+    } else if (lastInMultiOrSingle) {
+      if (
+        increasedWordIndex &&
+        checkIfFailedDueToMinBurst({
+          testInputWithData: testInputAfterEvent,
+          currentWord,
+          lastBurst,
+        })
+      ) {
+        TestLogic.fail("min burst");
+      } else if (
+        checkIfFinished({
+          goingToNextWord,
+          testInputWithData: testInputAfterEvent,
+          currentWord,
+          allWordsTyped: wordIndex >= TestWords.words.length - 1,
+          allWordsGenerated: areAllWordsGenerated(),
+        })
+      ) {
+        void TestLogic.finish();
+      }
     }
   }
 }
