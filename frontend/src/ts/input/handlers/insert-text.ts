@@ -57,7 +57,10 @@ import { DeleteInputType } from "../helpers/input-type";
 import { handleStartedWord as handleEnVnTranslationStart } from "../../custom/en-vn-translation";
 import { getAsciiTargetRestore } from "../vietnamese-ime/ascii-guard";
 import { createVietnameseCommitTransaction } from "../vietnamese-ime/transaction";
-import { hasOnlyVietnameseImeCorrectableMismatches } from "../vietnamese-ime/provisional";
+import {
+  hasOnlyVietnameseImeCorrectableMismatches,
+  isVietnameseImeBoundary,
+} from "../vietnamese-ime/provisional";
 import {
   clearVietnameseImeDirectPreview,
   getVietnameseImeDirectPreview,
@@ -178,9 +181,14 @@ function canBufferVietnameseDirectPreview(options: {
   scorerInput: string;
   domInput: string;
   targetWord: string;
+  physicalData: string;
 }): boolean {
   const scorerChars = Array.from(options.scorerInput);
   const domChars = Array.from(options.domInput);
+
+  // A separator/punctuation key is an explicit boundary. It must flush any
+  // pending IME preview before normal stop-on-error/navigation logic runs.
+  if (isVietnameseImeBoundary(options.physicalData)) return false;
 
   // Buffering may start only from a fully correct scorer prefix. Once a
   // provisional character has been materialized as a real typo, normal
@@ -355,6 +363,7 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
         scorerInput: testInput,
         domInput: inputValue,
         targetWord: currentWord,
+        physicalData: options.data,
       })
     ) {
       setVietnameseImeDirectPreview({
