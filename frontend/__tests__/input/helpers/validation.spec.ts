@@ -35,6 +35,37 @@ describe("hasUnresolvedInputError", () => {
   ])("input %s against %s -> %s", (input, target, expected) => {
     expect(hasUnresolvedInputError(input, target)).toBe(expected);
   });
+
+  it("keeps an unfinished Vietnamese accent open across letters", () => {
+    replaceConfig({
+      language: "vietnamese_5k",
+      inputLanguage: "vietnamese",
+    });
+    expect(hasUnresolvedInputError("rang", "rằng ")).toBe(false);
+  });
+
+  it.each([
+    ["la,", "là, "],
+    ["la ", "là "],
+    ["a1", "á1 "],
+  ])(
+    "materializes a pending Vietnamese accent at a non-letter boundary: %s",
+    (input, target) => {
+      replaceConfig({
+        language: "vietnamese_5k",
+        inputLanguage: "vietnamese",
+      });
+      expect(hasUnresolvedInputError(input, target)).toBe(true);
+    },
+  );
+
+  it("does not change English unresolved-input behavior", () => {
+    replaceConfig({
+      language: "english",
+      inputLanguage: "auto",
+    });
+    expect(hasUnresolvedInputError("ra,", "raw ")).toBe(true);
+  });
 });
 
 describe("isCharCorrect", () => {

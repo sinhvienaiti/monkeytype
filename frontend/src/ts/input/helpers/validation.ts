@@ -1,5 +1,6 @@
 import { Config } from "../../config/store";
 import {
+  isVietnameseImeBoundary,
   isVietnameseImeProvisionalCharacter,
   type CommitCharacterType,
 } from "./util";
@@ -19,7 +20,7 @@ export function hasUnresolvedInputError(
   const inputChars = Array.from(inputValue);
   const targetChars = Array.from(targetWord);
 
-  let hasProvisional = false;
+  let hasOpenProvisional = false;
 
   for (let index = 0; index < inputChars.length; index++) {
     const inputChar = inputChars[index] as string;
@@ -28,20 +29,19 @@ export function hasUnresolvedInputError(
 
     if (inputChar !== targetChar) {
       if (isVietnameseImeProvisionalCharacter(inputChar, targetChar)) {
-        hasProvisional = true;
-      } else {
-        return true;
+        hasOpenProvisional = true;
+        continue;
       }
+      return true;
+    }
+
+    if (isVietnameseImeBoundary(inputChar)) {
+      if (hasOpenProvisional) return true;
+      hasOpenProvisional = false;
     }
   }
 
-  const commitChar = targetChars[targetChars.length - 1];
-  const committed =
-    (commitChar === " " || commitChar === "\n") &&
-    inputChars.length >= targetChars.length &&
-    inputChars[targetChars.length - 1] === commitChar;
-
-  return hasProvisional && committed;
+  return false;
 }
 
 export function isCharCorrect(options: {

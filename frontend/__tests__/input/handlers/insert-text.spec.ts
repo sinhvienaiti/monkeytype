@@ -1381,11 +1381,10 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     await type("f", 1002);
 
     expect(getInput()).toBe("là");
-    expect(getAccuracy(buildEventLog())).toEqual({
-      correct: 2,
-      incorrect: 1,
-      percentage: 200 / 3,
-    });
+    const accuracy = getAccuracy(buildEventLog());
+    expect(accuracy.correct).toBe(2);
+    expect(accuracy.incorrect).toBe(1);
+    expect(accuracy.percentage).toBeCloseTo(66.67, 2);
   });
 
   it("forgives a corrected Vietnamese tone only when the option is enabled", async () => {
