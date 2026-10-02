@@ -622,6 +622,15 @@ export const configMetadata: ConfigMetadataObject = {
     description:
       'Controls how committed text is scored. "English" keeps direct-input behavior. "Vietnamese" enables IME-aware NFC normalization. "Auto" enables Vietnamese handling when the selected test language is Vietnamese.',
   },
+  vietnameseImeMode: {
+    key: "vietnameseImeMode",
+    fa: { icon: "fa-keyboard" },
+    displayString: "Vietnamese IME mode — Codex",
+    changeRequiresRestart: true,
+    group: "input",
+    description:
+      'Uses the browser/OS Vietnamese IME as the source of truth during composition. Transient Telex keys are not scored until the IME commits text. Only affects Vietnamese input.',
+  },
   compositionDisplay: {
     key: "compositionDisplay",
     fa: { icon: "fa-language" },

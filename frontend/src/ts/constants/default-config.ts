@@ -43,6 +43,7 @@ const obj: Config = {
   confidenceMode: "off",
   indicateTypos: "off",
   inputLanguage: "auto",
+  vietnameseImeMode: "off",
   compositionDisplay: "replace",
   timerStyle: "mini",
   liveSpeedStyle: "off",

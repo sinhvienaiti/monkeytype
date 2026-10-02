@@ -22,6 +22,8 @@ export function shouldUseVietnameseIme(
   inputLanguage = Config.inputLanguage,
   testLanguage = Config.language,
 ): boolean {
+  if (Config.vietnameseImeMode !== "native") return false;
+
   return (
     inputLanguage === "vietnamese" ||
     (inputLanguage === "auto" && isVietnameseLanguage(testLanguage))
