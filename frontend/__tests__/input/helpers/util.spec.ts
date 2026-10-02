@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   deriveCompositionCommit,
   deriveVietnameseCommittedRewrite,
@@ -19,6 +19,7 @@ import {
   splitCommittedText,
 } from "../../../src/ts/input/helpers/util";
 import * as FunboxList from "../../../src/ts/test/funbox/list";
+import { Config } from "../../../src/ts/config/store";
 
 vi.mock("../../../src/ts/test/funbox/list", () => ({
   isFunboxActiveWithProperty: vi.fn(),
@@ -124,6 +125,19 @@ describe("getCommitCharacterType", () => {
 });
 
 describe("Vietnamese IME helpers", () => {
+  beforeEach(() => {
+    Config.vietnameseImeMode = "native";
+  });
+
+  afterEach(() => {
+    Config.vietnameseImeMode = "off";
+  });
+
+  it("keeps Vietnamese handling disabled while safe mode is off", () => {
+    Config.vietnameseImeMode = "off";
+    expect(shouldUseVietnameseIme("vietnamese", "vietnamese")).toBe(false);
+  });
+
   it("uses explicit Vietnamese mode regardless of the selected test language", () => {
     expect(shouldUseVietnameseIme("vietnamese", "english")).toBe(true);
   });
