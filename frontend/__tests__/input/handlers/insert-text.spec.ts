@@ -832,6 +832,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
       ...__testing.getConfig(),
       stopOnError: "letter",
       inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
     });
     pushWords("phép", "next");
 
@@ -858,6 +859,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
       ...__testing.getConfig(),
       stopOnError: "letter",
       inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
     });
     pushWords("phép", "next");
 
@@ -890,6 +892,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
       ...__testing.getConfig(),
       stopOnError: "letter",
       inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
     });
     pushWords("phép", "next");
 
@@ -917,6 +920,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
       ...__testing.getConfig(),
       stopOnError: "letter",
       inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
     });
     pushWords("ồ", "next");
 
@@ -945,6 +949,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
       stopOnError: "letter",
       stopOnErrorKeepFirstError: true,
       inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
     });
     pushWords("rằng", "next");
 
@@ -970,6 +975,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
       ...__testing.getConfig(),
       stopOnError: "letter",
       inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
     });
     pushWords("ằ", "next");
 
@@ -988,6 +994,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
       ...__testing.getConfig(),
       stopOnError: "letter",
       inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
     });
     pushWords("là", "next");
 
@@ -1010,6 +1017,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
       stopOnError: "letter",
       stopOnErrorKeepFirstError: true,
       inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
     });
     pushWords("là", "cơ");
 
@@ -1041,6 +1049,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
         stopOnError: "letter",
         stopOnErrorKeepFirstError: true,
         inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
       });
       pushWords(word, "next");
 
@@ -1084,6 +1093,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
       ...__testing.getConfig(),
       language: "vietnamese_5k",
       inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
       stopOnError: "letter",
     });
     pushWords("address", "next");
@@ -1108,6 +1118,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
       ...__testing.getConfig(),
       language: "vietnamese_5k",
       inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
       stopOnError: "letter",
     });
     pushWords("raw", "software", "next");
@@ -1132,6 +1143,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
         ...__testing.getConfig(),
         language: "vietnamese_5k",
         inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
         stopOnError: "letter",
         stopOnErrorKeepFirstError: true,
       });
@@ -1158,6 +1170,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
         ...__testing.getConfig(),
         language: "vietnamese_5k",
         inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
         stopOnError,
         stopOnErrorKeepFirstError: true,
       });
@@ -1178,6 +1191,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
       ...__testing.getConfig(),
       language: "vietnamese_5k",
       inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
       stopOnError: "off",
       deleteOnError: "letter",
     });
@@ -1203,6 +1217,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
       stopOnError: "off",
       deleteOnError: "off",
       inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
     });
     pushWords("là", "next");
 
@@ -1224,6 +1239,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
       stopOnError: "off",
       deleteOnError: "off",
       inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
     });
     pushWords("là");
 
@@ -1242,6 +1258,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
       ...__testing.getConfig(),
       stopOnError: "letter",
       inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
     });
     pushWords("ư", "next");
 
@@ -1261,6 +1278,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
       ...__testing.getConfig(),
       stopOnError: "letter",
       inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
     });
     pushWords("là", "next");
 
@@ -1298,6 +1316,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
       stopOnError: "letter",
       stopOnErrorKeepFirstError: true,
       inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
     });
     pushWords("ư", "next");
 
@@ -1322,6 +1341,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     replaceConfig({
       ...__testing.getConfig(),
       inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
     });
     pushWords("là", "next");
 
@@ -1342,6 +1362,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     replaceConfig({
       ...__testing.getConfig(),
       inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
       stopOnError: "letter",
     });
     pushWords("là", "cơ", "next");
@@ -1373,6 +1394,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     replaceConfig({
       ...__testing.getConfig(),
       inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
       stopOnError: "letter",
     });
     pushWords("người", "next");
@@ -1403,6 +1425,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     replaceConfig({
       ...__testing.getConfig(),
       inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
       stopOnError: "letter",
     });
     pushWords("đường", "next");
@@ -1433,6 +1456,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     replaceConfig({
       ...__testing.getConfig(),
       inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
       stopOnError: "letter",
     });
     pushWords("Đường", "next");
@@ -1449,6 +1473,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     replaceConfig({
       ...__testing.getConfig(),
       inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
       stopOnError: "letter",
       oppositeShiftMode: "on",
     });
@@ -1470,6 +1495,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     replaceConfig({
       ...__testing.getConfig(),
       inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
       stopOnError: "letter",
       stopOnErrorKeepFirstError: true,
     });
@@ -1493,6 +1519,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     replaceConfig({
       ...__testing.getConfig(),
       inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
       stopOnError: "letter",
     });
     pushWords("là,", "next");
@@ -1510,6 +1537,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     replaceConfig({
       ...__testing.getConfig(),
       inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
       stopOnError: "letter",
       stopOnErrorKeepFirstError: true,
       forgiveCorrectedErrors: false,
@@ -1533,6 +1561,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     replaceConfig({
       ...__testing.getConfig(),
       inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
       stopOnError: "letter",
       stopOnErrorKeepFirstError: true,
       forgiveCorrectedErrors: true,
@@ -1554,6 +1583,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     replaceConfig({
       ...__testing.getConfig(),
       inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
       forgiveCorrectedErrors: false,
       stopOnError: "off",
     });
