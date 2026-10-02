@@ -183,6 +183,7 @@ import {
   onVietnameseCompositionEnd,
   onVietnameseCompositionStart,
 } from "../../../src/ts/input/vietnamese-ime/native-events";
+import { queueVietnameseImeSeparator } from "../../../src/ts/input/vietnamese-ime/state";
 
 const { replaceConfig } = __testing;
 
@@ -1688,6 +1689,64 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
     expect(insertEventsForWord(0).at(-1)?.data.data).toBe("á");
     expect(insertEventsForWord(0).at(-1)?.data.inputStopped).toBe(true);
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+  });
+
+
+  it("applies a queued Space only after the native composition commit", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      language: "vietnamese_5k",
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+      stopOnError: "letter",
+    });
+    pushWords("commerce", "next");
+
+    for (const [i, char] of Array.from("commerc").entries()) {
+      await type(char, 2100 + i);
+    }
+
+    onVietnameseCompositionStart(
+      new CompositionEvent("compositionstart", { data: "" }),
+    );
+    setInput("commerce");
+    queueVietnameseImeSeparator(" ");
+
+    await onVietnameseCompositionEnd(
+      new CompositionEvent("compositionend", { data: "e" }),
+    );
+
+    expect(mockState.activeWordIndex).toBe(1);
+    expect(getInput()).toBe("");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+  });
+
+  it("rejects a composition result that shrinks committed scorer text", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      language: "vietnamese_5k",
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+      stopOnError: "off",
+    });
+    pushWords("mụ", "next");
+
+    await commitComposition("mụ", 2200);
+    const inputEventsBefore = insertEventsForWord(0).length;
+
+    onVietnameseCompositionStart(
+      new CompositionEvent("compositionstart", { data: "" }),
+    );
+    setInput("m");
+
+    await onVietnameseCompositionEnd(
+      new CompositionEvent("compositionend", { data: "m" }),
+    );
+
+    expect(getInput()).toBe("mụ");
+    expect(insertEventsForWord(0)).toHaveLength(inputEventsBefore);
     expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
   });
 
