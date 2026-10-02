@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { isVietnameseImeSafeModeActive } from "../../../src/ts/input/vietnamese-ime/gate";
 import { createVietnameseCommitTransaction } from "../../../src/ts/input/vietnamese-ime/transaction";
+import { getAsciiTargetRestore } from "../../../src/ts/input/vietnamese-ime/ascii-guard";
+import {
+  beginVietnameseImeSession,
+  getVietnameseImeSession,
+  invalidateVietnameseImeSession,
+} from "../../../src/ts/input/vietnamese-ime/state";
 
 describe("Vietnamese IME Safe Mode gate", () => {
   it("is off by default regardless of language", () => {
@@ -86,5 +92,71 @@ describe("Vietnamese IME commit transaction", () => {
         source: "composition",
       }),
     ).toBeNull();
+  });
+});
+
+
+describe("Vietnamese IME ASCII target guard", () => {
+  it.each([
+    ["as", "a", "á", "s"],
+    ["raw", "ra", "ră", "w"],
+    ["book", "bo", "bô", "o"],
+    ["commerce", "commerc", "commercê", "e"],
+    ["address", "ad", "ađ", "d"],
+  ])("restores literal target-compatible ASCII for %s", (targetWord, scorerInput, domInput, physicalData) => {
+    expect(
+      getAsciiTargetRestore({
+        scorerInput,
+        domInput,
+        physicalData,
+        targetWord,
+      }),
+    ).toBe(scorerInput + physicalData);
+  });
+
+  it("does not alter a Vietnamese target", () => {
+    expect(
+      getAsciiTargetRestore({
+        scorerInput: "ra",
+        domInput: "ră",
+        physicalData: "w",
+        targetWord: "rằng",
+      }),
+    ).toBeNull();
+  });
+
+  it("does not rescue a physical key that is not the next target character", () => {
+    expect(
+      getAsciiTargetRestore({
+        scorerInput: "com",
+        domInput: "côm",
+        physicalData: "x",
+        targetWord: "commerce",
+      }),
+    ).toBeNull();
+  });
+});
+
+describe("Vietnamese IME stale session protection", () => {
+  it("invalidates an old session even if text later becomes identical again", () => {
+    const first = beginVietnameseImeSession({
+      wordIndex: 0,
+      committedPrefix: "la",
+      domAtStart: "la",
+    });
+
+    invalidateVietnameseImeSession();
+
+    const second = beginVietnameseImeSession({
+      wordIndex: 0,
+      committedPrefix: "la",
+      domAtStart: "la",
+    });
+
+    expect(second.id).not.toBe(first.id);
+    expect(second.revision).toBeGreaterThan(first.revision);
+    expect(getVietnameseImeSession()).toEqual(second);
+
+    invalidateVietnameseImeSession();
   });
 });

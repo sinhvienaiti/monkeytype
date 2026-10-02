@@ -746,6 +746,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
       mode: "words",
       language: "english",
       inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
       deleteOnError: "off",
       stopOnError: "off",
       forgiveCorrectedErrors: false,
