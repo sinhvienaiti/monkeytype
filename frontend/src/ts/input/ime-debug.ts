@@ -4,6 +4,10 @@ import { getActiveWordIndex } from "../states/test";
 import { getCurrentInput } from "../test/events/data";
 import { getLiveCachedAccuracy } from "../test/events/live-cache";
 import * as TestWords from "../test/test-words";
+import {
+  getActivePhysicalKeyCode,
+  getPendingVietnameseCompositionSeparator,
+} from "./state";
 
 type ImeDebugPhase = "before" | "after";
 
@@ -28,6 +32,8 @@ export type ImeDebugEntry = {
   composition: {
     composing: boolean;
     data: string;
+    activePhysicalKeyCode: string | null;
+    pendingSeparator: string | null;
   };
   config: {
     language: string;
@@ -189,6 +195,8 @@ export function recordImeDebugEvent(
     composition: {
       composing: CompositionState.getComposing(),
       data: CompositionState.getData() ?? "",
+      activePhysicalKeyCode: getActivePhysicalKeyCode(),
+      pendingSeparator: getPendingVietnameseCompositionSeparator(),
     },
     config: {
       language: Config.language,

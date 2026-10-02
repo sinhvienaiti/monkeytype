@@ -41,7 +41,10 @@ Test both reference environments with:
 - `forgive corrected errors`: off/on.
 - `quick end`: off/on.
 - Backspace inside the current word.
+- Backspace while the browser still reports an active Vietnamese composition.
 - Backspace to the previous word, then add a missing Vietnamese tone.
+- Backspace on the last word of a visual line, then retype a Vietnamese tone/shape.
+- Space arriving before compositionend must not discard the still-pending word text.
 - Space or punctuation while a Vietnamese character is still provisional.
 - Wrong tone corrected by another Telex modifier, with `forgive corrected errors` both off and on.
 - Browser/IME internal `deleteContentBackward` during a rewrite must not be treated as a user Backspace.
@@ -85,6 +88,7 @@ The copied JSON contains:
 - beforeinput/input;
 - compositionstart/compositionupdate/compositionend;
 - `data`, `inputType`, and `isComposing`;
+- active physical key code and any pending Vietnamese separator;
 - textarea DOM value and caret;
 - scorer value and target word;
 - active word index and live accuracy;
