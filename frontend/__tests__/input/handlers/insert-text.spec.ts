@@ -114,6 +114,7 @@ vi.mock("../../../src/ts/test/custom-text", () => ({
 // peripheral collaborators - none of them feed back into the events we assert
 vi.mock("../../../src/ts/test/test-ui", () => ({
   afterTestTextInput: vi.fn(),
+  afterTestCompositionUpdate: vi.fn(),
   afterTestDelete: vi.fn(),
   // words scrolled off the screen are removed from the dom
   getWordElement: vi.fn((index: number) =>
