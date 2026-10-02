@@ -881,7 +881,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     const last = insertEventsForWord(0).at(-1);
     expect(last?.data.data).toBe("é");
     expect(last?.data.charIndex).toBe(2);
-    expect(last?.data.replacesChar).toBe(true);
+    expect(last?.data.replacesChar).toBeUndefined();
     expect(last?.data.correct).toBe(true);
     expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
   });
@@ -1242,11 +1242,10 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     pushWords("là", "next");
 
     await type("l", 1000);
-    await type("a", 1001);
-    expect(getInput()).toBe("la");
+    expect(getInput()).toBe("l");
 
-    // Simulate UniKey/EVKey still owning composition state when the browser
-    // applies Backspace.
+    // "a" exists only in the IME preview. Backspace cancels that preview and
+    // must invalidate stale composition state without scoring "a".
     mockImeState.composing = true;
     mockImeState.data = "a";
     mockImeState.compositionText = "a";
@@ -1261,15 +1260,14 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     expect(mockImeState.compositionText).toBe("");
     expect(mockImeState.lastInsertCompositionTextData).toBe("");
 
-    await type("a", 1020);
-    await commitNativeDomRewrite("f", "là", 1030);
+    await commitComposition("à", 1030);
 
     expect(getInput()).toBe("là");
     expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
     expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
   });
 
-  it("can rebuild ư after deleting its provisional u", async () => {
+  it("can rebuild ư after deleting an IME preview", async () => {
     replaceConfig({
       ...__testing.getConfig(),
       stopOnError: "letter",
@@ -1279,16 +1277,16 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     });
     pushWords("ư", "next");
 
-    await type("u", 1000);
-    expect(getInput()).toBe("u");
-    expect(getLiveCachedAccuracy()).toBe(100);
+    mockImeState.composing = true;
+    mockImeState.data = "u";
+    mockImeState.compositionText = "u";
 
     setInput("");
     onDelete("deleteContentBackward", 1010);
     expect(getInput()).toBe("");
+    expect(mockImeState.composing).toBe(false);
 
-    await type("u", 1020);
-    await commitNativeDomRewrite("w", "ư", 1030);
+    await commitComposition("ư", 1030);
 
     expect(getInput()).toBe("ư");
     expect(getLiveCachedAccuracy()).toBe(100);
@@ -1341,8 +1339,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     // Delete the composed character, then rebuild it from a clean IME state.
     setInput("l");
     onDelete("deleteContentBackward", 1020);
-    await type("a", 1030);
-    await commitNativeDomRewrite("f", "là", 1040);
+    await commitComposition("à", 1040);
 
     expect(getInput()).toBe("là");
     expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
@@ -1428,11 +1425,9 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     });
     pushWords("Đ", "next");
 
-    mockState.correctShiftUsed = true;
-    await type("D", 1000);
-
-    // Browser/IME commits D -> Đ. The physical modifier is not scored as the
-    // target character itself.
+    // "D" is only an IME preview. The browser commits Đ while the physical
+    // Telex modifier key has opposite-shift state; that state must not be
+    // applied to the committed logical character.
     mockState.correctShiftUsed = false;
     await commitNativeDomRewrite("d", "Đ", 1001);
 

@@ -81,6 +81,9 @@ type OnInsertTextParams = {
   automatic?: true;
   // IME replaced a previously committed character at this index.
   replacementCharIndex?: number;
+  // Browser/OS IME produced the logical committed character. Physical-key
+  // shift state must not be applied to this scorer event.
+  nativeImeCommit?: true;
 };
 
 function logDeleteOnErrorEvent(
@@ -161,7 +164,13 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     options = { ...options, data: normalizedCommittedData };
   }
 
-  const { now, lastInMultiIndex, isCompositionEnding, automatic } = options;
+  const {
+    now,
+    lastInMultiIndex,
+    isCompositionEnding,
+    automatic,
+    nativeImeCommit,
+  } = options;
   let { inputValue } = getInputElementValue();
 
   const committedCharacters = splitCommittedText(options.data);
@@ -277,6 +286,7 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
             ...options,
             data,
             replacementCharIndex: charIndex,
+            nativeImeCommit: true,
             lastInMultiIndex: i === insertedChars.length - 1,
           });
         }
@@ -289,7 +299,11 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
         transaction.deleteCount === 0 &&
         insertedChars.length > 0
       ) {
-        options = { ...options, data: transaction.insertText };
+        options = {
+          ...options,
+          data: transaction.insertText,
+          nativeImeCommit: true,
+        };
       }
     }
   }
@@ -333,7 +347,10 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
   const correctShiftUsed =
     Config.oppositeShiftMode === "off" ? null : isCorrectShiftUsed();
   const effectiveCorrectShiftUsed =
-    replacementCharIndex !== undefined && shouldUseVietnameseIme()
+    shouldUseVietnameseIme() &&
+    (replacementCharIndex !== undefined ||
+      isCompositionEnding === true ||
+      nativeImeCommit === true)
       ? null
       : correctShiftUsed;
   const charIndex = replacementCharIndex ?? testInput.length;
