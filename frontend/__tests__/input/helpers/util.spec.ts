@@ -455,7 +455,8 @@ describe("Vietnamese IME helpers", () => {
       }),
     ).toBe(false);
 
-    // Telex modifier rewrites can also happen outside isComposing.
+    // Outside active composition, Native Mode does not infer Telex behavior
+    // from the physical key. The delete remains a normal committed edit.
     expect(
       shouldIgnoreVietnameseImeDelete({
         ...base,
@@ -463,7 +464,7 @@ describe("Vietnamese IME helpers", () => {
         activeKeyCode: "KeyW",
         hasBackspaceIntent: false,
       }),
-    ).toBe(true);
+    ).toBe(false);
 
     // English direct input is untouched.
     expect(

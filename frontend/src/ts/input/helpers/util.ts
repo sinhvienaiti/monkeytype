@@ -520,20 +520,6 @@ export function deriveVietnameseCommittedRewrite(
 }
 
 
-const VIETNAMESE_TELEX_MODIFIER_CODES = new Set([
-  "KeyS",
-  "KeyF",
-  "KeyR",
-  "KeyX",
-  "KeyJ",
-  "KeyZ",
-  "KeyW",
-  "KeyA",
-  "KeyE",
-  "KeyO",
-  "KeyD",
-]);
-
 export function shouldIgnoreVietnameseImeDelete(options: {
   inputType: string;
   isComposing: boolean;
@@ -545,7 +531,6 @@ export function shouldIgnoreVietnameseImeDelete(options: {
   const {
     inputType,
     isComposing,
-    activeKeyCode,
     hasBackspaceIntent,
     inputLanguage = Config.inputLanguage,
     testLanguage = Config.language,
@@ -558,26 +543,16 @@ export function shouldIgnoreVietnameseImeDelete(options: {
     return false;
   }
 
-  // A real Backspace is identified by its own keydown intent. Chrome/UniKey
-  // can delay the delete input event until after keyup, so relying only on the
-  // currently-active key is not enough.
-  if (activeKeyCode === "Backspace" || hasBackspaceIntent) {
+  // A real Backspace is identified by keydown intent. Chrome can delay the
+  // delete event until after keyup, so do not rely only on isComposing.
+  if (options.activeKeyCode === "Backspace" || hasBackspaceIntent) {
     return false;
   }
 
-  // During an active composition, deleteContentBackward without a Backspace
-  // intent belongs to the IME's internal rewrite machinery. This includes
-  // unusual sequences where the active key is null/Unidentified/a random key.
-  // Let the browser mutate its composition DOM, but never delete scorer text.
-  if (isComposing) {
-    return true;
-  }
-
-  // Some Telex rewrites are emitted outside the browser's composing flag.
-  return (
-    activeKeyCode !== null &&
-    VIETNAMESE_TELEX_MODIFIER_CODES.has(activeKeyCode)
-  );
+  // Only browser-internal deletes inside active composition are ignored.
+  // Outside composition, Native Mode never guesses Telex behavior from
+  // physical key codes.
+  return isComposing;
 }
 
 export function hasVietnameseImeProvisionalMismatch(
