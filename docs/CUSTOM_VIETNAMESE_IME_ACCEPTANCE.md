@@ -9,6 +9,8 @@ This document is the source of truth for manual Vietnamese input acceptance on t
 
 English behavior must remain identical to normal Monkeytype when `inputLanguage=english`, or when `inputLanguage=auto` and the selected language is not Vietnamese.
 
+The two reference environments use **Telex**. The fallback layer therefore emulates only Telex modifier keys. Numeric VNI fallback is intentionally not emulated because it can consume legitimate digits in Telex mode. A real VNI IME is still handled through normal browser composition/Unicode events.
+
 ## Required Vietnamese sequences
 
 | Keys | Expected |
@@ -40,7 +42,9 @@ Test both reference environments with:
 - `quick end`: off/on.
 - Backspace inside the current word.
 - Backspace to the previous word, then add a missing Vietnamese tone.
-- Space while a Vietnamese character is still provisional.
+- Space or punctuation while a Vietnamese character is still provisional.
+- Wrong tone corrected by another Telex modifier, with `forgive corrected errors` both off and on.
+- Browser/IME internal `deleteContentBackward` during a rewrite must not be treated as a user Backspace.
 - Multiple-character IME rewrites such as `uo -> ươ`.
 - The final word of a test ending with a Vietnamese composed character.
 

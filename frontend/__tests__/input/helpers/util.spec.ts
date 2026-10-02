@@ -8,9 +8,11 @@ import {
   deriveVietnameseTelexRewrite,
   getCommitCharacterType,
   hasVietnameseImeProvisionalMismatch,
+  isVietnameseImeBoundary,
   isVietnameseImeProvisionalCharacter,
   normalizeCommittedText,
   normalizeTargetText,
+  shouldIgnoreVietnameseImeDelete,
   shouldUseVietnameseIme,
   splitCommittedText,
 } from "../../../src/ts/input/helpers/util";
@@ -258,6 +260,111 @@ describe("Vietnamese IME helpers", () => {
     ).toBeNull();
   });
 
+  it("does not reach Telex fallback backwards across punctuation", () => {
+    expect(
+      deriveVietnamesePhysicalRewrites(
+        "la,",
+        "f",
+        "là,",
+        "vietnamese",
+        "english",
+      ),
+    ).toBeNull();
+  });
+
+  it("allows a Telex modifier to correct a wrong tone on the same base letter", () => {
+    expect(
+      deriveVietnamesePhysicalRewrites(
+        "lá",
+        "f",
+        "là",
+        "vietnamese",
+        "english",
+      ),
+    ).toEqual([{ charIndex: 1, from: "á", data: "à" }]);
+
+    expect(
+      deriveVietnamesePhysicalRewrites(
+        "lá",
+        "z",
+        "la",
+        "vietnamese",
+        "english",
+      ),
+    ).toEqual([{ charIndex: 1, from: "á", data: "a" }]);
+  });
+
+  it("treats punctuation, spaces and digits as Vietnamese IME boundaries", () => {
+    expect(isVietnameseImeBoundary(",", "vietnamese", "english")).toBe(true);
+    expect(isVietnameseImeBoundary(" ", "vietnamese", "english")).toBe(true);
+    expect(isVietnameseImeBoundary("1", "vietnamese", "english")).toBe(true);
+    expect(isVietnameseImeBoundary("n", "vietnamese", "english")).toBe(false);
+    expect(isVietnameseImeBoundary("ư", "vietnamese", "english")).toBe(false);
+  });
+
+  it("does not emulate VNI numeric modifiers in Telex fallback", () => {
+    expect(
+      deriveVietnamesePhysicalRewrites(
+        "ra",
+        "8",
+        "rằng",
+        "vietnamese",
+        "english",
+      ),
+    ).toBeNull();
+    expect(
+      deriveVietnamesePhysicalRewrites(
+        "ră",
+        "2",
+        "rằng",
+        "vietnamese",
+        "english",
+      ),
+    ).toBeNull();
+  });
+
+  it("distinguishes IME-internal delete from a real Backspace", () => {
+    expect(
+      shouldIgnoreVietnameseImeDelete({
+        inputType: "deleteContentBackward",
+        isComposing: true,
+        activeKeyCode: "KeyF",
+        inputLanguage: "vietnamese",
+        testLanguage: "vietnamese_5k",
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldIgnoreVietnameseImeDelete({
+        inputType: "deleteContentBackward",
+        isComposing: true,
+        activeKeyCode: "Backspace",
+        inputLanguage: "vietnamese",
+        testLanguage: "vietnamese_5k",
+      }),
+    ).toBe(false);
+
+    expect(
+      shouldIgnoreVietnameseImeDelete({
+        inputType: "deleteContentBackward",
+        isComposing: false,
+        activeKeyCode: "KeyW",
+        inputLanguage: "vietnamese",
+        testLanguage: "vietnamese_5k",
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldIgnoreVietnameseImeDelete({
+        inputType: "deleteContentBackward",
+        isComposing: true,
+        activeKeyCode: "KeyF",
+        inputLanguage: "english",
+        testLanguage: "english",
+      }),
+    ).toBe(false);
+  });
+
   it("supports one w rewriting the contiguous uo pair to ươ", () => {
     expect(
       deriveVietnamesePhysicalRewrites(
@@ -287,26 +394,6 @@ describe("Vietnamese IME helpers", () => {
       { charIndex: 3, from: "o", data: "ơ" },
     ]);
   });
-
-  it.each([
-    ["ra", "8", "rằng", 1, "ă"],
-    ["ră", "2", "rằng", 1, "ằ"],
-    ["d", "9", "được", 0, "đ"],
-    ["uo", "7", "ươ", 0, "ư"],
-  ])(
-    "supports target-aware VNI fallback: %s + %s",
-    (before, key, target, charIndex, data) => {
-      expect(
-        deriveVietnamesePhysicalRewrites(
-          before,
-          key,
-          target,
-          "vietnamese",
-          "english",
-        ),
-      )?.toContainEqual({ charIndex, from: Array.from(before)[charIndex], data });
-    },
-  );
 
   it("does not activate Vietnamese physical rewrites in English input mode", () => {
     expect(

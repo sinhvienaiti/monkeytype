@@ -16,6 +16,7 @@ import {
   shouldGoToNextWord,
 } from "../helpers/validation";
 import {
+  deriveVietnamesePhysicalRewrites,
   getCommitCharacterType,
   normalizeCommittedText,
   normalizeData,
@@ -64,13 +65,18 @@ export function onBeforeInsertText(data: string): boolean {
 
   data = normalizeCommittedText(data);
 
+  const scorerInput = normalizeCommittedText(getCurrentInput());
+  const correctiveVietnameseRewrite = deriveVietnamesePhysicalRewrites(
+    scorerInput,
+    data,
+    currentWordTextWithCommit,
+  );
+
   if (
     Config.stopOnError === "letter" &&
     Config.stopOnErrorKeepFirstError &&
-    hasUnresolvedInputError(
-      normalizeCommittedText(getCurrentInput()),
-      currentWordTextWithCommit,
-    )
+    hasUnresolvedInputError(scorerInput, currentWordTextWithCommit) &&
+    correctiveVietnameseRewrite === null
   ) {
     return true;
   }

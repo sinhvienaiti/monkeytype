@@ -45,6 +45,7 @@ import {
   deriveVietnamesePhysicalRewrites,
   getCommitCharacterType,
   hasVietnameseImeProvisionalMismatch,
+  isVietnameseImeBoundary,
   isVietnameseImeProvisionalCharacter,
   normalizeCommittedText,
   normalizeData,
@@ -299,6 +300,7 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
   // Keep this defensive guard for composition/emulated paths that can reach
   // the handler with a character already appended.
   if (
+    replacementCharIndex === undefined &&
     Config.stopOnError === "letter" &&
     Config.stopOnErrorKeepFirstError &&
     hasUnresolvedInputError(testInput, currentWord)
@@ -352,13 +354,14 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     correctShiftUsed,
   });
 
-  // A separator materializes any still-provisional Vietnamese character as
-  // a real mistake. With stop-on-error off the word may still advance, but
-  // accuracy must not stay perfect for "la " when the target is "là ".
-  const unresolvedVietnameseCommit =
-    commitCharacterType === "separator" &&
+  // A non-letter boundary (space, punctuation, digit, etc.) closes the
+  // current Vietnamese Telex letter run. If a target accent is still only
+  // provisional at that point, materialize it as a real error instead of
+  // allowing a later modifier to reach backwards across the boundary.
+  const unresolvedVietnameseBoundary =
+    isVietnameseImeBoundary(data) &&
     hasVietnameseImeProvisionalMismatch(testInput, currentWordText);
-  if (unresolvedVietnameseCommit) {
+  if (unresolvedVietnameseBoundary) {
     correct = false;
   }
 

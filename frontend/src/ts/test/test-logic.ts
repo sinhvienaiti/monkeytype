@@ -301,8 +301,7 @@ export async function restart(options = {} as RestartOptions): Promise<void> {
   PaceCaret.reset();
   setKoreanStatus(false);
   clearQuoteStats();
-  CompositionState.setComposing(false);
-  CompositionState.setData("");
+  CompositionState.invalidate();
   Strings.clearWordDirectionCache();
   testReinitCount = 0;
   failReason = "";

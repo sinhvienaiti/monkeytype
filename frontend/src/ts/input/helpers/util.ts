@@ -111,6 +111,30 @@ export function getVietnameseBaseCharacter(
   ).base;
 }
 
+function haveSameVietnameseBaseCharacter(
+  a: string,
+  b: string,
+  inputLanguage = Config.inputLanguage,
+  testLanguage = Config.language,
+): boolean {
+  return (
+    getVietnameseBaseCharacter(a, inputLanguage, testLanguage) ===
+    getVietnameseBaseCharacter(b, inputLanguage, testLanguage)
+  );
+}
+
+export function isVietnameseImeBoundary(
+  data: string,
+  inputLanguage = Config.inputLanguage,
+  testLanguage = Config.language,
+): boolean {
+  if (!shouldUseVietnameseIme(inputLanguage, testLanguage)) return false;
+  const chars = Array.from(
+    normalizeCommittedText(data, inputLanguage, testLanguage),
+  );
+  return chars.length > 0 && chars.some((char) => !/^\p{L}$/u.test(char));
+}
+
 /**
  * A base/partially-accented Vietnamese character is provisional while the IME
  * is still building the target character. Example: e -> é, o -> ô -> ồ.
@@ -193,21 +217,13 @@ const VIETNAMESE_TONE_ROWS = [
   "YÝỲỶỸỴ",
 ] as const;
 
-const TONE_INDEX_BY_KEY: Record<string, number> = {
-  // Telex
+const TELEX_TONE_INDEX: Record<string, number> = {
   s: 1,
   f: 2,
   r: 3,
   x: 4,
   j: 5,
   z: 0,
-  // VNI
-  "1": 1,
-  "2": 2,
-  "3": 3,
-  "4": 4,
-  "5": 5,
-  "0": 0,
 };
 
 function replaceVietnameseShape(
@@ -225,7 +241,7 @@ function applyVietnameseInputModifier(
 ): string | null {
   const key = physicalKey.toLowerCase();
 
-  const toneIndex = TONE_INDEX_BY_KEY[key];
+  const toneIndex = TELEX_TONE_INDEX[key];
   if (toneIndex !== undefined) {
     for (const row of VIETNAMESE_TONE_ROWS) {
       const chars = Array.from(row);
@@ -239,41 +255,41 @@ function applyVietnameseInputModifier(
   const row = (lower: string, upperRow: string): string =>
     upper ? upperRow : lower;
 
-  if (key === "a" || key === "6") {
+  if (key === "a") {
     const converted = replaceVietnameseShape(
       char,
       row("aáàảãạ", "AÁÀẢÃẠ"),
       row("âấầẩẫậ", "ÂẤẦẨẪẬ"),
     );
-    if (converted !== null || key === "a") return converted;
+    return converted;
   }
-  if (key === "e" || key === "6") {
+  if (key === "e") {
     const converted = replaceVietnameseShape(
       char,
       row("eéèẻẽẹ", "EÉÈẺẼẸ"),
       row("êếềểễệ", "ÊẾỀỂỄỆ"),
     );
-    if (converted !== null || key === "e") return converted;
+    return converted;
   }
-  if (key === "o" || key === "6") {
+  if (key === "o") {
     const converted = replaceVietnameseShape(
       char,
       row("oóòỏõọ", "OÓÒỎÕỌ"),
       row("ôốồổỗộ", "ÔỐỒỔỖỘ"),
     );
-    if (converted !== null || key === "o") return converted;
+    return converted;
   }
-  if (key === "w" || key === "7" || key === "8") {
-    if (key === "w" || key === "8") {
+  if (key === "w") {
+    {
       const breve = replaceVietnameseShape(
         char,
         row("aáàảãạ", "AÁÀẢÃẠ"),
         row("ăắằẳẵặ", "ĂẮẰẲẴẶ"),
       );
-      if (breve !== null || key === "8") return breve;
+      if (breve !== null) return breve;
     }
 
-    if (key === "w" || key === "7") {
+    {
       return (
         replaceVietnameseShape(
           char,
@@ -288,7 +304,7 @@ function applyVietnameseInputModifier(
       );
     }
   }
-  if (key === "d" || key === "9") {
+  if (key === "d") {
     if (char === "d") return "đ";
     if (char === "D") return "Đ";
   }
@@ -297,7 +313,7 @@ function applyVietnameseInputModifier(
 }
 
 /**
- * Resolve a physical Telex/VNI modifier even when the OS IME has lost its
+ * Resolve a physical Telex modifier even when the OS IME has lost its
  * composition context (for example after Backspace navigation) or temporarily
  * appends the modifier key to the hidden textarea.
  */
@@ -323,13 +339,20 @@ export function deriveVietnamesePhysicalRewrites(
   );
   const candidates: VietnameseImeRewrite[] = [];
 
-  for (let charIndex = before.length - 1; charIndex >= 0; charIndex--) {
+  // Telex modifiers belong to the current contiguous letter run. Never reach
+  // backwards across punctuation/space and silently "fix" an older syllable.
+  let runStart = before.length;
+  while (runStart > 0 && /^\p{L}$/u.test(before[runStart - 1] as string)) {
+    runStart--;
+  }
+
+  for (let charIndex = before.length - 1; charIndex >= runStart; charIndex--) {
     const from = before[charIndex] as string;
     const targetChar = target[charIndex];
     if (targetChar === undefined || from === targetChar) continue;
 
     const data = applyVietnameseInputModifier(from, physicalData);
-    if (
+    const dataMovesTowardTarget =
       data !== null &&
       data !== from &&
       (data === targetChar ||
@@ -338,14 +361,23 @@ export function deriveVietnamesePhysicalRewrites(
           targetChar,
           inputLanguage,
           testLanguage,
-        )) &&
+        ));
+    const fromIsCompatible =
       isVietnameseImeProvisionalCharacter(
         from,
         targetChar,
         inputLanguage,
         testLanguage,
-      )
-    ) {
+      ) ||
+      (data === targetChar &&
+        haveSameVietnameseBaseCharacter(
+          from,
+          targetChar,
+          inputLanguage,
+          testLanguage,
+        ));
+
+    if (dataMovesTowardTarget && fromIsCompatible) {
       candidates.push({ charIndex, from, data });
     }
   }
@@ -355,9 +387,9 @@ export function deriveVietnamesePhysicalRewrites(
   const key = physicalData.toLowerCase();
   const rightmost = candidates[0] as VietnameseImeRewrite;
 
-  // UniKey commonly accepts one w (or VNI 7) for the contiguous uo -> ươ
+  // UniKey commonly accepts one w for the contiguous uo -> ươ
   // shape. Do not broadly rewrite several syllables with one physical key.
-  if ((key === "w" || key === "7") && candidates.length > 1) {
+  if (key === "w" && candidates.length > 1) {
     const left = candidates.find(
       (candidate) => candidate.charIndex === rightmost.charIndex - 1,
     );
@@ -406,6 +438,50 @@ export type VietnameseImeRewrite = {
   from: string;
   data: string;
 };
+
+const VIETNAMESE_TELEX_MODIFIER_CODES = new Set([
+  "KeyS",
+  "KeyF",
+  "KeyR",
+  "KeyX",
+  "KeyJ",
+  "KeyZ",
+  "KeyW",
+  "KeyA",
+  "KeyE",
+  "KeyO",
+  "KeyD",
+]);
+
+export function shouldIgnoreVietnameseImeDelete(options: {
+  inputType: string;
+  isComposing: boolean;
+  activeKeyCode: string | null;
+  inputLanguage?: string;
+  testLanguage?: string;
+}): boolean {
+  const {
+    inputType,
+    isComposing,
+    activeKeyCode,
+    inputLanguage = Config.inputLanguage,
+    testLanguage = Config.language,
+  } = options;
+
+  if (
+    !shouldUseVietnameseIme(inputLanguage, testLanguage) ||
+    inputType !== "deleteContentBackward" ||
+    activeKeyCode === "Backspace"
+  ) {
+    return false;
+  }
+
+  return (
+    isComposing ||
+    (activeKeyCode !== null &&
+      VIETNAMESE_TELEX_MODIFIER_CODES.has(activeKeyCode))
+  );
+}
 
 export function hasVietnameseImeProvisionalMismatch(
   input: string,
@@ -522,7 +598,14 @@ export function deriveVietnameseImeRewrites(
         targetChar,
         inputLanguage,
         testLanguage,
-      );
+      ) ||
+      (data === targetChar &&
+        haveSameVietnameseBaseCharacter(
+          from,
+          targetChar,
+          inputLanguage,
+          testLanguage,
+        ));
     const dataCompatible =
       data === targetChar ||
       isVietnameseImeProvisionalCharacter(

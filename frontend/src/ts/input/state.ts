@@ -3,6 +3,7 @@ let incorrectShiftsInARow = 0;
 let awaitingNextWord = false;
 let lastBailoutAttempt = -1;
 let lastInsertCompositionTextData = "";
+let activePhysicalKeyCode: string | null = null;
 
 export function isCorrectShiftUsed(): boolean {
   return correctShiftUsed;
@@ -50,4 +51,18 @@ export function getLastInsertCompositionTextData(): string {
 
 export function setLastInsertCompositionTextData(value: string): void {
   lastInsertCompositionTextData = value;
+}
+
+export function getActivePhysicalKeyCode(): string | null {
+  return activePhysicalKeyCode;
+}
+
+export function setActivePhysicalKeyCode(value: string | null): void {
+  activePhysicalKeyCode = value;
+}
+
+export function clearActivePhysicalKeyCode(code: string): void {
+  if (activePhysicalKeyCode === code) {
+    activePhysicalKeyCode = null;
+  }
 }

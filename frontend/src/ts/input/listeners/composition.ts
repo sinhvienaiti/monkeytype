@@ -88,7 +88,14 @@ inputEl.addEventListener("compositionend", async (event) => {
   recordImeDebugEvent("compositionend", "before", event);
   console.debug("wordsInput event compositionend", { event, data: event.data });
 
-  if (isTestRestarting() || isResultCalculating()) return;
+  if (isTestRestarting() || isResultCalculating()) {
+    compositionSnapshot = null;
+    CompositionState.invalidate();
+    setCompositionText("");
+    setLastInsertCompositionTextData("");
+    setInputElementValue(normalizeCommittedText(getCurrentInput()));
+    return;
+  }
   CompositionState.setComposing(false);
   CompositionState.setData("");
   setCompositionText("");

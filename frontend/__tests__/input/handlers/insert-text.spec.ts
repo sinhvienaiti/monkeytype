@@ -1052,24 +1052,6 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     },
   );
 
-  it("supports a VNI word without changing the scorer contract", async () => {
-    replaceConfig({
-      ...__testing.getConfig(),
-      stopOnError: "letter",
-      stopOnErrorKeepFirstError: true,
-      inputLanguage: "vietnamese",
-    });
-    pushWords("rằng", "next");
-
-    for (const [i, key] of Array.from("ra8ng2").entries()) {
-      await type(key, 1000 + i);
-    }
-
-    expect(getInput()).toBe("rằng");
-    expect(getLiveCachedAccuracy()).toBe(100);
-    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
-  });
-
   it("keeps English auto mode byte-for-byte literal for Telex-looking keys", async () => {
     replaceConfig({
       ...__testing.getConfig(),
@@ -1342,7 +1324,30 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
   });
 
-  it("allows a late tone modifier across punctuation in the same word", async () => {
+  it("treats punctuation as a boundary when a Vietnamese accent is still pending", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      inputLanguage: "vietnamese",
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: true,
+    });
+    pushWords("là,", "next");
+
+    await type("l", 1000);
+    await type("a", 1001);
+    await type(",", 1002);
+
+    expect(getInput()).toBe("la,");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
+
+    // A tone key after punctuation must not reach backwards and silently fix
+    // the earlier vowel.
+    await type("f", 1003);
+    expect(getInput()).toBe("la,");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
+  });
+
+  it("types Vietnamese punctuation normally when the accent is completed first", async () => {
     replaceConfig({
       ...__testing.getConfig(),
       inputLanguage: "vietnamese",
@@ -1350,13 +1355,58 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     });
     pushWords("là,", "next");
 
-    for (const [i, char] of Array.from("la,f").entries()) {
+    for (const [i, char] of Array.from("laf,").entries()) {
       await type(char, 1000 + i);
     }
 
     expect(getInput()).toBe("là,");
     expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
     expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+  });
+
+  it("allows a Telex modifier to correct an already wrong tone without bypassing accuracy rules", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      inputLanguage: "vietnamese",
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: true,
+      forgiveCorrectedErrors: false,
+    });
+    pushWords("là", "next");
+
+    await type("l", 1000);
+    await type("á", 1001);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
+
+    await type("f", 1002);
+
+    expect(getInput()).toBe("là");
+    expect(getAccuracy(buildEventLog())).toEqual({
+      correct: 2,
+      incorrect: 1,
+      percentage: 200 / 3,
+    });
+  });
+
+  it("forgives a corrected Vietnamese tone only when the option is enabled", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      inputLanguage: "vietnamese",
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: true,
+      forgiveCorrectedErrors: true,
+    });
+    pushWords("là", "next");
+
+    await type("l", 1000);
+    await type("á", 1001);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
+
+    await type("f", 1002);
+
+    expect(getInput()).toBe("là");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+    expect(getLiveCachedAccuracy()).toBe(100);
   });
 
   it("still penalizes a real Backspace correction when forgiveness is disabled", async () => {

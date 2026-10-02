@@ -3,6 +3,7 @@ import { onInsertText } from "../handlers/insert-text";
 import { isSupportedInputType } from "../helpers/input-type";
 import { getInputElement, getInputElementValue } from "../input-element";
 import {
+  getActivePhysicalKeyCode,
   getLastInsertCompositionTextData,
   setLastInsertCompositionTextData,
 } from "../state";
@@ -22,6 +23,7 @@ import { recordImeDebugEvent } from "../ime-debug";
 import {
   normalizeCommittedText,
   normalizeTargetText,
+  shouldIgnoreVietnameseImeDelete,
   shouldUseVietnameseIme,
 } from "../helpers/util";
 
@@ -69,7 +71,14 @@ inputEl.addEventListener("beforeinput", async (event) => {
     inputType === "deleteWordBackward" ||
     inputType === "deleteContentBackward"
   ) {
-    onBeforeDelete(event);
+    const internalImeDelete = shouldIgnoreVietnameseImeDelete({
+      inputType,
+      isComposing: event.isComposing,
+      activeKeyCode: getActivePhysicalKeyCode(),
+    });
+    if (!internalImeDelete) {
+      onBeforeDelete(event);
+    }
   } else if (
     inputType === "insertCompositionText" ||
     inputType === "insertFromComposition"
@@ -134,7 +143,14 @@ inputEl.addEventListener("input", async (event) => {
     inputType === "deleteWordBackward" ||
     inputType === "deleteContentBackward"
   ) {
-    onDelete(inputType, now);
+    const internalImeDelete = shouldIgnoreVietnameseImeDelete({
+      inputType,
+      isComposing: event.isComposing,
+      activeKeyCode: getActivePhysicalKeyCode(),
+    });
+    if (!internalImeDelete) {
+      onDelete(inputType, now);
+    }
   } else if (
     inputType === "insertCompositionText" ||
     inputType === "insertFromComposition"
