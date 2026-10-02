@@ -1750,4 +1750,28 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
   });
 
+
+  it("ignores a native physical-key event when the DOM committed no text", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      language: "vietnamese_5k",
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+      stopOnError: "letter",
+    });
+    pushWords("rằng", "next");
+
+    await type("r", 2300);
+    const eventsBefore = insertEventsForWord(0).length;
+
+    // A Telex modifier can surface as insertText even though the IME keeps it
+    // internal and the textarea remains unchanged. It must not be scored.
+    setInput("r");
+    await onInsertText({ data: "w", now: 2310 });
+
+    expect(getInput()).toBe("r");
+    expect(insertEventsForWord(0)).toHaveLength(eventsBefore);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+  });
+
 });

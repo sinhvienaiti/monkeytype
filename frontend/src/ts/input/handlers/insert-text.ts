@@ -262,6 +262,14 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
       source: "direct",
     });
 
+    // A native insert event with no committed DOM change is an IME-internal
+    // physical-key signal, not text for the scorer. ASCII target recovery runs
+    // above this guard so literal words such as "raw" still type normally.
+    if (transaction === null) {
+      setInputElementValue(testInput);
+      return;
+    }
+
     if (transaction !== null) {
       const insertedChars = Array.from(transaction.insertText);
       const scorerChars = Array.from(testInput);
