@@ -48,7 +48,11 @@ import {
   splitCommittedText,
 } from "../helpers/util";
 import { areAllWordsGenerated } from "../../test/words-generator";
-import { getActiveWordIndex, isTestActive } from "../../states/test";
+import {
+  getActiveWordIndex,
+  isResultCalculating,
+  isTestActive,
+} from "../../states/test";
 import { DeleteInputType } from "../helpers/input-type";
 import { handleStartedWord as handleEnVnTranslationStart } from "../../custom/en-vn-translation";
 import { getAsciiTargetRestore } from "../vietnamese-ime/ascii-guard";
@@ -306,6 +310,7 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
 
           const scorerAfterStep = normalizeCommittedText(getCurrentInput());
           if (
+            isResultCalculating() ||
             getActiveWordIndex() !== transactionWordIndex ||
             scorerAfterStep !== expectedInput
           ) {
@@ -328,6 +333,7 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
 
           const scorerAfterStep = normalizeCommittedText(getCurrentInput());
           if (
+            isResultCalculating() ||
             getActiveWordIndex() !== transactionWordIndex ||
             scorerAfterStep !== expectedInput
           ) {

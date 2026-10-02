@@ -67,6 +67,7 @@ async function replayNativeCompositionTransaction(
 
     const scorerAfterStep = normalizeCommittedText(getCurrentInput());
     if (
+      isResultCalculating() ||
       getActiveWordIndex() !== wordIndex ||
       scorerAfterStep !== expectedInput
     ) {
@@ -93,6 +94,7 @@ async function replayNativeCompositionTransaction(
 
     const scorerAfterStep = normalizeCommittedText(getCurrentInput());
     if (
+      isResultCalculating() ||
       getActiveWordIndex() !== wordIndex ||
       scorerAfterStep !== expectedInput
     ) {
