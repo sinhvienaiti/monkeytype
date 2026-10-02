@@ -866,14 +866,10 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     await type("e", 1002);
 
     expect(getInput()).toBe("phe");
+    expect(getInputForWord(0)).toBe("ph");
+    expect(insertEventsForWord(0)).toHaveLength(2);
     expect(getLiveCachedAccuracy()).toBe(100);
     expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
-
-    const provisionalEvent = insertEventsForWord(0).at(-1);
-    expect(provisionalEvent?.data.correct).toBe(false);
-    expect(provisionalEvent?.data.accuracyIgnored).toBe(true);
-    expect(provisionalEvent?.data.imeProvisional).toBe(true);
-    expect(provisionalEvent?.data.inputStopped).toBeUndefined();
   });
 
   it("reconciles the real Windows UniKey p h e + s -> phé sequence", async () => {
@@ -891,6 +887,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     await type("h", 1001);
     await type("e", 1002);
     expect(getInput()).toBe("phe");
+    expect(getInputForWord(0)).toBe("ph");
     expect(getLiveCachedAccuracy()).toBe(100);
 
     // UniKey rewrites the already-visible base e into é.
@@ -907,13 +904,44 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     const last = insertEventsForWord(0).at(-1);
     expect(last?.data.data).toBe("é");
     expect(last?.data.charIndex).toBe(2);
-    expect(last?.data.replacesChar).toBe(true);
+    expect(last?.data.replacesChar).toBeUndefined();
     expect(last?.data.correct).toBe(true);
     expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
 
     await type("p", 1020);
     expect(getInput()).toBe("phép");
     expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+  });
+
+  it("buffers exact suffix letters until a pending Vietnamese tone is resolved", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: true,
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+    });
+    pushWords("hòa", "next");
+
+    await type("h", 1030);
+    await type("o", 1031);
+    await type("a", 1032);
+
+    expect(getInput()).toBe("hoa");
+    expect(getInputForWord(0)).toBe("h");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+
+    setInput("hòa");
+    await onInsertText({ data: "f", now: 1033 });
+
+    expect(getInput()).toBe("hòa");
+    expect(getInputForWord(0)).toBe("hòa");
+    expect(getAccuracy(buildEventLog())).toEqual({
+      correct: 3,
+      incorrect: 0,
+      percentage: 100,
+    });
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
   });
 
   it("scores a composition commit without exposing its preview text", async () => {
@@ -1609,6 +1637,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
 
     await type("e", 1520);
     expect(getInput()).toBe("phe");
+    expect(getInputForWord(0)).toBe("ph");
     expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
 
     setInput("phé");
