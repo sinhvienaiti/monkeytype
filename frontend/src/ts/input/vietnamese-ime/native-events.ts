@@ -139,8 +139,7 @@ export async function onVietnameseCompositionEnd(
 
       const prefixLength = Array.from(session.committedPrefix).length;
       if (
-        transaction !== null &&
-        transaction.start === prefixLength &&
+        transaction?.start === prefixLength &&
         transaction.deleteCount === 0
       ) {
         committedData = transaction.insertText;

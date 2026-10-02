@@ -352,6 +352,12 @@ export const commandlineConfigMetadata: CommandlineConfigMetadataObject = {
       options: "fromSchema",
     },
   },
+  vietnameseImeMode: {
+    subgroup: {
+      options: "fromSchema",
+      afterExec: () => void TestLogic.restart(),
+    },
+  },
   compositionDisplay: {
     subgroup: {
       options: "fromSchema",
