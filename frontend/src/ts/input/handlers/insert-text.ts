@@ -41,9 +41,6 @@ import {
 } from "../../test/events/data";
 import {
   getCommitCharacterType,
-  hasVietnameseImeProvisionalMismatch,
-  isVietnameseImeBoundary,
-  isVietnameseImeProvisionalCharacter,
   normalizeCommittedText,
   normalizeData,
   normalizeTargetText,
@@ -231,7 +228,6 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
   const testInput = normalizeCommittedText(getCurrentInput());
   const currentTestWord = TestWords.words.getCurrent();
   const currentWord = normalizeTargetText(currentTestWord?.textWithCommit ?? "");
-  const currentWordText = normalizeTargetText(currentTestWord?.text ?? "");
 
   // Native Vietnamese mode trusts the browser/OS IME DOM result. Do not
   // emulate Telex physical keys here. Convert browser-side committed rewrites
@@ -355,43 +351,26 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     handleEnVnTranslationStart(wordIndex);
   }
 
-  // is char correct. Vietnamese base/partial characters are provisional while
-  // UniKey/EVKey is still building the target character.
-  let correct = isCharCorrect({
+  // Native Vietnamese mode scores committed logical text only. Intermediate
+  // Telex/VNI composition preview never reaches this function, so there is no
+  // provisional-character exception here.
+  const correct = isCharCorrect({
     data,
     inputValue: scoreInput,
     targetWord: currentWord,
     correctShiftUsed: effectiveCorrectShiftUsed,
   });
-
-  // A non-letter boundary (space, punctuation, digit, etc.) closes the
-  // current Vietnamese Telex letter run. If a target accent is still only
-  // provisional at that point, materialize it as a real error instead of
-  // allowing a later modifier to reach backwards across the boundary.
-  const unresolvedVietnameseBoundary =
-    isVietnameseImeBoundary(data) &&
-    hasVietnameseImeProvisionalMismatch(testInput, currentWordText);
-  if (unresolvedVietnameseBoundary) {
-    correct = false;
-  }
-
-  const targetChar = Array.from(currentWord)[charIndex] ?? "";
-  const imeProvisional =
-    !correct &&
-    effectiveCorrectShiftUsed !== false &&
-    isVietnameseImeProvisionalCharacter(data, targetChar);
-  const acceptedInput = correct || imeProvisional;
+  const acceptedInput = correct;
 
   const ignoreRepeatedBlockedErrors =
     (Config.forgiveCorrectedErrors || Config.ignoreRepeatedBlockedErrors) &&
     Config.stopOnError !== "off";
   const accuracyIgnored =
-    imeProvisional ||
-    (ignoreRepeatedBlockedErrors &&
-      !correct &&
-      (Config.stopOnError === "word"
-        ? hasCountedAccuracyErrorInWord(wordIndex)
-        : hasCountedAccuracyError(wordIndex, charIndex)));
+    ignoreRepeatedBlockedErrors &&
+    !correct &&
+    (Config.stopOnError === "word"
+      ? hasCountedAccuracyErrorInWord(wordIndex)
+      : hasCountedAccuracyError(wordIndex, charIndex));
 
   if (
     Config.forgiveCorrectedErrors &&
@@ -477,7 +456,6 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     isCompositionEnding: isCompositionEnding ? true : undefined,
     inputStopped: removeLastChar ? true : undefined,
     accuracyIgnored: accuracyIgnored ? true : undefined,
-    imeProvisional: imeProvisional ? true : undefined,
     replacesChar: replacementCharIndex !== undefined ? true : undefined,
     automatic: automatic ? true : undefined,
     // inputValue is captured from the input element after this event (before goToNextWord clears it).
@@ -487,9 +465,7 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
   });
 
   // this needs to be called after event logging
-  if (!imeProvisional) {
-    WeakSpot.updateScore(data, correct);
-  }
+  WeakSpot.updateScore(data, correct);
 
   // delete on error
   // skipped when the input was stopped - nothing was inserted to delete
@@ -568,10 +544,6 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     ) {
       TestLogic.fail("min burst");
     } else if (
-      !hasVietnameseImeProvisionalMismatch(
-        testInputAfterEvent,
-        currentWordText,
-      ) &&
       checkIfFinished({
         goingToNextWord,
         testInputWithData: testInputAfterEvent,

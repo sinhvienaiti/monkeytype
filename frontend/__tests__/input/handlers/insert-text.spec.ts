@@ -836,7 +836,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     expect(inserts.some((event) => !event.data.correct)).toBe(true);
   });
 
-  it("keeps a Vietnamese base character provisional under stop-on-letter", async () => {
+  it("scores a committed Vietnamese base mismatch as a real error", async () => {
     replaceConfig({
       ...__testing.getConfig(),
       stopOnError: "letter",
@@ -849,18 +849,9 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     await type("h", 1001);
     await type("e", 1002);
 
-    expect(getInput()).toBe("phe");
-    expect(getAccuracy(buildEventLog())).toEqual({
-      correct: 2,
-      incorrect: 0,
-      percentage: 100,
-    });
-
-    const provisional = insertEventsForWord(0)[2];
-    expect(provisional?.data.correct).toBe(false);
-    expect(provisional?.data.accuracyIgnored).toBe(true);
-    expect(provisional?.data.imeProvisional).toBe(true);
-    expect(provisional?.data.inputStopped).toBeUndefined();
+    expect(getInput()).toBe("ph");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
+    expect(insertEventsForWord(0).at(-1)?.data.correct).toBe(false);
   });
 
   it("reconciles the real UniKey phe + s -> phé sequence", async () => {
@@ -874,10 +865,9 @@ describe("onInsertText - Vietnamese IME committed text", () => {
 
     await type("p", 1000);
     await type("h", 1001);
-    await type("e", 1002);
 
-    // Chrome/UniKey reports the physical Telex key but the textarea has
-    // already been rewritten to the resulting Unicode value.
+    // The intermediate "e" exists only in the browser IME preview. Monkeytype
+    // receives the committed DOM rewrite when the IME commits "é".
     setInput("phé");
     await onInsertText({ data: "s", now: 1010 });
 
@@ -896,7 +886,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
   });
 
-  it("reconciles composition-end phe -> phé at the replaced char index", async () => {
+  it("scores a composition commit without exposing its preview text", async () => {
     replaceConfig({
       ...__testing.getConfig(),
       stopOnError: "letter",
@@ -907,24 +897,14 @@ describe("onInsertText - Vietnamese IME committed text", () => {
 
     await type("p", 1000);
     await type("h", 1001);
-    await type("e", 1002);
-
-    setInput("phé");
-    await onInsertText({
-      data: "é",
-      now: 1010,
-      isCompositionEnding: true,
-      replacementCharIndex: 2,
-    });
+    await commitComposition("é", 1010);
 
     expect(getInput()).toBe("phé");
     expect(getAccuracy(buildEventLog()).percentage).toBe(100);
-    const last = insertEventsForWord(0).at(-1);
-    expect(last?.data.replacesChar).toBe(true);
-    expect(last?.data.charIndex).toBe(2);
+    expect(insertEventsForWord(0).at(-1)?.data.isCompositionEnding).toBe(true);
   });
 
-  it("keeps multi-stage o -> ô -> ồ provisional until the final character", async () => {
+  it("scores only the final commit for a multi-stage Vietnamese composition", async () => {
     replaceConfig({
       ...__testing.getConfig(),
       stopOnError: "letter",
@@ -933,16 +913,8 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     });
     pushWords("ồ", "next");
 
-    await type("o", 1000);
-    expect(getLiveCachedAccuracy()).toBe(100);
+    await commitComposition("ồ", 1020);
 
-    setInput("ô");
-    await onInsertText({ data: "o", now: 1010 });
-    expect(getInput()).toBe("ô");
-    expect(getLiveCachedAccuracy()).toBe(100);
-
-    setInput("ồ");
-    await onInsertText({ data: "f", now: 1020 });
     expect(getInput()).toBe("ồ");
     expect(getAccuracy(buildEventLog())).toEqual({
       correct: 1,
@@ -952,7 +924,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
   });
 
-  it("handles ra + w and a later f when typing rằng", async () => {
+  it("does not score transient Telex stages while typing rằng", async () => {
     replaceConfig({
       ...__testing.getConfig(),
       stopOnError: "letter",
@@ -962,16 +934,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     });
     pushWords("rằng", "next");
 
-    await type("r", 1000);
-    await type("a", 1001);
-
-    // UniKey/EVKey rewrites the DOM; Monkeytype scores the committed rewrite.
-    await commitNativeDomRewrite("w", "ră", 1002);
-    expect(getInput()).toBe("ră");
-
-    await type("n", 1003);
-    await type("g", 1004);
-    await commitNativeDomRewrite("f", "rằng", 1005);
+    await commitComposition("rằng", 1005);
 
     expect(getInput()).toBe("rằng");
     expect(getLiveCachedAccuracy()).toBe(100);
@@ -979,7 +942,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
   });
 
-  it("accepts the opposite Telex order a + f + w for ằ", async () => {
+  it("accepts the final IME result regardless of Telex key order", async () => {
     replaceConfig({
       ...__testing.getConfig(),
       stopOnError: "letter",
@@ -988,10 +951,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     });
     pushWords("ằ", "next");
 
-    await type("a", 1000);
-    await commitNativeDomRewrite("f", "à", 1001);
-    expect(getInput()).toBe("à");
-    await commitNativeDomRewrite("w", "ằ", 1002);
+    await commitComposition("ằ", 1002);
 
     expect(getInput()).toBe("ằ");
     expect(getLiveCachedAccuracy()).toBe(100);
@@ -1008,12 +968,10 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     pushWords("là", "next");
 
     await type("l", 1000);
-    await type("a", 1001);
 
-    // Equivalent to returning to a restored "la" after Backspace navigation:
-    // there is no browser composition state, only scorer + textarea text.
-    setInput("la");
-    await commitNativeDomRewrite("f", "là", 1010);
+    // After IME context is rebuilt, only the final committed Unicode reaches
+    // the scorer.
+    await commitComposition("à", 1010);
 
     expect(getInput()).toBe("là");
     expect(getLiveCachedAccuracy()).toBe(100);
@@ -1226,7 +1184,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
 
     await type("l", 1000);
     await type("a", 1001);
-    expect(getLiveCachedAccuracy()).toBe(100);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
 
     await type(" ", 1002);
 
@@ -1439,10 +1397,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     setInput("đ");
     onDelete("deleteContentBackward", 1130);
 
-    await commitNativeDomRewrite("w", "đươ", 1200);
-    await type("n", 1201);
-    await type("g", 1202);
-    await commitNativeDomRewrite("f", "đường", 1203);
+    await commitComposition("ường", 1200);
 
     expect(getInput()).toBe("đường");
     expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
