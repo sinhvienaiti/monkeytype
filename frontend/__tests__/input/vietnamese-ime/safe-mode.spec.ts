@@ -3,6 +3,11 @@ import { isVietnameseImeSafeModeActive } from "../../../src/ts/input/vietnamese-
 import { createVietnameseCommitTransaction } from "../../../src/ts/input/vietnamese-ime/transaction";
 import { getAsciiTargetRestore } from "../../../src/ts/input/vietnamese-ime/ascii-guard";
 import { isVietnameseImePreviewCharacter } from "../../../src/ts/input/vietnamese-ime/preview";
+import {
+  hasOnlyVietnameseImeCorrectableMismatches,
+  isVietnameseImeCorrectableCharacter,
+  isVietnameseImeProvisionalCharacter,
+} from "../../../src/ts/input/vietnamese-ime/provisional";
 import { Config } from "../../../src/ts/config/store";
 import {
   beginVietnameseImeSession,
@@ -190,5 +195,40 @@ describe("Vietnamese IME preview rendering", () => {
     Config.language = "vietnamese_5k";
 
     expect(isVietnameseImePreviewCharacter("a", "à")).toBe(false);
+  });
+});
+
+
+describe("Vietnamese IME provisional characters", () => {
+  it.each([
+    ["e", "é"],
+    ["o", "ô"],
+    ["ô", "ồ"],
+    ["u", "ư"],
+    ["a", "ă"],
+    ["d", "đ"],
+  ])("accepts %s as a provisional form of %s", (input, target) => {
+    expect(isVietnameseImeProvisionalCharacter(input, target)).toBe(true);
+  });
+
+  it("allows same-base tone rewrites without calling them provisional", () => {
+    expect(isVietnameseImeCorrectableCharacter("á", "à")).toBe(true);
+    expect(isVietnameseImeProvisionalCharacter("á", "à")).toBe(false);
+  });
+
+  it("rejects unrelated letters as IME-correctable mismatches", () => {
+    expect(isVietnameseImeCorrectableCharacter("x", "à")).toBe(false);
+    expect(
+      hasOnlyVietnameseImeCorrectableMismatches("phx", "phép"),
+    ).toBe(false);
+  });
+
+  it("recognizes a prefix whose only mismatch can still be rewritten by the IME", () => {
+    expect(
+      hasOnlyVietnameseImeCorrectableMismatches("phe", "phép "),
+    ).toBe(true);
+    expect(
+      hasOnlyVietnameseImeCorrectableMismatches("lá", "là "),
+    ).toBe(true);
   });
 });

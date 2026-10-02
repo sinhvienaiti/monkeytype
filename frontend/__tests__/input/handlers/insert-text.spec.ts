@@ -851,10 +851,11 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     expect(inserts.some((event) => !event.data.correct)).toBe(true);
   });
 
-  it("scores a committed Vietnamese base mismatch as a real error", async () => {
+  it("keeps a Windows IME base character provisional until its rewrite", async () => {
     replaceConfig({
       ...__testing.getConfig(),
       stopOnError: "letter",
+      stopOnErrorKeepFirstError: true,
       inputLanguage: "vietnamese",
       vietnameseImeMode: "native",
     });
@@ -864,15 +865,23 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     await type("h", 1001);
     await type("e", 1002);
 
-    expect(getInput()).toBe("ph");
-    expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
-    expect(insertEventsForWord(0).at(-1)?.data.correct).toBe(false);
+    expect(getInput()).toBe("phe");
+    expect(getLiveCachedAccuracy()).toBe(100);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+
+    const provisionalEvent = insertEventsForWord(0).at(-1);
+    expect(provisionalEvent?.data.correct).toBe(false);
+    expect(provisionalEvent?.data.accuracyIgnored).toBe(true);
+    expect(provisionalEvent?.data.imeProvisional).toBe(true);
+    expect(provisionalEvent?.data.inputStopped).toBeUndefined();
   });
 
-  it("reconciles the real UniKey phe + s -> phé sequence", async () => {
+  it("reconciles the real Windows UniKey p h e + s -> phé sequence", async () => {
     replaceConfig({
       ...__testing.getConfig(),
       stopOnError: "letter",
+      stopOnErrorKeepFirstError: true,
+      ignoreRepeatedBlockedErrors: true,
       inputLanguage: "vietnamese",
       vietnameseImeMode: "native",
     });
@@ -880,9 +889,11 @@ describe("onInsertText - Vietnamese IME committed text", () => {
 
     await type("p", 1000);
     await type("h", 1001);
+    await type("e", 1002);
+    expect(getInput()).toBe("phe");
+    expect(getLiveCachedAccuracy()).toBe(100);
 
-    // The intermediate "e" exists only in the browser IME preview. Monkeytype
-    // receives the committed DOM rewrite when the IME commits "é".
+    // UniKey rewrites the already-visible base e into é.
     setInput("phé");
     await onInsertText({ data: "s", now: 1010 });
 
@@ -896,9 +907,13 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     const last = insertEventsForWord(0).at(-1);
     expect(last?.data.data).toBe("é");
     expect(last?.data.charIndex).toBe(2);
-    expect(last?.data.replacesChar).toBeUndefined();
+    expect(last?.data.replacesChar).toBe(true);
     expect(last?.data.correct).toBe(true);
     expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+
+    await type("p", 1020);
+    expect(getInput()).toBe("phép");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
   });
 
   it("scores a composition commit without exposing its preview text", async () => {
@@ -1005,9 +1020,12 @@ describe("onInsertText - Vietnamese IME committed text", () => {
 
     await type("l", 1000);
     await type("a", 1001);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+
     await type(" ", 1002);
 
     expect(getInput()).toBe("la");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
     const countAfterBlockedSpace = insertEventsForWord(0).length;
 
     // Further input must stay blocked until the wrong separator is deleted.
@@ -1199,7 +1217,8 @@ describe("onInsertText - Vietnamese IME committed text", () => {
 
     await type("l", 1000);
     await type("a", 1001);
-    expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+    expect(getLiveCachedAccuracy()).toBe(100);
 
     await type(" ", 1002);
 
@@ -1563,6 +1582,43 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     });
   });
 
+
+  it("allows phé to be rebuilt after deleting the composed vowel", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      language: "vietnamese_5k",
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: true,
+      ignoreRepeatedBlockedErrors: true,
+      forgiveCorrectedErrors: false,
+    });
+    pushWords("phép", "next");
+
+    await type("p", 1500);
+    await type("h", 1501);
+    await type("e", 1502);
+    setInput("phé");
+    await onInsertText({ data: "s", now: 1503 });
+    expect(getInput()).toBe("phé");
+
+    setInput("ph");
+    onDelete("deleteContentBackward", 1510);
+    expect(getInput()).toBe("ph");
+
+    await type("e", 1520);
+    expect(getInput()).toBe("phe");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+
+    setInput("phé");
+    await onInsertText({ data: "s", now: 1521 });
+
+    expect(getInput()).toBe("phé");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+    expect(getLiveCachedAccuracy()).toBe(100);
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+  });
 
   it("keeps commerce literal and commits Space after an IME rewrite", async () => {
     replaceConfig({
