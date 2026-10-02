@@ -396,6 +396,18 @@ describe("Vietnamese IME helpers", () => {
     ).toEqual([{ charIndex: 1, from: "ă", data: "ằ" }]);
   });
 
+  it("supports uppercase target-aware Telex rewrites", () => {
+    expect(
+      deriveVietnamesePhysicalRewrites(
+        "D",
+        "d",
+        "Đường",
+        "vietnamese",
+        "vietnamese_5k",
+      ),
+    ).toEqual([{ charIndex: 0, from: "D", data: "Đ" }]);
+  });
+
   it("models macOS Chrome + EVKey 3.3.10 composition rewrites", () => {
     expect(
       deriveVietnameseImeRewrites(

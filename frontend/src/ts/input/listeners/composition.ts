@@ -29,6 +29,7 @@ const inputEl = getInputElement();
 type CompositionSnapshot = {
   committedPrefix: string;
   wordIndex: number;
+  revision: number;
 };
 
 let compositionSnapshot: CompositionSnapshot | null = null;
@@ -46,6 +47,7 @@ inputEl.addEventListener("compositionstart", (event) => {
   compositionSnapshot = {
     committedPrefix: normalizeCommittedText(getCurrentInput()),
     wordIndex: getActiveWordIndex(),
+    revision: CompositionState.getRevision(),
   };
   CompositionState.setComposing(true);
   CompositionState.setData("");
@@ -97,7 +99,11 @@ inputEl.addEventListener("compositionend", async (event) => {
   compositionSnapshot = null;
   let committedData = "";
 
-  if (snapshot !== null && snapshot.wordIndex === getActiveWordIndex()) {
+  if (
+    snapshot !== null &&
+    snapshot.wordIndex === getActiveWordIndex() &&
+    snapshot.revision === CompositionState.getRevision()
+  ) {
     const scorerInput = normalizeCommittedText(getCurrentInput());
     const finalInputValue = normalizeCommittedText(
       getInputElementValue().inputValue,

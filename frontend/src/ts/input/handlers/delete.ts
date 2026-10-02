@@ -27,8 +27,7 @@ function resetVietnameseImeAfterDelete(): void {
   // Backspace is an explicit editing boundary. UniKey/EVKey may otherwise
   // keep composition data that belongs to the pre-delete DOM and replay it on
   // the next key/compositionend.
-  CompositionState.setComposing(false);
-  CompositionState.setData("");
+  CompositionState.invalidate();
   setLastInsertCompositionTextData("");
   setCompositionText("");
 

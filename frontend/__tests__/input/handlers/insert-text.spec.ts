@@ -32,6 +32,7 @@ const mockImeState = vi.hoisted(() => ({
   data: "",
   compositionText: "",
   lastInsertCompositionTextData: "",
+  revision: 0,
 }));
 
 const mockState = vi.hoisted(() => ({
@@ -137,6 +138,12 @@ vi.mock("../../../src/ts/legacy-states/composition", () => ({
   getData: () => mockImeState.data,
   setData: (value: string) => {
     mockImeState.data = value;
+  },
+  getRevision: () => mockImeState.revision,
+  invalidate: () => {
+    mockImeState.composing = false;
+    mockImeState.data = "";
+    mockImeState.revision++;
   },
 }));
 vi.mock("../../../src/ts/test/words-generator", () => ({
@@ -259,6 +266,7 @@ describe("onInsertText - delete on error", () => {
     mockImeState.data = "";
     mockImeState.compositionText = "";
     mockImeState.lastInsertCompositionTextData = "";
+    mockImeState.revision = 0;
     resetTestEvents();
     TestWords.reset();
     mockState.activeWordIndex = 0;
@@ -1203,6 +1211,148 @@ describe("onInsertText - Vietnamese IME committed text", () => {
 
     expect(getInput()).toBe("ư");
     expect(getLiveCachedAccuracy()).toBe(100);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+  });
+
+  it("invalidates the IME session revision on every Vietnamese Backspace", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      inputLanguage: "vietnamese",
+    });
+    pushWords("là", "next");
+
+    await type("l", 1000);
+    await type("a", 1001);
+    expect(mockImeState.revision).toBe(0);
+
+    setInput("l");
+    onDelete("deleteContentBackward", 1010);
+    expect(mockImeState.revision).toBe(1);
+
+    setInput("");
+    onDelete("deleteContentBackward", 1020);
+    expect(mockImeState.revision).toBe(2);
+  });
+
+  it("goes back to a Vietnamese previous word, deletes, then resumes Telex cleanly", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      inputLanguage: "vietnamese",
+      stopOnError: "letter",
+    });
+    pushWords("là", "cơ", "next");
+
+    for (const [i, char] of Array.from("laf ").entries()) {
+      await type(char, 1000 + i);
+    }
+    expect(mockState.activeWordIndex).toBe(1);
+
+    // Browser Backspace at the empty next word removes Monkeytype's sentinel,
+    // which is the signal to navigate back to the previous word.
+    inputEl.value = "";
+    onDelete("deleteContentBackward", 1010);
+    expect(mockState.activeWordIndex).toBe(0);
+    expect(getInput()).toBe("là");
+
+    // Delete the composed character, then rebuild it from a clean IME state.
+    setInput("l");
+    onDelete("deleteContentBackward", 1020);
+    await type("a", 1030);
+    await type("f", 1040);
+
+    expect(getInput()).toBe("là");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+  });
+
+  it("resets Vietnamese IME state for Ctrl+Backspace and allows a clean retype", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      inputLanguage: "vietnamese",
+      stopOnError: "letter",
+    });
+    pushWords("người", "next");
+
+    for (const [i, char] of Array.from("nguowif").entries()) {
+      await type(char, 1000 + i);
+    }
+    expect(getInput()).toBe("người");
+
+    mockImeState.composing = true;
+    mockImeState.data = "ời";
+    setInput("");
+    onDelete("deleteWordBackward", 1100);
+
+    expect(getInput()).toBe("");
+    expect(mockImeState.composing).toBe(false);
+    expect(mockImeState.data).toBe("");
+
+    for (const [i, char] of Array.from("nguowif").entries()) {
+      await type(char, 1200 + i);
+    }
+
+    expect(getInput()).toBe("người");
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+  });
+
+  it("handles consecutive Backspaces inside a Vietnamese word before retyping", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      inputLanguage: "vietnamese",
+      stopOnError: "letter",
+    });
+    pushWords("đường", "next");
+
+    for (const [i, char] of Array.from("dduowngf").entries()) {
+      await type(char, 1000 + i);
+    }
+    expect(getInput()).toBe("đường");
+
+    setInput("đườ");
+    onDelete("deleteContentBackward", 1100);
+    setInput("đư");
+    onDelete("deleteContentBackward", 1110);
+    setInput("đ");
+    onDelete("deleteContentBackward", 1120);
+
+    for (const [i, char] of Array.from("uowngf").entries()) {
+      await type(char, 1200 + i);
+    }
+
+    expect(getInput()).toBe("đường");
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+  });
+
+  it("supports uppercase Vietnamese Telex without false penalties", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      inputLanguage: "vietnamese",
+      stopOnError: "letter",
+    });
+    pushWords("Đường", "next");
+
+    for (const [i, char] of Array.from("Dduowngf").entries()) {
+      await type(char, 1000 + i);
+    }
+
+    expect(getInput()).toBe("Đường");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+  });
+
+  it("allows a late tone modifier across punctuation in the same word", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      inputLanguage: "vietnamese",
+      stopOnError: "letter",
+    });
+    pushWords("là,", "next");
+
+    for (const [i, char] of Array.from("la,f").entries()) {
+      await type(char, 1000 + i);
+    }
+
+    expect(getInput()).toBe("là,");
     expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
     expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
   });
