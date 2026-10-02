@@ -22,12 +22,12 @@ import * as CompositionState from "../../legacy-states/composition";
 import {
   setActivePhysicalKeyCode,
   setLastInsertCompositionTextData,
-  setPendingVietnameseCompositionSeparator,
 } from "../state";
 import {
   normalizeCommittedText,
   shouldUseVietnameseIme,
 } from "../helpers/util";
+import { invalidateVietnameseImeSession } from "../vietnamese-ime/state";
 
 function resetVietnameseImeAfterDelete(): void {
   if (!shouldUseVietnameseIme()) return;
@@ -37,7 +37,7 @@ function resetVietnameseImeAfterDelete(): void {
   // the next key/compositionend.
   CompositionState.invalidate();
   setLastInsertCompositionTextData("");
-  setPendingVietnameseCompositionSeparator(null);
+  invalidateVietnameseImeSession();
   setActivePhysicalKeyCode(null);
   setCompositionText("");
 

@@ -8,11 +8,11 @@ import {
   getLastInsertCompositionTextData,
   hasRecentBackspaceIntent,
   setLastInsertCompositionTextData,
-  setPendingVietnameseCompositionSeparator,
 } from "../state";
 import * as TestUI from "../../test/test-ui";
 import { onBeforeInsertText } from "../handlers/before-insert-text";
 import { onBeforeDelete } from "../handlers/before-delete";
+import { queueVietnameseCompositionSeparator } from "../vietnamese-ime/native-events";
 import * as TestWords from "../../test/test-words";
 import * as CompositionState from "../../legacy-states/composition";
 import {
@@ -158,7 +158,7 @@ inputEl.addEventListener("input", async (event) => {
       // Chrome/UniKey can emit the committing Space as insertText before
       // compositionend. Scoring it now would evaluate an incomplete scorer
       // prefix and can discard the still-uncommitted composition text.
-      setPendingVietnameseCompositionSeparator(data);
+      queueVietnameseCompositionSeparator(data);
     } else {
       await onInsertText({
         data,

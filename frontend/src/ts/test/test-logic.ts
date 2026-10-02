@@ -135,8 +135,8 @@ import { nthElementFromArray } from "../utils/arrays";
 import {
   clearBackspaceIntent,
   setActivePhysicalKeyCode,
-  setPendingVietnameseCompositionSeparator,
 } from "../input/state";
+import { invalidateVietnameseImeSession } from "../input/vietnamese-ime/state";
 
 let failReason = "";
 
@@ -302,7 +302,7 @@ export async function restart(options = {} as RestartOptions): Promise<void> {
   resetModifierState();
   clearBackspaceIntent();
   setActivePhysicalKeyCode(null);
-  setPendingVietnameseCompositionSeparator(null);
+  invalidateVietnameseImeSession();
   setTestActive(false);
   Replay.pauseReplay();
   setBailedOut(false);

@@ -6,9 +6,9 @@ import { getLiveCachedAccuracy } from "../test/events/live-cache";
 import * as TestWords from "../test/test-words";
 import {
   getActivePhysicalKeyCode,
-  getPendingVietnameseCompositionSeparator,
   hasRecentBackspaceIntent,
 } from "./state";
+import { getVietnameseImeSession } from "./vietnamese-ime/state";
 
 type ImeDebugPhase = "before" | "after";
 
@@ -36,10 +36,13 @@ export type ImeDebugEntry = {
     activePhysicalKeyCode: string | null;
     backspaceIntent: boolean;
     pendingSeparator: string | null;
+    sessionId: number | null;
+    sessionRevision: number | null;
   };
   config: {
     language: string;
     inputLanguage: string;
+    vietnameseImeMode: string;
     stopOnError: string;
     stopOnErrorKeepFirstError: boolean;
     ignoreRepeatedBlockedErrors: boolean;
@@ -199,11 +202,14 @@ export function recordImeDebugEvent(
       data: CompositionState.getData() ?? "",
       activePhysicalKeyCode: getActivePhysicalKeyCode(),
       backspaceIntent: hasRecentBackspaceIntent(performance.now()),
-      pendingSeparator: getPendingVietnameseCompositionSeparator(),
+      pendingSeparator: null,
+      sessionId: getVietnameseImeSession()?.id ?? null,
+      sessionRevision: getVietnameseImeSession()?.revision ?? null,
     },
     config: {
       language: Config.language,
       inputLanguage: Config.inputLanguage,
+      vietnameseImeMode: Config.vietnameseImeMode,
       stopOnError: Config.stopOnError,
       stopOnErrorKeepFirstError: Config.stopOnErrorKeepFirstError,
       ignoreRepeatedBlockedErrors: Config.ignoreRepeatedBlockedErrors,
