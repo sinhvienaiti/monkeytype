@@ -164,13 +164,7 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     options = { ...options, data: normalizedCommittedData };
   }
 
-  const {
-    now,
-    lastInMultiIndex,
-    isCompositionEnding,
-    automatic,
-    nativeImeCommit,
-  } = options;
+  const { now, lastInMultiIndex, isCompositionEnding, automatic } = options;
   let { inputValue } = getInputElementValue();
 
   const committedCharacters = splitCommittedText(options.data);
