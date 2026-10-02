@@ -232,6 +232,15 @@ async function commitComposition(data: string, now = 1000): Promise<void> {
   await onInsertText({ data, now, isCompositionEnding: true });
 }
 
+async function commitNativeDomRewrite(
+  physicalData: string,
+  domValue: string,
+  now = 1000,
+): Promise<void> {
+  setInput(domValue);
+  await onInsertText({ data: physicalData, now });
+}
+
 function inputEventsForWord(wordIndex: number): InputEventNoMs[] {
   return getEventsForWord(getAllTestEvents(), wordIndex).filter(
     (e): e is InputEventNoMs => e.type === "input",
@@ -956,13 +965,13 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     await type("r", 1000);
     await type("a", 1001);
 
-    // Browser temporarily appends the physical Telex key.
-    await type("w", 1002);
+    // UniKey/EVKey rewrites the DOM; Monkeytype scores the committed rewrite.
+    await commitNativeDomRewrite("w", "ră", 1002);
     expect(getInput()).toBe("ră");
 
     await type("n", 1003);
     await type("g", 1004);
-    await type("f", 1005);
+    await commitNativeDomRewrite("f", "rằng", 1005);
 
     expect(getInput()).toBe("rằng");
     expect(getLiveCachedAccuracy()).toBe(100);
@@ -980,9 +989,9 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     pushWords("ằ", "next");
 
     await type("a", 1000);
-    await type("f", 1001);
+    await commitNativeDomRewrite("f", "à", 1001);
     expect(getInput()).toBe("à");
-    await type("w", 1002);
+    await commitNativeDomRewrite("w", "ằ", 1002);
 
     expect(getInput()).toBe("ằ");
     expect(getLiveCachedAccuracy()).toBe(100);
@@ -1004,7 +1013,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     // Equivalent to returning to a restored "la" after Backspace navigation:
     // there is no browser composition state, only scorer + textarea text.
     setInput("la");
-    await type("f", 1010);
+    await commitNativeDomRewrite("f", "là", 1010);
 
     expect(getInput()).toBe("là");
     expect(getLiveCachedAccuracy()).toBe(100);
@@ -1025,14 +1034,14 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     await type("a", 1001);
     await type(" ", 1002);
 
-    expect(getInput()).toBe("la ");
+    expect(getInput()).toBe("la");
     const countAfterBlockedSpace = insertEventsForWord(0).length;
 
     // Further input must stay blocked until the wrong separator is deleted.
     await type("c", 1003);
     await type("o", 1004);
 
-    expect(getInput()).toBe("la ");
+    expect(getInput()).toBe("la");
     expect(insertEventsForWord(0)).toHaveLength(countAfterBlockedSpace);
     expect(mockState.activeWordIndex).toBe(0);
   });
@@ -1042,8 +1051,8 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     ["đường", "dduowngf"],
     ["tiếng", "tieengs"],
   ])(
-    "types common Vietnamese Telex words without false errors: %s",
-    async (word, keys) => {
+    "scores common Vietnamese IME committed words without false errors: %s",
+    async (word, _keys) => {
       replaceConfig({
         ...__testing.getConfig(),
         stopOnError: "letter",
@@ -1053,9 +1062,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
       });
       pushWords(word, "next");
 
-      for (let i = 0; i < keys.length; i++) {
-        await type(keys[i] as string, 1000 + i);
-      }
+      await commitComposition(word, 1000);
 
       expect(getInput()).toBe(word);
       expect(getLiveCachedAccuracy()).toBe(100);
@@ -1176,9 +1183,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
       });
       pushWords("đường", "next");
 
-      for (const [i, char] of Array.from("dduowngf").entries()) {
-        await type(char, 1300 + i);
-      }
+      await commitComposition("đường", 1300);
 
       expect(getInput()).toBe("đường");
       expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
@@ -1198,13 +1203,11 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     pushWords("là", "next");
 
     await type("l", 1400);
-    await type("a", 1401);
+    await commitNativeDomRewrite("f", "là", 1402);
 
-    expect(getInput()).toBe("la");
+    expect(getInput()).toBe("là");
     expect(deletesForWord(0)).toEqual([]);
     expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
-
-    await type("f", 1402);
 
     expect(getInput()).toBe("là");
     expect(deletesForWord(0)).toEqual([]);
@@ -1244,10 +1247,8 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     pushWords("là");
 
     await type("l", 1000);
-    await type("a", 1001);
+    await commitNativeDomRewrite("f", "là", 1002);
     expect(getLiveCachedAccuracy()).toBe(100);
-
-    await type("f", 1002);
 
     expect(getInput()).toBe("là");
     expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
@@ -1303,7 +1304,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     expect(mockImeState.lastInsertCompositionTextData).toBe("");
 
     await type("a", 1020);
-    await type("f", 1030);
+    await commitNativeDomRewrite("f", "là", 1030);
 
     expect(getInput()).toBe("là");
     expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
@@ -1329,7 +1330,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     expect(getInput()).toBe("");
 
     await type("u", 1020);
-    await type("w", 1030);
+    await commitNativeDomRewrite("w", "ư", 1030);
 
     expect(getInput()).toBe("ư");
     expect(getLiveCachedAccuracy()).toBe(100);
@@ -1367,9 +1368,9 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     });
     pushWords("là", "cơ", "next");
 
-    for (const [i, char] of Array.from("laf ").entries()) {
-      await type(char, 1000 + i);
-    }
+    await type("l", 1000);
+    await commitNativeDomRewrite("f", "là", 1001);
+    await type(" ", 1002);
     expect(mockState.activeWordIndex).toBe(1);
 
     // Browser Backspace at the empty next word removes Monkeytype's sentinel,
@@ -1383,7 +1384,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     setInput("l");
     onDelete("deleteContentBackward", 1020);
     await type("a", 1030);
-    await type("f", 1040);
+    await commitNativeDomRewrite("f", "là", 1040);
 
     expect(getInput()).toBe("là");
     expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
@@ -1399,9 +1400,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     });
     pushWords("người", "next");
 
-    for (const [i, char] of Array.from("nguowif").entries()) {
-      await type(char, 1000 + i);
-    }
+    await commitComposition("người", 1000);
     expect(getInput()).toBe("người");
 
     mockImeState.composing = true;
@@ -1413,9 +1412,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     expect(mockImeState.composing).toBe(false);
     expect(mockImeState.data).toBe("");
 
-    for (const [i, char] of Array.from("nguowif").entries()) {
-      await type(char, 1200 + i);
-    }
+    await commitComposition("người", 1200);
 
     expect(getInput()).toBe("người");
     expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
@@ -1430,9 +1427,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     });
     pushWords("đường", "next");
 
-    for (const [i, char] of Array.from("dduowngf").entries()) {
-      await type(char, 1000 + i);
-    }
+    await commitComposition("đường", 1000);
     expect(getInput()).toBe("đường");
 
     setInput("đườn");
@@ -1444,9 +1439,10 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     setInput("đ");
     onDelete("deleteContentBackward", 1130);
 
-    for (const [i, char] of Array.from("uowngf").entries()) {
-      await type(char, 1200 + i);
-    }
+    await commitNativeDomRewrite("w", "đươ", 1200);
+    await type("n", 1201);
+    await type("g", 1202);
+    await commitNativeDomRewrite("f", "đường", 1203);
 
     expect(getInput()).toBe("đường");
     expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
@@ -1461,9 +1457,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     });
     pushWords("Đường", "next");
 
-    for (const [i, char] of Array.from("Dduowngf").entries()) {
-      await type(char, 1000 + i);
-    }
+    await commitComposition("Đường", 1000);
 
     expect(getInput()).toBe("Đường");
     expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
@@ -1482,10 +1476,10 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     mockState.correctShiftUsed = true;
     await type("D", 1000);
 
-    // The second d is a Telex modifier that rewrites D -> Đ. It is not the
-    // uppercase target character itself, so opposite-shift must not reject it.
+    // Browser/IME commits D -> Đ. The physical modifier is not scored as the
+    // target character itself.
     mockState.correctShiftUsed = false;
-    await type("d", 1001);
+    await commitNativeDomRewrite("d", "Đ", 1001);
 
     expect(getInput()).toBe("Đ");
     expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
@@ -1505,13 +1499,13 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     await type("a", 1001);
     await type(",", 1002);
 
-    expect(getInput()).toBe("la,");
+    expect(getInput()).toBe("la");
     expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
 
-    // A tone key after punctuation must not reach backwards and silently fix
-    // the earlier vowel.
+    // A tone key after the rejected boundary must not reach backwards and
+    // silently fix the earlier vowel.
     await type("f", 1003);
-    expect(getInput()).toBe("la,");
+    expect(getInput()).toBe("la");
     expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
   });
 
@@ -1524,9 +1518,9 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     });
     pushWords("là,", "next");
 
-    for (const [i, char] of Array.from("laf,").entries()) {
-      await type(char, 1000 + i);
-    }
+    await type("l", 1000);
+    await commitNativeDomRewrite("f", "là", 1001);
+    await type(",", 1002);
 
     expect(getInput()).toBe("là,");
     expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
@@ -1548,7 +1542,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     await type("á", 1001);
     expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
 
-    await type("f", 1002);
+    await commitNativeDomRewrite("f", "là", 1002);
 
     expect(getInput()).toBe("là");
     const accuracy = getAccuracy(buildEventLog());
