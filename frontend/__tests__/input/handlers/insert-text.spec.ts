@@ -1045,16 +1045,19 @@ describe("onInsertText - Vietnamese IME committed text", () => {
       stopOnError: "letter",
       stopOnErrorKeepFirstError: true,
     });
-    pushWords("raw software", "next");
+    pushWords("raw", "software", "next");
 
     for (const [i, char] of Array.from("raw software").entries()) {
       await type(char, 1000 + i);
     }
 
-    expect(getInput()).toBe("raw software");
+    expect(mockState.activeWordIndex).toBe(1);
+    expect(getInput()).toBe("software");
     expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
     expect(
-      insertEventsForWord(0).some((event) => event.data.replacesChar === true),
+      [...insertEventsForWord(0), ...insertEventsForWord(1)].some(
+        (event) => event.data.replacesChar === true,
+      ),
     ).toBe(false);
   });
 
