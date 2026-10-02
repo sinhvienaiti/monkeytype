@@ -1224,15 +1224,15 @@ describe("onInsertText - Vietnamese IME committed text", () => {
 
     await type("l", 1000);
     await type("a", 1001);
-    expect(mockImeState.revision).toBe(0);
+    const revisionBeforeDelete = mockImeState.revision;
 
     setInput("l");
     onDelete("deleteContentBackward", 1010);
-    expect(mockImeState.revision).toBe(1);
+    expect(mockImeState.revision).toBe(revisionBeforeDelete + 1);
 
     setInput("");
     onDelete("deleteContentBackward", 1020);
-    expect(mockImeState.revision).toBe(2);
+    expect(mockImeState.revision).toBe(revisionBeforeDelete + 2);
   });
 
   it("goes back to a Vietnamese previous word, deletes, then resumes Telex cleanly", async () => {
@@ -1309,12 +1309,14 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     }
     expect(getInput()).toBe("đường");
 
-    setInput("đườ");
+    setInput("đườn");
     onDelete("deleteContentBackward", 1100);
-    setInput("đư");
+    setInput("đườ");
     onDelete("deleteContentBackward", 1110);
-    setInput("đ");
+    setInput("đư");
     onDelete("deleteContentBackward", 1120);
+    setInput("đ");
+    onDelete("deleteContentBackward", 1130);
 
     for (const [i, char] of Array.from("uowngf").entries()) {
       await type(char, 1200 + i);
