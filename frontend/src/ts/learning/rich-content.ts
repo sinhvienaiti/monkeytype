@@ -203,7 +203,7 @@ export function createRichEnglishContentClient(
 
   async function getJson(relative: string): Promise<unknown> {
     const response = await fetcher(
-      base + "/" + relative.replace(/^\/+/u, ""),
+      `${base}/${relative.replace(/^\\/+?/u, "")}`,
       { cache: "no-store" },
     );
     if (!response.ok) {
