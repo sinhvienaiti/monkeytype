@@ -34,6 +34,26 @@ export type PublishedEnglishSentence = {
   lexicalIds?: string[];
 };
 
+
+export type PublishedGrammarTopic = {
+  schemaVersion: 1;
+  id: string;
+  cefr: string;
+  title: string;
+  objective: string;
+  concept?: { en?: string; vi?: string };
+  formulae?: string[];
+  whenToUse?: string[];
+  forms?: {
+    positive?: string[];
+    negative?: string[];
+    question?: string[];
+  };
+  variations?: string[];
+  exampleIds?: string[];
+  exerciseIds?: string[];
+};
+
 export type PublishedEnglishExercise = {
   schemaVersion: 1;
   id: string;
@@ -71,6 +91,16 @@ export type RichEnglishContentClient = {
   loadExercises: (
     types?: readonly PublishedEnglishExerciseType[],
   ) => Promise<PublishedEnglishExercise[]>;
+  loadGrammarTopics: () => Promise<PublishedGrammarTopic[]>;
+  loadPublishedPracticeExercises: (
+    types: readonly PublishedEnglishExerciseType[],
+    cefr?: string,
+    maxExercises?: number,
+  ) => Promise<PublishedEnglishExercise[]>;
+  loadPublishedGrammarLessons: (
+    cefr?: string,
+    maxTopics?: number,
+  ) => Promise<PublishedGrammarTopic[]>;
   loadPublishedContextClozeExercises: (
     cefr: string,
     maxExercises: number,
@@ -165,6 +195,126 @@ function parseSentence(value: unknown): PublishedEnglishSentence {
     ...(value["register"] === undefined ? {} : { register: stringArray(value["register"], "sentence.register") }),
     ...(value["grammarIds"] === undefined ? {} : { grammarIds: stringArray(value["grammarIds"], "sentence.grammarIds") }),
     ...(value["lexicalIds"] === undefined ? {} : { lexicalIds: stringArray(value["lexicalIds"], "sentence.lexicalIds") }),
+  };
+}
+
+
+function optionalStringArray(
+  value: unknown,
+  field: string,
+): string[] | undefined {
+  return value === undefined ? undefined : stringArray(value, field);
+}
+
+function parseGrammarTopic(value: unknown): PublishedGrammarTopic {
+  if (!plainObject(value) || value["schemaVersion"] !== 1) {
+    throw new TypeError("Invalid published grammar topic");
+  }
+  const rawConcept = value["concept"];
+  const concept =
+    rawConcept === undefined
+      ? undefined
+      : plainObject(rawConcept)
+        ? {
+            ...(typeof rawConcept["en"] === "string" &&
+            rawConcept["en"].trim() !== ""
+              ? { en: rawConcept["en"].normalize("NFC").trim() }
+              : {}),
+            ...(typeof rawConcept["vi"] === "string" &&
+            rawConcept["vi"].trim() !== ""
+              ? { vi: rawConcept["vi"].normalize("NFC").trim() }
+              : {}),
+          }
+        : (() => {
+            throw new TypeError("Invalid grammar concept");
+          })();
+
+  const rawForms = value["forms"];
+  const forms =
+    rawForms === undefined
+      ? undefined
+      : plainObject(rawForms)
+        ? {
+            ...(optionalStringArray(rawForms["positive"], "grammar.forms.positive") ===
+            undefined
+              ? {}
+              : {
+                  positive: optionalStringArray(
+                    rawForms["positive"],
+                    "grammar.forms.positive",
+                  ),
+                }),
+            ...(optionalStringArray(rawForms["negative"], "grammar.forms.negative") ===
+            undefined
+              ? {}
+              : {
+                  negative: optionalStringArray(
+                    rawForms["negative"],
+                    "grammar.forms.negative",
+                  ),
+                }),
+            ...(optionalStringArray(rawForms["question"], "grammar.forms.question") ===
+            undefined
+              ? {}
+              : {
+                  question: optionalStringArray(
+                    rawForms["question"],
+                    "grammar.forms.question",
+                  ),
+                }),
+          }
+        : (() => {
+            throw new TypeError("Invalid grammar forms");
+          })();
+
+  return {
+    schemaVersion: 1,
+    id: nonEmpty(value["id"], "grammar.id"),
+    cefr: nonEmpty(value["cefr"], "grammar.cefr"),
+    title: nonEmpty(value["title"], "grammar.title"),
+    objective: nonEmpty(value["objective"], "grammar.objective"),
+    ...(concept === undefined || Object.keys(concept).length === 0
+      ? {}
+      : { concept }),
+    ...(optionalStringArray(value["formulae"], "grammar.formulae") === undefined
+      ? {}
+      : { formulae: optionalStringArray(value["formulae"], "grammar.formulae") }),
+    ...(optionalStringArray(value["whenToUse"], "grammar.whenToUse") === undefined
+      ? {}
+      : {
+          whenToUse: optionalStringArray(
+            value["whenToUse"],
+            "grammar.whenToUse",
+          ),
+        }),
+    ...(forms === undefined ? {} : { forms }),
+    ...(optionalStringArray(value["variations"], "grammar.variations") ===
+    undefined
+      ? {}
+      : {
+          variations: optionalStringArray(
+            value["variations"],
+            "grammar.variations",
+          ),
+        }),
+    ...(optionalStringArray(value["exampleIds"], "grammar.exampleIds") ===
+    undefined
+      ? {}
+      : {
+          exampleIds: optionalStringArray(
+            value["exampleIds"],
+            "grammar.exampleIds",
+          ),
+        }),
+    ...(optionalStringArray(value["exerciseIds"], "grammar.exerciseIds") ===
+    undefined
+      ? {}
+      : {
+          exerciseIds: optionalStringArray(
+            value["exerciseIds"],
+            "grammar.exerciseIds",
+          ),
+        }),
   };
 }
 
@@ -285,6 +435,37 @@ export function createRichEnglishContentClient(
     return exercises.filter((exercise) => wanted.has(exercise.type));
   }
 
+
+  async function loadGrammarTopics(): Promise<PublishedGrammarTopic[]> {
+    return (await loadByPrefix("grammar", "topics-")).map(parseGrammarTopic);
+  }
+
+  async function loadPublishedPracticeExercises(
+    types: readonly PublishedEnglishExerciseType[],
+    cefr?: string,
+    maxExercises = 20,
+  ): Promise<PublishedEnglishExercise[]> {
+    const limit = Math.min(40, Math.max(1, Math.floor(maxExercises)));
+    return (await loadExercises(types))
+      .filter(
+        (exercise) =>
+          cefr === undefined ||
+          exercise.cefr === undefined ||
+          exercise.cefr === cefr,
+      )
+      .slice(0, limit);
+  }
+
+  async function loadPublishedGrammarLessons(
+    cefr?: string,
+    maxTopics = 20,
+  ): Promise<PublishedGrammarTopic[]> {
+    const limit = Math.min(40, Math.max(1, Math.floor(maxTopics)));
+    return (await loadGrammarTopics())
+      .filter((topic) => cefr === undefined || topic.cefr === cefr)
+      .slice(0, limit);
+  }
+
   async function loadPublishedContextClozeExercises(
     cefr: string,
     maxExercises: number,
@@ -346,6 +527,9 @@ export function createRichEnglishContentClient(
   return {
     loadSentences,
     loadExercises,
+    loadGrammarTopics,
+    loadPublishedPracticeExercises,
+    loadPublishedGrammarLessons,
     loadPublishedContextClozeExercises,
     loadPublishedSentenceBuilderExercise,
   };
@@ -367,4 +551,23 @@ export async function loadPublishedSentenceBuilderExercise(
   cefr?: string,
 ): Promise<SentenceBuilderExercise | null> {
   return await defaultClient.loadPublishedSentenceBuilderExercise(cefr);
+}
+
+export async function loadPublishedPracticeExercises(
+  types: readonly PublishedEnglishExerciseType[],
+  cefr?: string,
+  maxExercises = 20,
+): Promise<PublishedEnglishExercise[]> {
+  return await defaultClient.loadPublishedPracticeExercises(
+    types,
+    cefr,
+    maxExercises,
+  );
+}
+
+export async function loadPublishedGrammarLessons(
+  cefr?: string,
+  maxTopics = 20,
+): Promise<PublishedGrammarTopic[]> {
+  return await defaultClient.loadPublishedGrammarLessons(cefr, maxTopics);
 }
