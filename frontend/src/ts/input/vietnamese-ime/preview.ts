@@ -1,17 +1,23 @@
+import * as CompositionState from "../../legacy-states/composition";
 import { isVietnameseImeSafeModeActive } from "./gate";
 import { isVietnameseImeProvisionalCharacter } from "./provisional";
+import { getVietnameseImeDirectPreview } from "./state";
 
 /**
- * Returns true when the browser's live Vietnamese IME preview is a valid
- * intermediate form of the target character. Presentation only: scoring uses
- * the same Unicode relation explicitly through provisional.ts.
+ * Returns true only while the character is part of a live browser/OS IME
+ * preview. Once preview state is committed/materialized, the same base letter
+ * must render as a real typo instead of remaining visually "dead".
  */
 export function isVietnameseImePreviewCharacter(
   inputChar: string,
   targetChar: string,
 ): boolean {
-  return (
-    isVietnameseImeSafeModeActive() &&
-    isVietnameseImeProvisionalCharacter(inputChar, targetChar)
-  );
+  if (!isVietnameseImeSafeModeActive()) return false;
+
+  const hasLivePreview =
+    CompositionState.getComposing() ||
+    getVietnameseImeDirectPreview() !== null;
+  if (!hasLivePreview) return false;
+
+  return isVietnameseImeProvisionalCharacter(inputChar, targetChar);
 }

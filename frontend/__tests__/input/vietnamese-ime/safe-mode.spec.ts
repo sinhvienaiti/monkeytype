@@ -11,8 +11,10 @@ import {
 import { Config } from "../../../src/ts/config/store";
 import {
   beginVietnameseImeSession,
+  clearVietnameseImeDirectPreview,
   getVietnameseImeSession,
   invalidateVietnameseImeSession,
+  setVietnameseImeDirectPreview,
 } from "../../../src/ts/input/vietnamese-ime/state";
 
 describe("Vietnamese IME Safe Mode gate", () => {
@@ -174,12 +176,18 @@ describe("Vietnamese IME preview rendering", () => {
     Config.vietnameseImeMode = "off";
     Config.inputLanguage = "auto";
     Config.language = "english";
+    clearVietnameseImeDirectPreview();
   });
 
   it("recognizes only valid native IME preview forms", () => {
     Config.vietnameseImeMode = "native";
     Config.inputLanguage = "vietnamese";
     Config.language = "vietnamese_5k";
+    setVietnameseImeDirectPreview({
+      wordIndex: 0,
+      scorerPrefix: "",
+      domValue: "a",
+    });
 
     expect(isVietnameseImePreviewCharacter("a", "à")).toBe(true);
     expect(isVietnameseImePreviewCharacter("o", "ồ")).toBe(true);
@@ -187,6 +195,15 @@ describe("Vietnamese IME preview rendering", () => {
     expect(isVietnameseImePreviewCharacter("d", "đ")).toBe(true);
     expect(isVietnameseImePreviewCharacter("ă", "à")).toBe(false);
     expect(isVietnameseImePreviewCharacter("á", "ằ")).toBe(false);
+  });
+
+  it("does not disguise a committed wrong base character as an IME preview", () => {
+    Config.vietnameseImeMode = "native";
+    Config.inputLanguage = "vietnamese";
+    Config.language = "vietnamese_5k";
+
+    clearVietnameseImeDirectPreview();
+    expect(isVietnameseImePreviewCharacter("e", "é")).toBe(false);
   });
 
   it("is disabled when Vietnamese IME safe mode is off", () => {
