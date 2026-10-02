@@ -5,7 +5,11 @@ import {
 } from "../input-element";
 import * as CompositionState from "../../legacy-states/composition";
 import * as TestLogic from "../../test/test-logic";
-import { setLastInsertCompositionTextData } from "../state";
+import {
+  getPendingVietnameseCompositionSeparator,
+  setLastInsertCompositionTextData,
+  setPendingVietnameseCompositionSeparator,
+} from "../state";
 import { onInsertText } from "../handlers/insert-text";
 import { getCurrentInput, logTestEvent } from "../../test/events/data";
 import {
@@ -16,6 +20,7 @@ import {
 } from "../helpers/util";
 import * as TestWords from "../../test/test-words";
 import { recordImeDebugEvent } from "../ime-debug";
+import { isSpace } from "../../utils/strings";
 import {
   isTestRestarting,
   getActiveWordIndex,
@@ -52,6 +57,7 @@ inputEl.addEventListener("compositionstart", (event) => {
   CompositionState.setComposing(true);
   CompositionState.setData("");
   setLastInsertCompositionTextData("");
+  setPendingVietnameseCompositionSeparator(null);
   if (!isTestActive()) {
     TestLogic.startTest(now);
   }
@@ -93,6 +99,7 @@ inputEl.addEventListener("compositionend", async (event) => {
     CompositionState.invalidate();
     setCompositionText("");
     setLastInsertCompositionTextData("");
+    setPendingVietnameseCompositionSeparator(null);
     setInputElementValue(normalizeCommittedText(getCurrentInput()));
     return;
   }
@@ -176,6 +183,31 @@ inputEl.addEventListener("compositionend", async (event) => {
   } else {
     // Word transition/restart during composition: discard stale browser state.
     setInputElementValue(normalizeCommittedText(getCurrentInput()));
+  }
+
+  const pendingSeparator = getPendingVietnameseCompositionSeparator();
+  setPendingVietnameseCompositionSeparator(null);
+
+  if (pendingSeparator !== null) {
+    const committedChars = Array.from(committedData);
+    const lastCommittedChar = committedChars.at(-1);
+    const separatorAlreadyCommitted =
+      pendingSeparator === "\n"
+        ? lastCommittedChar === "\n"
+        : lastCommittedChar !== undefined && isSpace(lastCommittedChar);
+
+    if (!separatorAlreadyCommitted && snapshot?.wordIndex === getActiveWordIndex()) {
+      // The separator input event arrived before compositionend, but the
+      // browser did not include it in the final composition payload. Apply it
+      // only after the composition text has been reconciled to the scorer.
+      const scorerInput = normalizeCommittedText(getCurrentInput());
+      setInputElementValue(scorerInput + pendingSeparator);
+      await onInsertText({
+        data: pendingSeparator,
+        now,
+        isCompositionEnding: true,
+      });
+    }
   }
 
   logTestEvent("composition", now, {

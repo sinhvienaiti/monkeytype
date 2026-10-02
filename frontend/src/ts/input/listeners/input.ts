@@ -6,6 +6,7 @@ import {
   getActivePhysicalKeyCode,
   getLastInsertCompositionTextData,
   setLastInsertCompositionTextData,
+  setPendingVietnameseCompositionSeparator,
 } from "../state";
 import * as TestUI from "../../test/test-ui";
 import { onBeforeInsertText } from "../handlers/before-insert-text";
@@ -23,6 +24,7 @@ import { recordImeDebugEvent } from "../ime-debug";
 import {
   normalizeCommittedText,
   normalizeTargetText,
+  shouldDeferVietnameseCompositionSeparator,
   shouldIgnoreVietnameseImeDelete,
   shouldUseVietnameseIme,
 } from "../helpers/util";
@@ -63,9 +65,17 @@ inputEl.addEventListener("beforeinput", async (event) => {
       data = "\n";
     }
 
-    const preventDefault = onBeforeInsertText(data);
-    if (preventDefault) {
-      event.preventDefault();
+    const deferVietnameseSeparator =
+      shouldDeferVietnameseCompositionSeparator(
+        data,
+        CompositionState.getComposing(),
+      );
+
+    if (!deferVietnameseSeparator) {
+      const preventDefault = onBeforeInsertText(data);
+      if (preventDefault) {
+        event.preventDefault();
+      }
     }
   } else if (
     inputType === "deleteWordBackward" ||
@@ -135,10 +145,23 @@ inputEl.addEventListener("input", async (event) => {
       data = "\n";
     }
 
-    await onInsertText({
-      data,
-      now,
-    });
+    const deferVietnameseSeparator =
+      shouldDeferVietnameseCompositionSeparator(
+        data,
+        CompositionState.getComposing(),
+      );
+
+    if (deferVietnameseSeparator) {
+      // Chrome/UniKey can emit the committing Space as insertText before
+      // compositionend. Scoring it now would evaluate an incomplete scorer
+      // prefix and can discard the still-uncommitted composition text.
+      setPendingVietnameseCompositionSeparator(data);
+    } else {
+      await onInsertText({
+        data,
+        now,
+      });
+    }
   } else if (
     inputType === "deleteWordBackward" ||
     inputType === "deleteContentBackward"

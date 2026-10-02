@@ -13,6 +13,7 @@ import {
   isVietnameseImeProvisionalCharacter,
   normalizeCommittedText,
   normalizeTargetText,
+  shouldDeferVietnameseCompositionSeparator,
   shouldIgnoreVietnameseImeDelete,
   shouldUseVietnameseIme,
   splitCommittedText,
@@ -325,6 +326,49 @@ describe("Vietnamese IME helpers", () => {
     expect(isVietnameseImeBoundary("ư", "vietnamese", "english")).toBe(false);
   });
 
+  it("defers a committing separator only while Vietnamese composition is active", () => {
+    expect(
+      shouldDeferVietnameseCompositionSeparator(
+        " ",
+        true,
+        "vietnamese",
+        "vietnamese_5k",
+      ),
+    ).toBe(true);
+    expect(
+      shouldDeferVietnameseCompositionSeparator(
+        "\n",
+        true,
+        "vietnamese",
+        "vietnamese_5k",
+      ),
+    ).toBe(true);
+    expect(
+      shouldDeferVietnameseCompositionSeparator(
+        " ",
+        false,
+        "vietnamese",
+        "vietnamese_5k",
+      ),
+    ).toBe(false);
+    expect(
+      shouldDeferVietnameseCompositionSeparator(
+        "s",
+        true,
+        "vietnamese",
+        "vietnamese_5k",
+      ),
+    ).toBe(false);
+    expect(
+      shouldDeferVietnameseCompositionSeparator(
+        " ",
+        true,
+        "english",
+        "english",
+      ),
+    ).toBe(false);
+  });
+
   it("does not emulate VNI numeric modifiers in Telex fallback", () => {
     expect(
       deriveVietnamesePhysicalRewrites(
@@ -376,6 +420,26 @@ describe("Vietnamese IME helpers", () => {
         testLanguage: "vietnamese_5k",
       }),
     ).toBe(true);
+
+    expect(
+      shouldIgnoreVietnameseImeDelete({
+        inputType: "deleteContentBackward",
+        isComposing: true,
+        activeKeyCode: null,
+        inputLanguage: "vietnamese",
+        testLanguage: "vietnamese_5k",
+      }),
+    ).toBe(false);
+
+    expect(
+      shouldIgnoreVietnameseImeDelete({
+        inputType: "deleteContentBackward",
+        isComposing: true,
+        activeKeyCode: "Unidentified",
+        inputLanguage: "vietnamese",
+        testLanguage: "vietnamese_5k",
+      }),
+    ).toBe(false);
 
     expect(
       shouldIgnoreVietnameseImeDelete({

@@ -1,6 +1,10 @@
 import * as TestUI from "../../test/test-ui";
 import * as TestWords from "../../test/test-words";
-import { getInputElementValue, setInputElementValue } from "../input-element";
+import {
+  getInputElementValue,
+  moveInputElementCaretToTheEnd,
+  setInputElementValue,
+} from "../input-element";
 
 import { Config } from "../../config/store";
 import { goToPreviousWord } from "../helpers/word-navigation";
@@ -15,7 +19,11 @@ import {
   setCompositionText,
 } from "../../states/test";
 import * as CompositionState from "../../legacy-states/composition";
-import { setLastInsertCompositionTextData } from "../state";
+import {
+  setActivePhysicalKeyCode,
+  setLastInsertCompositionTextData,
+  setPendingVietnameseCompositionSeparator,
+} from "../state";
 import {
   normalizeCommittedText,
   shouldUseVietnameseIme,
@@ -29,12 +37,15 @@ function resetVietnameseImeAfterDelete(): void {
   // the next key/compositionend.
   CompositionState.invalidate();
   setLastInsertCompositionTextData("");
+  setPendingVietnameseCompositionSeparator(null);
+  setActivePhysicalKeyCode(null);
   setCompositionText("");
 
   // The event log/scorer is authoritative after deletion/navigation. Rebuild
   // the hidden textarea from it so the next IME event starts from the exact
   // same prefix instead of a browser-side stale composition value.
   setInputElementValue(normalizeCommittedText(getCurrentInput()));
+  moveInputElementCaretToTheEnd();
 }
 
 export function onDelete(inputType: DeleteInputType, now: number): void {

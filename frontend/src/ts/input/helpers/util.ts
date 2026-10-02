@@ -135,6 +135,19 @@ export function isVietnameseImeBoundary(
   return chars.length > 0 && chars.some((char) => !/^\p{L}$/u.test(char));
 }
 
+export function shouldDeferVietnameseCompositionSeparator(
+  data: string,
+  isComposing: boolean,
+  inputLanguage = Config.inputLanguage,
+  testLanguage = Config.language,
+): boolean {
+  return (
+    shouldUseVietnameseIme(inputLanguage, testLanguage) &&
+    isComposing &&
+    (isSpace(data) || data === "\n")
+  );
+}
+
 /**
  * A base/partially-accented Vietnamese character is provisional while the IME
  * is still building the target character. Example: e -> é, o -> ô -> ồ.
@@ -528,7 +541,6 @@ export function shouldIgnoreVietnameseImeDelete(options: {
 }): boolean {
   const {
     inputType,
-    isComposing,
     activeKeyCode,
     inputLanguage = Config.inputLanguage,
     testLanguage = Config.language,
@@ -542,10 +554,13 @@ export function shouldIgnoreVietnameseImeDelete(options: {
     return false;
   }
 
+  // A real Backspace can still arrive while Chrome reports isComposing=true.
+  // Treat a delete as IME-internal only when it is tied to a known Telex
+  // modifier key. This avoids leaving DOM/scorer state split after a genuine
+  // Backspace that happens during an active UniKey/EVKey composition.
   return (
-    isComposing ||
-    (activeKeyCode !== null &&
-      VIETNAMESE_TELEX_MODIFIER_CODES.has(activeKeyCode))
+    activeKeyCode !== null &&
+    VIETNAMESE_TELEX_MODIFIER_CODES.has(activeKeyCode)
   );
 }
 

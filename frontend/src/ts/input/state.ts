@@ -4,6 +4,7 @@ let awaitingNextWord = false;
 let lastBailoutAttempt = -1;
 let lastInsertCompositionTextData = "";
 let activePhysicalKeyCode: string | null = null;
+let pendingVietnameseCompositionSeparator: string | null = null;
 
 export function isCorrectShiftUsed(): boolean {
   return correctShiftUsed;
@@ -65,4 +66,14 @@ export function clearActivePhysicalKeyCode(code: string): void {
   if (activePhysicalKeyCode === code) {
     activePhysicalKeyCode = null;
   }
+}
+
+export function getPendingVietnameseCompositionSeparator(): string | null {
+  return pendingVietnameseCompositionSeparator;
+}
+
+export function setPendingVietnameseCompositionSeparator(
+  value: string | null,
+): void {
+  pendingVietnameseCompositionSeparator = value;
 }
