@@ -458,7 +458,7 @@ export function shouldIgnoreVietnameseImeDelete(options: {
   isComposing: boolean;
   activeKeyCode: string | null;
   inputLanguage?: typeof Config.inputLanguage;
-  testLanguage?: string;
+  testLanguage?: typeof Config.language;
 }): boolean {
   const {
     inputType,
