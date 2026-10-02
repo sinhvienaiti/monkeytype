@@ -1665,6 +1665,10 @@ describe("onInsertText - Vietnamese IME committed text", () => {
   });
 
   it("aborts composition replay when a replacement is rejected", async () => {
+    const performanceNow = vi
+      .spyOn(performance, "now")
+      .mockReturnValue(2010);
+
     replaceConfig({
       ...__testing.getConfig(),
       language: "vietnamese_5k",
@@ -1690,10 +1694,15 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     expect(insertEventsForWord(0).at(-1)?.data.data).toBe("á");
     expect(insertEventsForWord(0).at(-1)?.data.inputStopped).toBe(true);
     expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+    performanceNow.mockRestore();
   });
 
 
   it("applies a queued Space only after the native composition commit", async () => {
+    const performanceNow = vi
+      .spyOn(performance, "now")
+      .mockReturnValue(2110);
+
     replaceConfig({
       ...__testing.getConfig(),
       language: "vietnamese_5k",
@@ -1721,9 +1730,14 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     expect(getInput()).toBe("");
     expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
     expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+    performanceNow.mockRestore();
   });
 
   it("rejects a composition result that shrinks committed scorer text", async () => {
+    const performanceNow = vi
+      .spyOn(performance, "now")
+      .mockReturnValue(2210);
+
     replaceConfig({
       ...__testing.getConfig(),
       language: "vietnamese_5k",
@@ -1748,6 +1762,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     expect(getInput()).toBe("mụ");
     expect(insertEventsForWord(0)).toHaveLength(inputEventsBefore);
     expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+    performanceNow.mockRestore();
   });
 
 
