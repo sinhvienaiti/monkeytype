@@ -393,9 +393,9 @@ describe("Vietnamese IME helpers", () => {
   it("distinguishes IME-internal delete from a real Backspace intent", () => {
     const base = {
       inputType: "deleteContentBackward",
-      inputLanguage: "vietnamese" as const,
+      inputLanguage: "vietnamese",
       testLanguage: "vietnamese_5k",
-    };
+    } as const;
 
     // Telex rewrite: never delete scorer text.
     expect(
