@@ -27,6 +27,13 @@ vi.mock("../../../src/ts/input/input-element", () => ({
   blurInputElement: () => undefined,
 }));
 
+const mockImeState = vi.hoisted(() => ({
+  composing: false,
+  data: "",
+  compositionText: "",
+  lastInsertCompositionTextData: "",
+}));
+
 const mockState = vi.hoisted(() => ({
   activeWordIndex: 0,
   correctShiftUsed: true as boolean,
@@ -79,6 +86,9 @@ vi.mock("../../../src/ts/states/test", () => ({
   getCurrentQuote: () => null,
   getBailedOut: () => false,
   getKoreanStatus: () => false,
+  setCompositionText: (value: string) => {
+    mockImeState.compositionText = value;
+  },
 }));
 
 vi.mock("../../../src/ts/input/state", () => ({
@@ -87,6 +97,11 @@ vi.mock("../../../src/ts/input/state", () => ({
   incrementIncorrectShiftsInARow: () => undefined,
   resetIncorrectShiftsInARow: () => undefined,
   isAwaitingNextWord: () => false,
+  getLastInsertCompositionTextData: () =>
+    mockImeState.lastInsertCompositionTextData,
+  setLastInsertCompositionTextData: (value: string) => {
+    mockImeState.lastInsertCompositionTextData = value;
+  },
 }));
 
 vi.mock("../../../src/ts/test/custom-text", () => ({
@@ -115,8 +130,14 @@ vi.mock("../../../src/ts/states/notifications", () => ({
   showNoticeNotification: vi.fn(),
 }));
 vi.mock("../../../src/ts/legacy-states/composition", () => ({
-  getComposing: () => false,
-  getData: () => "",
+  getComposing: () => mockImeState.composing,
+  setComposing: (value: boolean) => {
+    mockImeState.composing = value;
+  },
+  getData: () => mockImeState.data,
+  setData: (value: string) => {
+    mockImeState.data = value;
+  },
 }));
 vi.mock("../../../src/ts/test/words-generator", () => ({
   areAllWordsGenerated: () => true,
@@ -234,6 +255,10 @@ function deletesForWord(
 describe("onInsertText - delete on error", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockImeState.composing = false;
+    mockImeState.data = "";
+    mockImeState.compositionText = "";
+    mockImeState.lastInsertCompositionTextData = "";
     resetTestEvents();
     TestWords.reset();
     mockState.activeWordIndex = 0;
@@ -1118,6 +1143,68 @@ describe("onInsertText - Vietnamese IME committed text", () => {
       incorrect: 0,
       percentage: 100,
     });
+  });
+
+  it("resets stale Vietnamese composition state after Backspace", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      stopOnError: "letter",
+      inputLanguage: "vietnamese",
+    });
+    pushWords("là", "next");
+
+    await type("l", 1000);
+    await type("a", 1001);
+    expect(getInput()).toBe("la");
+
+    // Simulate UniKey/EVKey still owning composition state when the browser
+    // applies Backspace.
+    mockImeState.composing = true;
+    mockImeState.data = "a";
+    mockImeState.compositionText = "a";
+    mockImeState.lastInsertCompositionTextData = "a";
+
+    setInput("l");
+    onDelete("deleteContentBackward", 1010);
+
+    expect(getInput()).toBe("l");
+    expect(mockImeState.composing).toBe(false);
+    expect(mockImeState.data).toBe("");
+    expect(mockImeState.compositionText).toBe("");
+    expect(mockImeState.lastInsertCompositionTextData).toBe("");
+
+    await type("a", 1020);
+    await type("f", 1030);
+
+    expect(getInput()).toBe("là");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+  });
+
+  it("can rebuild ư after deleting its provisional u", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: true,
+      inputLanguage: "vietnamese",
+    });
+    pushWords("ư", "next");
+
+    await type("u", 1000);
+    expect(getInput()).toBe("u");
+    expect(getLiveCachedAccuracy()).toBe(100);
+
+    setInput("");
+    onDelete("deleteContentBackward", 1010);
+    expect(getInput()).toBe("");
+
+    await type("u", 1020);
+    await type("w", 1030);
+
+    expect(getInput()).toBe("ư");
+    expect(getLiveCachedAccuracy()).toBe(100);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
   });
 
   it("still penalizes a real Backspace correction when forgiveness is disabled", async () => {

@@ -10,7 +10,33 @@ import {
   getCurrentInput,
   logTestEvent,
 } from "../../test/events/data";
-import { getActiveWordIndex } from "../../states/test";
+import {
+  getActiveWordIndex,
+  setCompositionText,
+} from "../../states/test";
+import * as CompositionState from "../../legacy-states/composition";
+import { setLastInsertCompositionTextData } from "../state";
+import {
+  normalizeCommittedText,
+  shouldUseVietnameseIme,
+} from "../helpers/util";
+
+function resetVietnameseImeAfterDelete(): void {
+  if (!shouldUseVietnameseIme()) return;
+
+  // Backspace is an explicit editing boundary. UniKey/EVKey may otherwise
+  // keep composition data that belongs to the pre-delete DOM and replay it on
+  // the next key/compositionend.
+  CompositionState.setComposing(false);
+  CompositionState.setData("");
+  setLastInsertCompositionTextData("");
+  setCompositionText("");
+
+  // The event log/scorer is authoritative after deletion/navigation. Rebuild
+  // the hidden textarea from it so the next IME event starts from the exact
+  // same prefix instead of a browser-side stale composition value.
+  setInputElementValue(normalizeCommittedText(getCurrentInput()));
+}
 
 export function onDelete(inputType: DeleteInputType, now: number): void {
   const { realInputValue } = getInputElementValue();
@@ -53,6 +79,7 @@ export function onDelete(inputType: DeleteInputType, now: number): void {
       inputValue: postNavInputValue,
     });
 
+    resetVietnameseImeAfterDelete();
     TestUI.afterTestDelete();
     return;
   }
@@ -90,5 +117,6 @@ export function onDelete(inputType: DeleteInputType, now: number): void {
     }
   }
 
+  resetVietnameseImeAfterDelete();
   TestUI.afterTestDelete();
 }

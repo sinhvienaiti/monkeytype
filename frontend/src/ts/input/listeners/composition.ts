@@ -98,63 +98,70 @@ inputEl.addEventListener("compositionend", async (event) => {
   let committedData = "";
 
   if (snapshot !== null && snapshot.wordIndex === getActiveWordIndex()) {
+    const scorerInput = normalizeCommittedText(getCurrentInput());
     const finalInputValue = normalizeCommittedText(
       getInputElementValue().inputValue,
     );
-    const derived = deriveCompositionCommit(
-      snapshot.committedPrefix,
-      finalInputValue,
-    );
 
-    if (derived === null) {
-      const currentWord = normalizeTargetText(
-        TestWords.words.getCurrent()?.textWithCommit ?? "",
-      );
-      const rewrites = deriveVietnameseImeRewrites(
+    // Backspace or another scorer edit may happen while the browser still
+    // owns the old composition. Do not replay that stale composition over the
+    // post-edit scorer state.
+    if (scorerInput !== snapshot.committedPrefix) {
+      setInputElementValue(scorerInput);
+    } else {
+      const derived = deriveCompositionCommit(
         snapshot.committedPrefix,
         finalInputValue,
-        currentWord,
       );
 
-      if (rewrites === null) {
-        // Unknown replacement: keep the scorer/event-log state authoritative.
-        setInputElementValue(normalizeCommittedText(getCurrentInput()));
-      } else {
-        const logicalChars = Array.from(snapshot.committedPrefix);
-        committedData = rewrites.map((rewrite) => rewrite.data).join("");
+      if (derived === null) {
+        const currentWord = normalizeTargetText(
+          TestWords.words.getCurrent()?.textWithCommit ?? "",
+        );
+        const rewrites = deriveVietnameseImeRewrites(
+          snapshot.committedPrefix,
+          finalInputValue,
+          currentWord,
+        );
 
-        for (let i = 0; i < rewrites.length; i++) {
-          const rewrite = rewrites[i] as (typeof rewrites)[number];
-          logicalChars[rewrite.charIndex] = rewrite.data;
-          setInputElementValue(logicalChars.join(""));
+        if (rewrites === null) {
+          // Unknown replacement: keep the scorer/event-log authoritative.
+          setInputElementValue(scorerInput);
+        } else {
+          const logicalChars = Array.from(snapshot.committedPrefix);
+          committedData = rewrites.map((rewrite) => rewrite.data).join("");
+
+          for (let i = 0; i < rewrites.length; i++) {
+            const rewrite = rewrites[i] as (typeof rewrites)[number];
+            logicalChars[rewrite.charIndex] = rewrite.data;
+            setInputElementValue(logicalChars.join(""));
+            await onInsertText({
+              data: rewrite.data,
+              now,
+              isCompositionEnding: true,
+              replacementCharIndex: rewrite.charIndex,
+              lastInMultiIndex: i === rewrites.length - 1,
+            });
+          }
+
+          setInputElementValue(finalInputValue);
+        }
+      } else {
+        committedData = derived;
+        // onInsertText expects the browser-applied value to already be
+        // present. Rebuild it from the committed scorer prefix + IME delta.
+        setInputElementValue(snapshot.committedPrefix + committedData);
+        if (committedData !== "") {
           await onInsertText({
-            data: rewrite.data,
+            data: committedData,
             now,
             isCompositionEnding: true,
-            replacementCharIndex: rewrite.charIndex,
-            lastInMultiIndex: i === rewrites.length - 1,
           });
         }
-
-        setInputElementValue(finalInputValue);
-      }
-    } else {
-      committedData = derived;
-      // onInsertText expects the browser-applied value to already be present.
-      // Rebuild it from the committed scorer prefix + the true IME delta so
-      // multi-code-point replay cannot delete an earlier committed prefix.
-      setInputElementValue(snapshot.committedPrefix + committedData);
-      if (committedData !== "") {
-        await onInsertText({
-          data: committedData,
-          now,
-          isCompositionEnding: true,
-        });
       }
     }
   } else {
-    // A word transition/restart happened during composition. Drop the stale
-    // composition and reconcile the hidden input to current scorer state.
+    // Word transition/restart during composition: discard stale browser state.
     setInputElementValue(normalizeCommittedText(getCurrentInput()));
   }
 
