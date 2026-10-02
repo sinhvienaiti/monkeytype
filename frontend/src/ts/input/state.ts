@@ -5,6 +5,7 @@ let lastBailoutAttempt = -1;
 let lastInsertCompositionTextData = "";
 let activePhysicalKeyCode: string | null = null;
 let pendingVietnameseCompositionSeparator: string | null = null;
+let lastBackspaceIntentAt = Number.NEGATIVE_INFINITY;
 
 export function isCorrectShiftUsed(): boolean {
   return correctShiftUsed;
@@ -76,4 +77,22 @@ export function setPendingVietnameseCompositionSeparator(
   value: string | null,
 ): void {
   pendingVietnameseCompositionSeparator = value;
+}
+
+const BACKSPACE_INTENT_WINDOW_MS = 750;
+
+export function markBackspaceIntent(now: number): void {
+  lastBackspaceIntentAt = now;
+}
+
+export function hasRecentBackspaceIntent(now: number): boolean {
+  return (
+    Number.isFinite(now) &&
+    now >= lastBackspaceIntentAt &&
+    now - lastBackspaceIntentAt <= BACKSPACE_INTENT_WINDOW_MS
+  );
+}
+
+export function clearBackspaceIntent(): void {
+  lastBackspaceIntentAt = Number.NEGATIVE_INFINITY;
 }

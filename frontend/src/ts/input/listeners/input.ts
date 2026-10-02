@@ -3,8 +3,10 @@ import { onInsertText } from "../handlers/insert-text";
 import { isSupportedInputType } from "../helpers/input-type";
 import { getInputElement, getInputElementValue } from "../input-element";
 import {
+  clearBackspaceIntent,
   getActivePhysicalKeyCode,
   getLastInsertCompositionTextData,
+  hasRecentBackspaceIntent,
   setLastInsertCompositionTextData,
   setPendingVietnameseCompositionSeparator,
 } from "../state";
@@ -85,6 +87,7 @@ inputEl.addEventListener("beforeinput", async (event) => {
       inputType,
       isComposing: event.isComposing,
       activeKeyCode: getActivePhysicalKeyCode(),
+      hasBackspaceIntent: hasRecentBackspaceIntent(event.timeStamp),
     });
     if (!internalImeDelete) {
       onBeforeDelete(event);
@@ -170,9 +173,11 @@ inputEl.addEventListener("input", async (event) => {
       inputType,
       isComposing: event.isComposing,
       activeKeyCode: getActivePhysicalKeyCode(),
+      hasBackspaceIntent: hasRecentBackspaceIntent(event.timeStamp),
     });
     if (!internalImeDelete) {
       onDelete(inputType, now);
+      clearBackspaceIntent();
     }
   } else if (
     inputType === "insertCompositionText" ||

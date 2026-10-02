@@ -7,6 +7,7 @@ import * as TestWords from "../test/test-words";
 import {
   getActivePhysicalKeyCode,
   getPendingVietnameseCompositionSeparator,
+  hasRecentBackspaceIntent,
 } from "./state";
 
 type ImeDebugPhase = "before" | "after";
@@ -33,6 +34,7 @@ export type ImeDebugEntry = {
     composing: boolean;
     data: string;
     activePhysicalKeyCode: string | null;
+    backspaceIntent: boolean;
     pendingSeparator: string | null;
   };
   config: {
@@ -196,6 +198,7 @@ export function recordImeDebugEvent(
       composing: CompositionState.getComposing(),
       data: CompositionState.getData() ?? "",
       activePhysicalKeyCode: getActivePhysicalKeyCode(),
+      backspaceIntent: hasRecentBackspaceIntent(performance.now()),
       pendingSeparator: getPendingVietnameseCompositionSeparator(),
     },
     config: {

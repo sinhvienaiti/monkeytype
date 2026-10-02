@@ -390,62 +390,74 @@ describe("Vietnamese IME helpers", () => {
     ).toBeNull();
   });
 
-  it("distinguishes IME-internal delete from a real Backspace", () => {
+  it("distinguishes IME-internal delete from a real Backspace intent", () => {
+    const base = {
+      inputType: "deleteContentBackward",
+      inputLanguage: "vietnamese" as const,
+      testLanguage: "vietnamese_5k",
+    };
+
+    // Telex rewrite: never delete scorer text.
     expect(
       shouldIgnoreVietnameseImeDelete({
-        inputType: "deleteContentBackward",
+        ...base,
         isComposing: true,
         activeKeyCode: "KeyF",
-        inputLanguage: "vietnamese",
-        testLanguage: "vietnamese_5k",
+        hasBackspaceIntent: false,
       }),
     ).toBe(true);
 
-    expect(
-      shouldIgnoreVietnameseImeDelete({
-        inputType: "deleteContentBackward",
-        isComposing: true,
-        activeKeyCode: "Backspace",
-        inputLanguage: "vietnamese",
-        testLanguage: "vietnamese_5k",
-      }),
-    ).toBe(false);
+    // The reported issue: UniKey may emit an internal delete while a random
+    // key/null/Unidentified is active. As long as there was no Backspace
+    // keydown intent, the scorer must not move from "mụ" back to "m".
+    for (const activeKeyCode of [null, "Unidentified", "KeyQ"]) {
+      expect(
+        shouldIgnoreVietnameseImeDelete({
+          ...base,
+          isComposing: true,
+          activeKeyCode,
+          hasBackspaceIntent: false,
+        }),
+      ).toBe(true);
+    }
 
+    // A real Backspace remains real even if Chrome delays its delete event
+    // until the active key is already null or composition is still true.
     expect(
       shouldIgnoreVietnameseImeDelete({
-        inputType: "deleteContentBackward",
-        isComposing: false,
-        activeKeyCode: "KeyW",
-        inputLanguage: "vietnamese",
-        testLanguage: "vietnamese_5k",
-      }),
-    ).toBe(true);
-
-    expect(
-      shouldIgnoreVietnameseImeDelete({
-        inputType: "deleteContentBackward",
+        ...base,
         isComposing: true,
         activeKeyCode: null,
-        inputLanguage: "vietnamese",
-        testLanguage: "vietnamese_5k",
+        hasBackspaceIntent: true,
       }),
     ).toBe(false);
 
     expect(
       shouldIgnoreVietnameseImeDelete({
-        inputType: "deleteContentBackward",
+        ...base,
         isComposing: true,
-        activeKeyCode: "Unidentified",
-        inputLanguage: "vietnamese",
-        testLanguage: "vietnamese_5k",
+        activeKeyCode: "Backspace",
+        hasBackspaceIntent: false,
       }),
     ).toBe(false);
 
+    // Telex modifier rewrites can also happen outside isComposing.
+    expect(
+      shouldIgnoreVietnameseImeDelete({
+        ...base,
+        isComposing: false,
+        activeKeyCode: "KeyW",
+        hasBackspaceIntent: false,
+      }),
+    ).toBe(true);
+
+    // English direct input is untouched.
     expect(
       shouldIgnoreVietnameseImeDelete({
         inputType: "deleteContentBackward",
         isComposing: true,
         activeKeyCode: "KeyF",
+        hasBackspaceIntent: false,
         inputLanguage: "english",
         testLanguage: "english",
       }),

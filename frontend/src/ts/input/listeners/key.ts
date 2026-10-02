@@ -4,6 +4,7 @@ import { onKeydown } from "../handlers/keydown";
 import { recordImeDebugEvent } from "../ime-debug";
 import {
   clearActivePhysicalKeyCode,
+  markBackspaceIntent,
   setActivePhysicalKeyCode,
 } from "../state";
 
@@ -23,6 +24,9 @@ inputEl.addEventListener("keyup", async (event) => {
 });
 
 inputEl.addEventListener("keydown", async (event) => {
+  if (event.code === "Backspace") {
+    markBackspaceIntent(event.timeStamp);
+  }
   setActivePhysicalKeyCode(event.code);
   recordImeDebugEvent("keydown", "before", event);
   console.debug("wordsInput event keydown", {

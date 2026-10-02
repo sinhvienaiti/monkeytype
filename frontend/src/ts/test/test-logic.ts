@@ -133,6 +133,7 @@ import { EventLog } from "./events/types";
 import { resetModifierState } from "../states/modifiers";
 import { nthElementFromArray } from "../utils/arrays";
 import {
+  clearBackspaceIntent,
   setActivePhysicalKeyCode,
   setPendingVietnameseCompositionSeparator,
 } from "../input/state";
@@ -299,6 +300,7 @@ export async function restart(options = {} as RestartOptions): Promise<void> {
   TestTimer.clear();
   setIsTestInvalid(false);
   resetModifierState();
+  clearBackspaceIntent();
   setActivePhysicalKeyCode(null);
   setPendingVietnameseCompositionSeparator(null);
   setTestActive(false);

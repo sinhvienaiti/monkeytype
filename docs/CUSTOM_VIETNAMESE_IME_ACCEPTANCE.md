@@ -42,6 +42,8 @@ Test both reference environments with:
 - `quick end`: off/on.
 - Backspace inside the current word.
 - Backspace while the browser still reports an active Vietnamese composition.
+- Real Backspace is identified from its own keydown intent, even when Chrome delays the delete event until after keyup.
+- IME-internal deleteContentBackward during composition must never delete scorer text when no Backspace intent exists, including after a wrong Vietnamese character followed by random keys.
 - Backspace to the previous word, then add a missing Vietnamese tone.
 - Backspace on the last word of a visual line, then retype a Vietnamese tone/shape.
 - Space arriving before compositionend must not discard the still-pending word text.
@@ -88,7 +90,7 @@ The copied JSON contains:
 - beforeinput/input;
 - compositionstart/compositionupdate/compositionend;
 - `data`, `inputType`, and `isComposing`;
-- active physical key code and any pending Vietnamese separator;
+- active physical key code, recent Backspace intent, and any pending Vietnamese separator;
 - textarea DOM value and caret;
 - scorer value and target word;
 - active word index and live accuracy;
