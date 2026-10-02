@@ -65,6 +65,7 @@ export function onDelete(inputType: DeleteInputType, now: number): void {
   // In that case committed DOM text is unchanged. Reset stale IME state, but
   // do not emit a scorer delete event for a character that was never deleted.
   if (
+    realInputValue !== "" &&
     shouldUseVietnameseIme() &&
     normalizeCommittedText(inputAfterDelete) ===
       normalizeCommittedText(inputBeforeDelete)
