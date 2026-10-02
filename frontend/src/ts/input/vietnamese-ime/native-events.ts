@@ -7,12 +7,7 @@ import * as TestLogic from "../../test/test-logic";
 import { setLastInsertCompositionTextData } from "../state";
 import { onInsertText } from "../handlers/insert-text";
 import { getCurrentInput, logTestEvent } from "../../test/events/data";
-import {
-  deriveVietnameseImeRewrites,
-  normalizeCommittedText,
-  normalizeTargetText,
-} from "../helpers/util";
-import * as TestWords from "../../test/test-words";
+import { normalizeCommittedText } from "../helpers/util";
 import { recordImeDebugEvent } from "../ime-debug";
 import { isSpace } from "../../utils/strings";
 import {
@@ -137,50 +132,50 @@ export async function onVietnameseCompositionEnd(
         source: "composition",
       });
 
-      const prefixLength = Array.from(session.committedPrefix).length;
-      if (
-        transaction?.start === prefixLength &&
-        transaction.deleteCount === 0
-      ) {
-        committedData = transaction.insertText;
-        setInputElementValue(transaction.after);
-        if (committedData !== "") {
-          await onInsertText({
-            data: committedData,
-            now,
-            isCompositionEnding: true,
-          });
-        }
-      } else if (transaction !== null) {
-        const currentWord = normalizeTargetText(
-          TestWords.words.getCurrent()?.textWithCommit ?? "",
-        );
-        const rewrites = deriveVietnameseImeRewrites(
-          session.committedPrefix,
-          finalInputValue,
-          currentWord,
+      if (transaction !== null) {
+        const beforeChars = Array.from(transaction.before);
+        const insertChars = Array.from(transaction.insertText);
+        const replaceCount = Math.min(
+          transaction.deleteCount,
+          insertChars.length,
         );
 
-        if (rewrites === null) {
+        if (transaction.deleteCount > insertChars.length) {
+          // Native mode never invents deletions the browser did not commit
+          // through Monkeytype. Keep scorer/event-log state authoritative.
           setInputElementValue(scorerInput);
         } else {
-          const logicalChars = Array.from(session.committedPrefix);
-          committedData = rewrites.map((rewrite) => rewrite.data).join("");
+          const logicalChars = [...beforeChars];
 
-          for (let i = 0; i < rewrites.length; i++) {
-            const rewrite = rewrites[i] as (typeof rewrites)[number];
-            logicalChars[rewrite.charIndex] = rewrite.data;
+          for (let i = 0; i < replaceCount; i++) {
+            const charIndex = transaction.start + i;
+            const data = insertChars[i] as string;
+            logicalChars[charIndex] = data;
             setInputElementValue(logicalChars.join(""));
             await onInsertText({
-              data: rewrite.data,
+              data,
               now,
               isCompositionEnding: true,
-              replacementCharIndex: rewrite.charIndex,
-              lastInMultiIndex: i === rewrites.length - 1,
+              replacementCharIndex: charIndex,
+              lastInMultiIndex:
+                i === insertChars.length - 1 && replaceCount === insertChars.length,
             });
           }
 
-          setInputElementValue(finalInputValue);
+          for (let i = replaceCount; i < insertChars.length; i++) {
+            const data = insertChars[i] as string;
+            logicalChars.splice(transaction.start + i, 0, data);
+            setInputElementValue(logicalChars.join(""));
+            await onInsertText({
+              data,
+              now,
+              isCompositionEnding: true,
+              lastInMultiIndex: i === insertChars.length - 1,
+            });
+          }
+
+          committedData = transaction.insertText;
+          setInputElementValue(transaction.after);
         }
       }
     }
