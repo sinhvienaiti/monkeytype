@@ -253,8 +253,7 @@ function submitAnswer(): void {
   const submit = byId<HTMLButtonElement>("richPracticeSubmit");
   const next = byId<HTMLButtonElement>("richPracticeNext");
   if (
-    item === null ||
-    item.kind !== "exercise" ||
+    item?.kind !== "exercise" ||
     input === null ||
     submit === null ||
     next === null ||
@@ -300,8 +299,7 @@ function revealHint(): void {
   const item = currentItem();
   const hint = byId<HTMLElement>("richPracticeHint");
   if (
-    item === null ||
-    item.kind !== "exercise" ||
+    item?.kind !== "exercise" ||
     hint === null ||
     attemptRecorded
   ) {
