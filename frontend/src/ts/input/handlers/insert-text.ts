@@ -40,9 +40,11 @@ import {
   logTestEvent,
 } from "../../test/events/data";
 import {
+  deriveVietnameseDirectInsert,
   deriveVietnameseImeRewrites,
   deriveVietnamesePhysicalRewrites,
   getCommitCharacterType,
+  hasVietnameseImeProvisionalMismatch,
   isVietnameseImeProvisionalCharacter,
   normalizeCommittedText,
   normalizeData,
@@ -278,6 +280,21 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
       ? testInput
       : Array.from(testInput).slice(0, replacementCharIndex).join("");
 
+  if (
+    replacementCharIndex === undefined &&
+    isCompositionEnding !== true &&
+    automatic !== true
+  ) {
+    const directData = deriveVietnameseDirectInsert(
+      testInput,
+      inputValue,
+      currentWord,
+    );
+    if (directData !== null && directData !== options.data) {
+      options = { ...options, data: directData };
+    }
+  }
+
   // onBeforeInsertText normally catches this before the DOM value changes.
   // Keep this defensive guard for composition/emulated paths that can reach
   // the handler with a character already appended.
@@ -335,14 +352,13 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     correctShiftUsed,
   });
 
-  // A separator cannot be considered correct while an earlier Vietnamese
-  // character is still only provisional. Otherwise "la " could slip past a
-  // stop-on-error test that actually expects "là ".
-  const prematureCommit =
-    Config.stopOnError !== "off" &&
+  // A separator materializes any still-provisional Vietnamese character as
+  // a real mistake. With stop-on-error off the word may still advance, but
+  // accuracy must not stay perfect for "la " when the target is "là ".
+  const unresolvedVietnameseCommit =
     commitCharacterType === "separator" &&
-    testInput !== currentWordText;
-  if (prematureCommit) {
+    hasVietnameseImeProvisionalMismatch(testInput, currentWordText);
+  if (unresolvedVietnameseCommit) {
     correct = false;
   }
 
@@ -539,6 +555,10 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     ) {
       TestLogic.fail("min burst");
     } else if (
+      !hasVietnameseImeProvisionalMismatch(
+        testInputAfterEvent,
+        currentWordText,
+      ) &&
       checkIfFinished({
         goingToNextWord,
         testInputWithData: testInputAfterEvent,

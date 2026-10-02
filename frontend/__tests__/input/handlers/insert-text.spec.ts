@@ -149,6 +149,7 @@ import { getLiveCachedAccuracy } from "../../../src/ts/test/events/live-cache";
 import { words as TestWords } from "../../../src/ts/test/test-words";
 import { __testing } from "../../../src/ts/config/testing";
 import { DeleteInputType } from "../../../src/ts/input/helpers/input-type";
+import * as TestLogic from "../../../src/ts/test/test-logic";
 
 const { replaceConfig } = __testing;
 
@@ -1059,6 +1060,86 @@ describe("onInsertText - Vietnamese IME committed text", () => {
         (event) => event.data.replacesChar === true,
       ),
     ).toBe(false);
+  });
+
+  it("counts an unresolved Vietnamese provisional as an error on word commit", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      stopOnError: "off",
+      deleteOnError: "off",
+      inputLanguage: "vietnamese",
+    });
+    pushWords("là", "next");
+
+    await type("l", 1000);
+    await type("a", 1001);
+    expect(getLiveCachedAccuracy()).toBe(100);
+
+    await type(" ", 1002);
+
+    expect(mockState.activeWordIndex).toBe(1);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
+    expect(getLiveCachedAccuracy()).toBeLessThan(100);
+  });
+
+  it("does not quick-end the last word while a Vietnamese accent is pending", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      quickEnd: true,
+      stopOnError: "off",
+      deleteOnError: "off",
+      inputLanguage: "vietnamese",
+    });
+    pushWords("là");
+
+    await type("l", 1000);
+    await type("a", 1001);
+
+    expect(TestLogic.finish).not.toHaveBeenCalled();
+
+    await type("f", 1002);
+
+    expect(getInput()).toBe("là");
+    expect(TestLogic.finish).toHaveBeenCalledTimes(1);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+  });
+
+  it("accepts a browser-transformed direct append such as w -> ư", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      stopOnError: "letter",
+      inputLanguage: "vietnamese",
+    });
+    pushWords("ư", "next");
+
+    setInput("ư");
+    await onInsertText({ data: "w", now: 1000 });
+
+    expect(getInput()).toBe("ư");
+    expect(getAccuracy(buildEventLog())).toEqual({
+      correct: 1,
+      incorrect: 0,
+      percentage: 100,
+    });
+  });
+
+  it("keeps English quick-end behavior unchanged", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      language: "english",
+      inputLanguage: "auto",
+      quickEnd: true,
+      stopOnError: "off",
+      deleteOnError: "off",
+    });
+    pushWords("cat");
+
+    await type("c", 1000);
+    await type("x", 1001);
+    await type("t", 1002);
+
+    expect(TestLogic.finish).toHaveBeenCalledTimes(1);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
   });
 
   it("still penalizes a real Backspace correction when forgiveness is disabled", async () => {

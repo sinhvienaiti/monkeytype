@@ -407,6 +407,78 @@ export type VietnameseImeRewrite = {
   data: string;
 };
 
+export function hasVietnameseImeProvisionalMismatch(
+  input: string,
+  targetWord: string,
+  inputLanguage = Config.inputLanguage,
+  testLanguage = Config.language,
+): boolean {
+  if (!shouldUseVietnameseIme(inputLanguage, testLanguage)) return false;
+
+  const inputChars = Array.from(
+    normalizeCommittedText(input, inputLanguage, testLanguage),
+  );
+  const targetChars = Array.from(
+    normalizeTargetText(targetWord, inputLanguage, testLanguage),
+  );
+
+  return inputChars.some((inputChar, index) => {
+    const targetChar = targetChars[index];
+    return (
+      targetChar !== undefined &&
+      inputChar !== targetChar &&
+      isVietnameseImeProvisionalCharacter(
+        inputChar,
+        targetChar,
+        inputLanguage,
+        testLanguage,
+      )
+    );
+  });
+}
+
+/**
+ * Some IMEs expose a transformed Unicode character in the textarea while
+ * InputEvent.data still contains the physical key. This covers append-shaped
+ * transformations (same prefix, one new Unicode character).
+ */
+export function deriveVietnameseDirectInsert(
+  scoredInput: string,
+  domInput: string,
+  targetWord: string,
+  inputLanguage = Config.inputLanguage,
+  testLanguage = Config.language,
+): string | null {
+  if (!shouldUseVietnameseIme(inputLanguage, testLanguage)) return null;
+
+  const before = normalizeCommittedText(
+    scoredInput,
+    inputLanguage,
+    testLanguage,
+  );
+  const after = normalizeCommittedText(domInput, inputLanguage, testLanguage);
+  if (!after.startsWith(before)) return null;
+
+  const data = after.slice(before.length);
+  if (Array.from(data).length !== 1) return null;
+
+  const charIndex = Array.from(before).length;
+  const targetChar = Array.from(
+    normalizeTargetText(targetWord, inputLanguage, testLanguage),
+  )[charIndex];
+  if (targetChar === undefined) return null;
+
+  return data === targetChar ||
+    isVietnameseImeProvisionalCharacter(
+      data,
+      targetChar,
+      inputLanguage,
+      testLanguage,
+    )
+    ? data
+    : null;
+}
+
 /**
  * Detect a Windows Vietnamese IME rewrite by comparing the scorer snapshot
  * with the browser DOM. UniKey/EVKey can change an already committed character

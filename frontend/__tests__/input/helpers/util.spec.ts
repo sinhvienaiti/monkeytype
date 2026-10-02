@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   deriveCompositionCommit,
+  deriveVietnameseDirectInsert,
   deriveVietnameseImeRewrite,
   deriveVietnameseImeRewrites,
   deriveVietnamesePhysicalRewrites,
   deriveVietnameseTelexRewrite,
   getCommitCharacterType,
+  hasVietnameseImeProvisionalMismatch,
   isVietnameseImeProvisionalCharacter,
   normalizeCommittedText,
   normalizeTargetText,
@@ -312,6 +314,49 @@ describe("Vietnamese IME helpers", () => {
         "ra",
         "w",
         "rằng",
+        "english",
+        "vietnamese",
+      ),
+    ).toBeNull();
+  });
+
+  it("detects a pending Vietnamese provisional mismatch", () => {
+    expect(
+      hasVietnameseImeProvisionalMismatch(
+        "rang",
+        "rằng",
+        "vietnamese",
+        "english",
+      ),
+    ).toBe(true);
+    expect(
+      hasVietnameseImeProvisionalMismatch(
+        "rằng",
+        "rằng",
+        "vietnamese",
+        "english",
+      ),
+    ).toBe(false);
+  });
+
+  it("derives a transformed direct append from the browser DOM", () => {
+    expect(
+      deriveVietnameseDirectInsert(
+        "",
+        "ư",
+        "ừ",
+        "vietnamese",
+        "english",
+      ),
+    ).toBe("ư");
+  });
+
+  it("does not derive Vietnamese direct append in English mode", () => {
+    expect(
+      deriveVietnameseDirectInsert(
+        "",
+        "ư",
+        "ư",
         "english",
         "vietnamese",
       ),
