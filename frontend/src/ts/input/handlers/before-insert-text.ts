@@ -20,7 +20,9 @@ import {
   normalizeCommittedText,
   normalizeData,
   normalizeTargetText,
+  shouldUseVietnameseIme,
 } from "../helpers/util";
+import { hasOnlyVietnameseImeCorrectableMismatches } from "../vietnamese-ime/provisional";
 import { getCurrentInput } from "../../test/events/data";
 import { isSpace } from "../../utils/strings";
 
@@ -66,10 +68,22 @@ export function onBeforeInsertText(data: string): boolean {
 
   const scorerInput = normalizeCommittedText(getCurrentInput());
 
+  const hasUnresolvedError = hasUnresolvedInputError(
+    scorerInput,
+    currentWordTextWithCommit,
+  );
+  const imeCanStillCorrectError =
+    shouldUseVietnameseIme() &&
+    hasOnlyVietnameseImeCorrectableMismatches(
+      scorerInput,
+      currentWordTextWithCommit,
+    );
+
   if (
     Config.stopOnError === "letter" &&
     Config.stopOnErrorKeepFirstError &&
-    hasUnresolvedInputError(scorerInput, currentWordTextWithCommit)
+    hasUnresolvedError &&
+    !imeCanStillCorrectError
   ) {
     return true;
   }
