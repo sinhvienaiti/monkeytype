@@ -18,6 +18,7 @@ import {
 } from "../../states/test";
 import { getCurrentInput } from "../../test/events/data";
 import { areAllWordsGenerated } from "../../test/words-generator";
+import { recordImeDebugEvent } from "../ime-debug";
 import {
   normalizeCommittedText,
   normalizeTargetText,
@@ -27,6 +28,7 @@ import {
 const inputEl = getInputElement();
 
 inputEl.addEventListener("beforeinput", async (event) => {
+  recordImeDebugEvent("beforeinput", "before", event);
   if (!(event instanceof InputEvent)) {
     //beforeinput is typed as inputevent but input is not?
     //@ts-expect-error just doing this as a sanity check
@@ -43,6 +45,7 @@ inputEl.addEventListener("beforeinput", async (event) => {
 
   if (!isSupportedInputType(event.inputType)) {
     event.preventDefault();
+    recordImeDebugEvent("beforeinput", "after", event);
     return;
   }
 
@@ -78,9 +81,12 @@ inputEl.addEventListener("beforeinput", async (event) => {
   } else {
     throw new Error(`Unhandled beforeinput type: ${inputType}`);
   }
+
+  recordImeDebugEvent("beforeinput", "after", event);
 });
 
 inputEl.addEventListener("input", async (event) => {
+  recordImeDebugEvent("input", "before", event);
   if (!(event instanceof InputEvent)) {
     //since the listener is on an input element, this should never trigger
     //but its here to narrow the type of "event"
@@ -165,4 +171,6 @@ inputEl.addEventListener("input", async (event) => {
   } else {
     throw new Error(`Unhandled input type: ${inputType}`);
   }
+
+  recordImeDebugEvent("input", "after", event);
 });

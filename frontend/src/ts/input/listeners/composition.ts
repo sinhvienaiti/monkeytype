@@ -15,6 +15,7 @@ import {
   normalizeTargetText,
 } from "../helpers/util";
 import * as TestWords from "../../test/test-words";
+import { recordImeDebugEvent } from "../ime-debug";
 import {
   isTestRestarting,
   getActiveWordIndex,
@@ -33,6 +34,7 @@ type CompositionSnapshot = {
 let compositionSnapshot: CompositionSnapshot | null = null;
 
 inputEl.addEventListener("compositionstart", (event) => {
+  recordImeDebugEvent("compositionstart", "before", event);
   console.debug("wordsInput event compositionstart", {
     event,
     data: event.data,
@@ -56,9 +58,11 @@ inputEl.addEventListener("compositionstart", (event) => {
     event: "start",
     wordIndex: getActiveWordIndex(),
   });
+  recordImeDebugEvent("compositionstart", "after", event);
 });
 
 inputEl.addEventListener("compositionupdate", (event) => {
+  recordImeDebugEvent("compositionupdate", "before", event);
   console.debug("wordsInput event compositionupdate", {
     event,
     data: event.data,
@@ -75,9 +79,11 @@ inputEl.addEventListener("compositionupdate", (event) => {
     data: event.data,
     wordIndex: getActiveWordIndex(),
   });
+  recordImeDebugEvent("compositionupdate", "after", event);
 });
 
 inputEl.addEventListener("compositionend", async (event) => {
+  recordImeDebugEvent("compositionend", "before", event);
   console.debug("wordsInput event compositionend", { event, data: event.data });
 
   if (isTestRestarting() || isResultCalculating()) return;
@@ -157,4 +163,5 @@ inputEl.addEventListener("compositionend", async (event) => {
     data: committedData,
     wordIndex: getActiveWordIndex(),
   });
+  recordImeDebugEvent("compositionend", "after", event);
 });

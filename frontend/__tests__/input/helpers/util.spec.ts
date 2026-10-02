@@ -374,6 +374,53 @@ describe("Vietnamese IME helpers", () => {
     ).toBeNull();
   });
 
+  it("models Windows Chrome + UniKey 4.0 RC2 direct Telex replacement", () => {
+    expect(
+      deriveVietnamesePhysicalRewrites(
+        "ra",
+        "w",
+        "rằng",
+        "vietnamese",
+        "vietnamese_5k",
+      ),
+    ).toEqual([{ charIndex: 1, from: "a", data: "ă" }]);
+
+    expect(
+      deriveVietnamesePhysicalRewrites(
+        "răng",
+        "f",
+        "rằng",
+        "vietnamese",
+        "vietnamese_5k",
+      ),
+    ).toEqual([{ charIndex: 1, from: "ă", data: "ằ" }]);
+  });
+
+  it("models macOS Chrome + EVKey 3.3.10 composition rewrites", () => {
+    expect(
+      deriveVietnameseImeRewrites(
+        "phe",
+        "phé",
+        "phép",
+        "vietnamese",
+        "vietnamese_5k",
+      ),
+    ).toEqual([{ charIndex: 2, from: "e", data: "é" }]);
+
+    expect(
+      deriveVietnameseImeRewrites(
+        "nguo",
+        "ngươ",
+        "người",
+        "vietnamese",
+        "vietnamese_5k",
+      ),
+    ).toEqual([
+      { charIndex: 2, from: "u", data: "ư" },
+      { charIndex: 3, from: "o", data: "ơ" },
+    ]);
+  });
+
   it.each([
     ["T", "Tô", "ô"],
     ["", "o\u0302", "ô"],
