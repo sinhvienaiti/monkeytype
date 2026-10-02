@@ -1566,7 +1566,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     await type("á", 1001);
     expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
 
-    await type("f", 1002);
+    await commitNativeDomRewrite("f", "là", 1002);
 
     expect(getInput()).toBe("là");
     expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
