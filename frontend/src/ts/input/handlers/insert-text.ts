@@ -59,7 +59,6 @@ import { getAsciiTargetRestore } from "../vietnamese-ime/ascii-guard";
 import { createVietnameseCommitTransaction } from "../vietnamese-ime/transaction";
 import {
   findFirstVietnameseImeProvisionalMismatch,
-  hasOnlyVietnameseImeCorrectableMismatches,
   isVietnameseImeBoundary,
   isVietnameseImeProvisionalCharacter,
 } from "../vietnamese-ime/provisional";
@@ -171,10 +170,7 @@ function materializeVietnameseProvisionalError(options: {
   inputValue: string;
   targetWord: string;
 }): boolean {
-  if (
-    !shouldUseVietnameseIme() ||
-    Config.stopOnError !== "letter"
-  ) {
+  if (!shouldUseVietnameseIme()) {
     return false;
   }
 
@@ -203,7 +199,6 @@ function materializeVietnameseProvisionalError(options: {
   if (!accuracyIgnored) {
     WeakSpot.updateScore(mismatch.inputChar, false);
   }
-  TestUI.afterTestTextInput(false, undefined, false);
   return true;
 }
 
@@ -289,7 +284,7 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
   // If the user tries to cross a boundary before that rewrite arrives, turn
   // the provisional character into one real stopped error and keep the
   // separator out of the DOM.
-  if (
+  const materializedVietnameseBoundaryError =
     options.replacementCharIndex === undefined &&
     isCompositionEnding !== true &&
     automatic !== true &&
@@ -298,9 +293,19 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
       now,
       inputValue: testInput,
       targetWord: currentWord,
-    })
+    });
+
+  if (
+    materializedVietnameseBoundaryError &&
+    (Config.stopOnError !== "off" || Config.deleteOnError !== "off")
   ) {
     setInputElementValue(testInput);
+
+    if (Config.deleteOnError !== "off") {
+      handleDeleteOnError(now);
+    }
+
+    TestUI.afterTestTextInput(false, undefined, false);
     return;
   }
 
@@ -439,11 +444,7 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     replacementCharIndex === undefined &&
     Config.stopOnError === "letter" &&
     Config.stopOnErrorKeepFirstError &&
-    hasUnresolvedInputError(testInput, currentWord) &&
-    !(
-      shouldUseVietnameseIme() &&
-      hasOnlyVietnameseImeCorrectableMismatches(testInput, currentWord)
-    )
+    hasUnresolvedInputError(testInput, currentWord)
   ) {
     replaceInputElementLastValueChar("");
     return;
