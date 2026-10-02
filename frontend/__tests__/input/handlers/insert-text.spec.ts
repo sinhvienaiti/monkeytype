@@ -183,7 +183,10 @@ import {
   onVietnameseCompositionEnd,
   onVietnameseCompositionStart,
 } from "../../../src/ts/input/vietnamese-ime/native-events";
-import { queueVietnameseImeSeparator } from "../../../src/ts/input/vietnamese-ime/state";
+import {
+  invalidateVietnameseImeSession,
+  queueVietnameseImeSeparator,
+} from "../../../src/ts/input/vietnamese-ime/state";
 
 const { replaceConfig } = __testing;
 
@@ -749,7 +752,14 @@ describe("onInsertText - keep first wrong letter", () => {
 
 describe("onInsertText - Vietnamese IME committed text", () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
     vi.clearAllMocks();
+    mockImeState.composing = false;
+    mockImeState.data = "";
+    mockImeState.compositionText = "";
+    mockImeState.lastInsertCompositionTextData = "";
+    mockImeState.revision = 0;
+    invalidateVietnameseImeSession();
     resetTestEvents();
     TestWords.reset();
     mockState.activeWordIndex = 0;
@@ -1665,6 +1675,10 @@ describe("onInsertText - Vietnamese IME committed text", () => {
   });
 
   it("aborts composition replay when a replacement is rejected", async () => {
+    const performanceNow = vi
+      .spyOn(performance, "now")
+      .mockReturnValue(2010);
+
     replaceConfig({
       ...__testing.getConfig(),
       language: "vietnamese_5k",
@@ -1690,10 +1704,15 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     expect(insertEventsForWord(0).at(-1)?.data.data).toBe("á");
     expect(insertEventsForWord(0).at(-1)?.data.inputStopped).toBe(true);
     expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+    performanceNow.mockRestore();
   });
 
 
   it("applies a queued Space only after the native composition commit", async () => {
+    const performanceNow = vi
+      .spyOn(performance, "now")
+      .mockReturnValue(2110);
+
     replaceConfig({
       ...__testing.getConfig(),
       language: "vietnamese_5k",
@@ -1721,9 +1740,14 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     expect(getInput()).toBe("");
     expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
     expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+    performanceNow.mockRestore();
   });
 
   it("rejects a composition result that shrinks committed scorer text", async () => {
+    const performanceNow = vi
+      .spyOn(performance, "now")
+      .mockReturnValue(2210);
+
     replaceConfig({
       ...__testing.getConfig(),
       language: "vietnamese_5k",
@@ -1748,6 +1772,31 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     expect(getInput()).toBe("mụ");
     expect(insertEventsForWord(0)).toHaveLength(inputEventsBefore);
     expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+    performanceNow.mockRestore();
+  });
+
+
+  it("ignores a native physical-key event when the DOM committed no text", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      language: "vietnamese_5k",
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+      stopOnError: "letter",
+    });
+    pushWords("rằng", "next");
+
+    await type("r", 2300);
+    const eventsBefore = insertEventsForWord(0).length;
+
+    // A Telex modifier can surface as insertText even though the IME keeps it
+    // internal and the textarea remains unchanged. It must not be scored.
+    setInput("r");
+    await onInsertText({ data: "w", now: 2310 });
+
+    expect(getInput()).toBe("r");
+    expect(insertEventsForWord(0)).toHaveLength(eventsBefore);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
   });
 
 });

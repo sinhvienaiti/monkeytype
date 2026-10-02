@@ -24,7 +24,88 @@ import {
   getVietnameseImeSession,
   takeVietnameseImeSeparator,
 } from "./state";
-import { createVietnameseCommitTransaction } from "./transaction";
+import {
+  createVietnameseCommitTransaction,
+  type VietnameseCommitTransaction,
+} from "./transaction";
+
+async function replayNativeCompositionTransaction(
+  transaction: VietnameseCommitTransaction,
+  now: number,
+  wordIndex: number,
+): Promise<string> {
+  const insertChars = Array.from(transaction.insertText);
+
+  // Composition/input events may rewrite committed text, but deletion of
+  // committed scorer state is accepted only through an explicit delete event.
+  if (transaction.deleteCount > insertChars.length) {
+    setInputElementValue(normalizeCommittedText(getCurrentInput()));
+    return "";
+  }
+
+  const logicalChars = Array.from(transaction.before);
+  const replaceCount = transaction.deleteCount;
+  let committedData = "";
+
+  for (let i = 0; i < replaceCount; i++) {
+    const charIndex = transaction.start + i;
+    const data = insertChars[i] as string;
+    logicalChars[charIndex] = data;
+    const expectedInput = logicalChars.join("");
+
+    setInputElementValue(expectedInput);
+    await onInsertText({
+      data,
+      now,
+      isCompositionEnding: true,
+      replacementCharIndex: charIndex,
+      nativeImeCommit: true,
+      lastInMultiIndex:
+        i === insertChars.length - 1 &&
+        replaceCount === insertChars.length,
+    });
+
+    const scorerAfterStep = normalizeCommittedText(getCurrentInput());
+    if (
+      getActiveWordIndex() !== wordIndex ||
+      scorerAfterStep !== expectedInput
+    ) {
+      setInputElementValue(scorerAfterStep);
+      return committedData;
+    }
+
+    committedData += data;
+  }
+
+  for (let i = replaceCount; i < insertChars.length; i++) {
+    const data = insertChars[i] as string;
+    logicalChars.splice(transaction.start + i, 0, data);
+    const expectedInput = logicalChars.join("");
+
+    setInputElementValue(expectedInput);
+    await onInsertText({
+      data,
+      now,
+      isCompositionEnding: true,
+      nativeImeCommit: true,
+      lastInMultiIndex: i === insertChars.length - 1,
+    });
+
+    const scorerAfterStep = normalizeCommittedText(getCurrentInput());
+    if (
+      getActiveWordIndex() !== wordIndex ||
+      scorerAfterStep !== expectedInput
+    ) {
+      setInputElementValue(scorerAfterStep);
+      return committedData;
+    }
+
+    committedData += data;
+  }
+
+  setInputElementValue(normalizeCommittedText(getCurrentInput()));
+  return committedData;
+}
 
 export function onVietnameseCompositionStart(event: CompositionEvent): void {
   recordImeDebugEvent("compositionstart", "before", event);
@@ -127,93 +208,11 @@ export async function onVietnameseCompositionEnd(
       });
 
       if (transaction !== null) {
-        const beforeChars = Array.from(transaction.before);
-        const insertChars = Array.from(transaction.insertText);
-        const replaceCount = Math.min(
-          transaction.deleteCount,
-          insertChars.length,
+        committedData = await replayNativeCompositionTransaction(
+          transaction,
+          now,
+          session.wordIndex,
         );
-
-        if (transaction.deleteCount > insertChars.length) {
-          // Native mode never invents deletions the browser did not commit
-          // through Monkeytype. Keep scorer/event-log state authoritative.
-          setInputElementValue(scorerInput);
-        } else {
-          const logicalChars = [...beforeChars];
-          let transactionApplied = true;
-
-          for (let i = 0; i < replaceCount; i++) {
-            const charIndex = transaction.start + i;
-            const data = insertChars[i] as string;
-            logicalChars[charIndex] = data;
-            const expectedInput = logicalChars.join("");
-            setInputElementValue(expectedInput);
-            await onInsertText({
-              data,
-              now,
-              isCompositionEnding: true,
-              replacementCharIndex: charIndex,
-              lastInMultiIndex:
-                i === insertChars.length - 1 &&
-                replaceCount === insertChars.length,
-            });
-
-            const scorerAfterStep = normalizeCommittedText(getCurrentInput());
-            if (getActiveWordIndex() !== session.wordIndex) {
-              committedData += data;
-              setInputElementValue(scorerAfterStep);
-              transactionApplied = false;
-              break;
-            }
-            if (scorerAfterStep !== expectedInput) {
-              setInputElementValue(scorerAfterStep);
-              transactionApplied = false;
-              break;
-            }
-            committedData += data;
-          }
-
-          if (transactionApplied) {
-            for (let i = replaceCount; i < insertChars.length; i++) {
-              const data = insertChars[i] as string;
-              logicalChars.splice(transaction.start + i, 0, data);
-              const expectedInput = logicalChars.join("");
-              setInputElementValue(expectedInput);
-              await onInsertText({
-                data,
-                now,
-                isCompositionEnding: true,
-                lastInMultiIndex: i === insertChars.length - 1,
-              });
-
-              const scorerAfterStep = normalizeCommittedText(getCurrentInput());
-              if (getActiveWordIndex() !== session.wordIndex) {
-                committedData += data;
-                setInputElementValue(scorerAfterStep);
-                transactionApplied = false;
-                break;
-              }
-              if (scorerAfterStep !== expectedInput) {
-                setInputElementValue(scorerAfterStep);
-                transactionApplied = false;
-                break;
-              }
-              committedData += data;
-            }
-          }
-
-          if (transactionApplied) {
-            const scorerAfterTransaction = normalizeCommittedText(
-              getCurrentInput(),
-            );
-            if (scorerAfterTransaction === transaction.after) {
-              setInputElementValue(scorerAfterTransaction);
-            } else {
-              committedData = "";
-              setInputElementValue(scorerAfterTransaction);
-            }
-          }
-        }
       }
     }
   } else {
