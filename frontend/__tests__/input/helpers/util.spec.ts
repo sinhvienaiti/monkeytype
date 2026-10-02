@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   deriveCompositionCommit,
   deriveVietnameseImeRewrite,
+  deriveVietnameseImeRewrites,
+  deriveVietnamesePhysicalRewrites,
   deriveVietnameseTelexRewrite,
   getCommitCharacterType,
   isVietnameseImeProvisionalCharacter,
@@ -250,6 +252,68 @@ describe("Vietnamese IME helpers", () => {
         "là",
         "vietnamese",
         "english",
+      ),
+    ).toBeNull();
+  });
+
+  it("supports one w rewriting the contiguous uo pair to ươ", () => {
+    expect(
+      deriveVietnamesePhysicalRewrites(
+        "nguo",
+        "w",
+        "người",
+        "vietnamese",
+        "english",
+      ),
+    ).toEqual([
+      { charIndex: 2, from: "u", data: "ư" },
+      { charIndex: 3, from: "o", data: "ơ" },
+    ]);
+  });
+
+  it("detects a browser multi-character uo -> ươ rewrite", () => {
+    expect(
+      deriveVietnameseImeRewrites(
+        "nguo",
+        "ngươ",
+        "người",
+        "vietnamese",
+        "english",
+      ),
+    ).toEqual([
+      { charIndex: 2, from: "u", data: "ư" },
+      { charIndex: 3, from: "o", data: "ơ" },
+    ]);
+  });
+
+  it.each([
+    ["ra", "8", "rằng", 1, "ă"],
+    ["ră", "2", "rằng", 1, "ằ"],
+    ["d", "9", "được", 0, "đ"],
+    ["uo", "7", "ươ", 0, "ư"],
+  ])(
+    "supports target-aware VNI fallback: %s + %s",
+    (before, key, target, charIndex, data) => {
+      expect(
+        deriveVietnamesePhysicalRewrites(
+          before,
+          key,
+          target,
+          "vietnamese",
+          "english",
+        ),
+      )?.toContainEqual({ charIndex, from: Array.from(before)[charIndex], data });
+    },
+  );
+
+  it("does not activate Vietnamese physical rewrites in English input mode", () => {
+    expect(
+      deriveVietnamesePhysicalRewrites(
+        "ra",
+        "w",
+        "rằng",
+        "english",
+        "vietnamese",
       ),
     ).toBeNull();
   });

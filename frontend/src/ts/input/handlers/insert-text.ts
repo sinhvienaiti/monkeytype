@@ -40,8 +40,8 @@ import {
   logTestEvent,
 } from "../../test/events/data";
 import {
-  deriveVietnameseImeRewrite,
-  deriveVietnameseTelexRewrite,
+  deriveVietnameseImeRewrites,
+  deriveVietnamesePhysicalRewrites,
   getCommitCharacterType,
   isVietnameseImeProvisionalCharacter,
   normalizeCommittedText,
@@ -231,19 +231,37 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
   const currentWordText = normalizeTargetText(currentTestWord?.text ?? "");
 
   // Windows Vietnamese IMEs may report the physical Telex/VNI key in
-  // InputEvent.data while the textarea already contains the rewritten Unicode
-  // character. Derive the real character from scorer-vs-DOM state instead.
+  // InputEvent.data while the textarea already contains one or more rewritten
+  // Unicode characters. Reconcile the browser/physical modifier through the
+  // same scorer path used by normal input.
   let replacementCharIndex = options.replacementCharIndex;
   if (
     replacementCharIndex === undefined &&
     isCompositionEnding !== true &&
     automatic !== true
   ) {
-    const rewrite =
-      deriveVietnameseImeRewrite(testInput, inputValue, currentWord) ??
-      deriveVietnameseTelexRewrite(testInput, options.data, currentWord);
+    const rewrites =
+      deriveVietnameseImeRewrites(testInput, inputValue, currentWord) ??
+      deriveVietnamesePhysicalRewrites(testInput, options.data, currentWord);
 
-    if (rewrite !== null) {
+    if (rewrites !== null && rewrites.length > 1) {
+      const logicalChars = Array.from(testInput);
+      for (let i = 0; i < rewrites.length; i++) {
+        const rewrite = rewrites[i] as (typeof rewrites)[number];
+        logicalChars[rewrite.charIndex] = rewrite.data;
+        setInputElementValue(logicalChars.join(""));
+        await onInsertText({
+          ...options,
+          data: rewrite.data,
+          replacementCharIndex: rewrite.charIndex,
+          lastInMultiIndex: i === rewrites.length - 1,
+        });
+      }
+      return;
+    }
+
+    const rewrite = rewrites?.[0];
+    if (rewrite !== undefined) {
       replacementCharIndex = rewrite.charIndex;
       options = { ...options, data: rewrite.data };
 

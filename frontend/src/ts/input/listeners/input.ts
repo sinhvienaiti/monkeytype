@@ -1,7 +1,7 @@
 import { onDelete } from "../handlers/delete";
 import { onInsertText } from "../handlers/insert-text";
 import { isSupportedInputType } from "../helpers/input-type";
-import { getInputElement } from "../input-element";
+import { getInputElement, getInputElementValue } from "../input-element";
 import {
   getLastInsertCompositionTextData,
   setLastInsertCompositionTextData,
@@ -21,6 +21,7 @@ import { areAllWordsGenerated } from "../../test/words-generator";
 import {
   normalizeCommittedText,
   normalizeTargetText,
+  shouldUseVietnameseIme,
 } from "../helpers/util";
 
 const inputEl = getInputElement();
@@ -134,7 +135,9 @@ inputEl.addEventListener("input", async (event) => {
   ) {
     const allWordsTyped = getActiveWordIndex() >= TestWords.words.length - 1;
     const inputPlusComposition = normalizeCommittedText(
-      getCurrentInput() + (CompositionState.getData() ?? ""),
+      shouldUseVietnameseIme()
+        ? getInputElementValue().inputValue
+        : getCurrentInput() + (CompositionState.getData() ?? ""),
     );
     const inputPlusCompositionIsCorrect =
       normalizeTargetText(TestWords.words.getCurrent()?.textWithCommit ?? "") ===

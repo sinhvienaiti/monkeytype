@@ -10,7 +10,7 @@ import { onInsertText } from "../handlers/insert-text";
 import { getCurrentInput, logTestEvent } from "../../test/events/data";
 import {
   deriveCompositionCommit,
-  deriveVietnameseImeRewrite,
+  deriveVietnameseImeRewrites,
   normalizeCommittedText,
   normalizeTargetText,
 } from "../helpers/util";
@@ -104,26 +104,33 @@ inputEl.addEventListener("compositionend", async (event) => {
       const currentWord = normalizeTargetText(
         TestWords.words.getCurrent()?.textWithCommit ?? "",
       );
-      const rewrite = deriveVietnameseImeRewrite(
+      const rewrites = deriveVietnameseImeRewrites(
         snapshot.committedPrefix,
         finalInputValue,
         currentWord,
       );
 
-      if (rewrite === null) {
+      if (rewrites === null) {
         // Unknown replacement: keep the scorer/event-log state authoritative.
         setInputElementValue(normalizeCommittedText(getCurrentInput()));
       } else {
-        committedData = rewrite.data;
-        // Keep the browser's rewritten Unicode value and score the resulting
-        // character at the position it replaced.
+        const logicalChars = Array.from(snapshot.committedPrefix);
+        committedData = rewrites.map((rewrite) => rewrite.data).join("");
+
+        for (let i = 0; i < rewrites.length; i++) {
+          const rewrite = rewrites[i] as (typeof rewrites)[number];
+          logicalChars[rewrite.charIndex] = rewrite.data;
+          setInputElementValue(logicalChars.join(""));
+          await onInsertText({
+            data: rewrite.data,
+            now,
+            isCompositionEnding: true,
+            replacementCharIndex: rewrite.charIndex,
+            lastInMultiIndex: i === rewrites.length - 1,
+          });
+        }
+
         setInputElementValue(finalInputValue);
-        await onInsertText({
-          data: rewrite.data,
-          now,
-          isCompositionEnding: true,
-          replacementCharIndex: rewrite.charIndex,
-        });
       }
     } else {
       committedData = derived;

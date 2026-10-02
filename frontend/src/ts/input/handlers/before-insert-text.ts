@@ -67,7 +67,10 @@ export function onBeforeInsertText(data: string): boolean {
   if (
     Config.stopOnError === "letter" &&
     Config.stopOnErrorKeepFirstError &&
-    hasUnresolvedInputError(getCurrentInput(), currentWordTextWithCommit)
+    hasUnresolvedInputError(
+      normalizeCommittedText(getCurrentInput()),
+      currentWordTextWithCommit,
+    )
   ) {
     return true;
   }

@@ -993,6 +993,71 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     expect(mockState.activeWordIndex).toBe(0);
   });
 
+  it.each([
+    ["người", "nguowif"],
+    ["đường", "dduowngf"],
+    ["tiếng", "tieengs"],
+  ])(
+    "types common Vietnamese Telex words without false errors: %s",
+    async (word, keys) => {
+      replaceConfig({
+        ...__testing.getConfig(),
+        stopOnError: "letter",
+        stopOnErrorKeepFirstError: true,
+        inputLanguage: "vietnamese",
+      });
+      pushWords(word, "next");
+
+      for (let i = 0; i < keys.length; i++) {
+        await type(keys[i] as string, 1000 + i);
+      }
+
+      expect(getInput()).toBe(word);
+      expect(getLiveCachedAccuracy()).toBe(100);
+      expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+      expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+    },
+  );
+
+  it("supports a VNI word without changing the scorer contract", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: true,
+      inputLanguage: "vietnamese",
+    });
+    pushWords("rằng", "next");
+
+    for (const [i, key] of Array.from("ra8ng2").entries()) {
+      await type(key, 1000 + i);
+    }
+
+    expect(getInput()).toBe("rằng");
+    expect(getLiveCachedAccuracy()).toBe(100);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+  });
+
+  it("keeps English auto mode byte-for-byte literal for Telex-looking keys", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      language: "english",
+      inputLanguage: "auto",
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: true,
+    });
+    pushWords("raw software", "next");
+
+    for (const [i, char] of Array.from("raw software").entries()) {
+      await type(char, 1000 + i);
+    }
+
+    expect(getInput()).toBe("raw software");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+    expect(
+      insertEventsForWord(0).some((event) => event.data.replacesChar === true),
+    ).toBe(false);
+  });
+
   it("still penalizes a real Backspace correction when forgiveness is disabled", async () => {
     replaceConfig({
       ...__testing.getConfig(),
