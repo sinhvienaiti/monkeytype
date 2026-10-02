@@ -1,4 +1,3 @@
-import type { ContextClozeExercise } from "./context-cloze";
 import type { SentenceBuilderExercise } from "./sentence-builder";
 
 const DEFAULT_BASE_URL = "https://typing-game.local/english-content";
@@ -51,6 +50,22 @@ export type RichContentFetcher = (
   init?: RequestInit,
 ) => Promise<Pick<Response, "ok" | "status" | "json">>;
 
+export type RichContextClozeExercise = {
+  version: 1;
+  id: string;
+  passageId: string;
+  level: number;
+  cefr: string;
+  topic: string;
+  sentence: string;
+  maskedSentence: string;
+  target: string;
+  acceptedAnswers?: string[];
+  entityType: "vocabulary" | "grammar";
+  entityId: string;
+  grammarId?: string;
+};
+
 export type RichEnglishContentClient = {
   loadSentences: () => Promise<PublishedEnglishSentence[]>;
   loadExercises: (
@@ -59,7 +74,7 @@ export type RichEnglishContentClient = {
   loadPublishedContextClozeExercises: (
     cefr: string,
     maxExercises: number,
-  ) => Promise<ContextClozeExercise[]>;
+  ) => Promise<RichContextClozeExercise[]>;
   loadPublishedSentenceBuilderExercise: (
     cefr?: string,
   ) => Promise<SentenceBuilderExercise | null>;
@@ -273,7 +288,7 @@ export function createRichEnglishContentClient(
   async function loadPublishedContextClozeExercises(
     cefr: string,
     maxExercises: number,
-  ): Promise<ContextClozeExercise[]> {
+  ): Promise<RichContextClozeExercise[]> {
     const limit = Math.min(40, Math.max(1, Math.floor(maxExercises)));
     const [exercises, sentences] = await Promise.all([
       loadExercises(["cloze"]),
@@ -283,7 +298,7 @@ export function createRichEnglishContentClient(
     return exercises
       .filter((exercise) => exercise.cefr === undefined || exercise.cefr === cefr)
       .slice(0, limit)
-      .map((exercise): ContextClozeExercise => {
+      .map((exercise): RichContextClozeExercise => {
         const sourceId = exercise.sourceSentenceIds[0];
         const sentence = sourceId === undefined ? undefined : sentenceById.get(sourceId);
         const grammarId = exercise.targetIds.find((id) => id.startsWith("gr."));
@@ -341,7 +356,7 @@ const defaultClient = createRichEnglishContentClient();
 export async function loadPublishedContextClozeExercises(
   cefr: string,
   maxExercises: number,
-): Promise<ContextClozeExercise[]> {
+): Promise<RichContextClozeExercise[]> {
   return await defaultClient.loadPublishedContextClozeExercises(
     cefr,
     maxExercises,
