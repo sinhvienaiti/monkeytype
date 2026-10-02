@@ -903,6 +903,96 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
   });
 
+  it("handles ra + w and a later f when typing rằng", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: true,
+      inputLanguage: "vietnamese",
+    });
+    pushWords("rằng", "next");
+
+    await type("r", 1000);
+    await type("a", 1001);
+
+    // Browser temporarily appends the physical Telex key.
+    await type("w", 1002);
+    expect(getInput()).toBe("ră");
+
+    await type("n", 1003);
+    await type("g", 1004);
+    await type("f", 1005);
+
+    expect(getInput()).toBe("rằng");
+    expect(getLiveCachedAccuracy()).toBe(100);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+  });
+
+  it("accepts the opposite Telex order a + f + w for ằ", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      stopOnError: "letter",
+      inputLanguage: "vietnamese",
+    });
+    pushWords("ằ", "next");
+
+    await type("a", 1000);
+    await type("f", 1001);
+    expect(getInput()).toBe("à");
+    await type("w", 1002);
+
+    expect(getInput()).toBe("ằ");
+    expect(getLiveCachedAccuracy()).toBe(100);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+  });
+
+  it("restores Telex conversion after IME context is lost", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      stopOnError: "letter",
+      inputLanguage: "vietnamese",
+    });
+    pushWords("là", "next");
+
+    await type("l", 1000);
+    await type("a", 1001);
+
+    // Equivalent to returning to a restored "la" after Backspace navigation:
+    // there is no browser composition state, only scorer + textarea text.
+    setInput("la");
+    await type("f", 1010);
+
+    expect(getInput()).toBe("là");
+    expect(getLiveCachedAccuracy()).toBe(100);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+  });
+
+  it("blocks further text after an incomplete Vietnamese word is committed", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: true,
+      inputLanguage: "vietnamese",
+    });
+    pushWords("là", "cơ");
+
+    await type("l", 1000);
+    await type("a", 1001);
+    await type(" ", 1002);
+
+    expect(getInput()).toBe("la ");
+    const countAfterBlockedSpace = insertEventsForWord(0).length;
+
+    // Further input must stay blocked until the wrong separator is deleted.
+    await type("c", 1003);
+    await type("o", 1004);
+
+    expect(getInput()).toBe("la ");
+    expect(insertEventsForWord(0)).toHaveLength(countAfterBlockedSpace);
+    expect(mockState.activeWordIndex).toBe(0);
+  });
+
   it("still penalizes a real Backspace correction when forgiveness is disabled", async () => {
     replaceConfig({
       ...__testing.getConfig(),

@@ -41,6 +41,7 @@ import {
 } from "../../test/events/data";
 import {
   deriveVietnameseImeRewrite,
+  deriveVietnameseTelexRewrite,
   getCommitCharacterType,
   isVietnameseImeProvisionalCharacter,
   normalizeCommittedText,
@@ -161,7 +162,7 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
   }
 
   const { now, lastInMultiIndex, isCompositionEnding, automatic } = options;
-  const { inputValue } = getInputElementValue();
+  let { inputValue } = getInputElementValue();
 
   const committedCharacters = splitCommittedText(options.data);
 
@@ -238,14 +239,19 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     isCompositionEnding !== true &&
     automatic !== true
   ) {
-    const rewrite = deriveVietnameseImeRewrite(
-      testInput,
-      inputValue,
-      currentWord,
-    );
+    const rewrite =
+      deriveVietnameseImeRewrite(testInput, inputValue, currentWord) ??
+      deriveVietnameseTelexRewrite(testInput, options.data, currentWord);
+
     if (rewrite !== null) {
       replacementCharIndex = rewrite.charIndex;
       options = { ...options, data: rewrite.data };
+
+      const logicalChars = Array.from(testInput);
+      logicalChars[rewrite.charIndex] = rewrite.data;
+      const logicalInput = logicalChars.join("");
+      setInputElementValue(logicalInput);
+      inputValue = logicalInput;
     }
   }
 
@@ -304,12 +310,24 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
 
   // is char correct. Vietnamese base/partial characters are provisional while
   // UniKey/EVKey is still building the target character.
-  const correct = isCharCorrect({
+  let correct = isCharCorrect({
     data,
     inputValue: scoreInput,
     targetWord: currentWord,
     correctShiftUsed,
   });
+
+  // A separator cannot be considered correct while an earlier Vietnamese
+  // character is still only provisional. Otherwise "la " could slip past a
+  // stop-on-error test that actually expects "là ".
+  const prematureCommit =
+    Config.stopOnError !== "off" &&
+    commitCharacterType === "separator" &&
+    testInput !== currentWordText;
+  if (prematureCommit) {
+    correct = false;
+  }
+
   const targetChar = Array.from(currentWord)[charIndex] ?? "";
   const imeProvisional =
     !correct &&

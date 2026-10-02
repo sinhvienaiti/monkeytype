@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   deriveCompositionCommit,
   deriveVietnameseImeRewrite,
+  deriveVietnameseTelexRewrite,
   getCommitCharacterType,
   isVietnameseImeProvisionalCharacter,
   normalizeCommittedText,
@@ -213,6 +214,40 @@ describe("Vietnamese IME helpers", () => {
         "ph",
         "phe",
         "phép",
+        "vietnamese",
+        "english",
+      ),
+    ).toBeNull();
+  });
+
+  it.each([
+    ["ra", "w", "rằng", 1, "ă"],
+    ["ră", "f", "rằng", 1, "ằ"],
+    ["răng", "f", "rằng", 1, "ằ"],
+    ["la", "f", "là", 1, "à"],
+    ["a", "f", "ằ", 0, "à"],
+    ["à", "w", "ằ", 0, "ằ"],
+  ])(
+    "derives target-aware Telex rewrite: %s + %s -> %s",
+    (before, key, target, charIndex, data) => {
+      expect(
+        deriveVietnameseTelexRewrite(
+          before,
+          key,
+          target,
+          "vietnamese",
+          "english",
+        ),
+      ).toMatchObject({ charIndex, data });
+    },
+  );
+
+  it("rejects a wrong Telex shape for a different target accent", () => {
+    expect(
+      deriveVietnameseTelexRewrite(
+        "la",
+        "w",
+        "là",
         "vietnamese",
         "english",
       ),

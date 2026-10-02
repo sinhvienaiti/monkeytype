@@ -19,18 +19,29 @@ export function hasUnresolvedInputError(
   const inputChars = Array.from(inputValue);
   const targetChars = Array.from(targetWord);
 
+  let hasProvisional = false;
+
   for (let index = 0; index < inputChars.length; index++) {
     const inputChar = inputChars[index] as string;
     const targetChar = targetChars[index];
     if (targetChar === undefined) return true;
-    if (
-      inputChar !== targetChar &&
-      !isVietnameseImeProvisionalCharacter(inputChar, targetChar)
-    ) {
-      return true;
+
+    if (inputChar !== targetChar) {
+      if (isVietnameseImeProvisionalCharacter(inputChar, targetChar)) {
+        hasProvisional = true;
+      } else {
+        return true;
+      }
     }
   }
-  return false;
+
+  const commitChar = targetChars[targetChars.length - 1];
+  const committed =
+    (commitChar === " " || commitChar === "\n") &&
+    inputChars.length >= targetChars.length &&
+    inputChars[targetChars.length - 1] === commitChar;
+
+  return hasProvisional && committed;
 }
 
 export function isCharCorrect(options: {

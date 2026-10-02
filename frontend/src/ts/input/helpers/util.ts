@@ -69,21 +69,46 @@ export function splitCommittedText(data: string): string[] {
  * compatibility checks. NFC/NFD are used only for scoring; rendering is not
  * modified.
  */
-export function getVietnameseBaseCharacter(
+type VietnameseCharParts = {
+  base: string;
+  marks: Set<string>;
+};
+
+function getVietnameseCharParts(
   char: string,
   inputLanguage = Config.inputLanguage,
   testLanguage = Config.language,
-): string {
+): VietnameseCharParts {
   const normalized = normalizeCommittedText(
     char,
     inputLanguage,
     testLanguage,
   );
-  return normalized
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/đ/g, "d")
-    .replace(/Đ/g, "D");
+
+  if (normalized === "đ") {
+    return { base: "d", marks: new Set(["stroke"]) };
+  }
+  if (normalized === "Đ") {
+    return { base: "D", marks: new Set(["stroke"]) };
+  }
+
+  const chars = Array.from(normalized.normalize("NFD"));
+  return {
+    base: chars[0] ?? "",
+    marks: new Set(chars.slice(1)),
+  };
+}
+
+export function getVietnameseBaseCharacter(
+  char: string,
+  inputLanguage = Config.inputLanguage,
+  testLanguage = Config.language,
+): string {
+  return getVietnameseCharParts(
+    char,
+    inputLanguage,
+    testLanguage,
+  ).base;
 }
 
 /**
@@ -113,19 +138,202 @@ export function isVietnameseImeProvisionalCharacter(
 
   if (input === "" || target === "" || input === target) return false;
 
-  const inputBase = getVietnameseBaseCharacter(
+  const inputParts = getVietnameseCharParts(
     input,
     inputLanguage,
     testLanguage,
   );
-  const targetBase = getVietnameseBaseCharacter(
+  const targetParts = getVietnameseCharParts(
     target,
     inputLanguage,
     testLanguage,
   );
 
-  // Do not make an accented input provisional for an unaccented target.
-  return inputBase === targetBase && target !== targetBase;
+  if (
+    inputParts.base !== targetParts.base ||
+    targetParts.marks.size === 0
+  ) {
+    return false;
+  }
+
+  // A valid intermediate may contain only marks that are also present on the
+  // final target. This rejects wrong accents/shapes such as ă while targeting
+  // à, but accepts either order for target ằ: a -> ă -> ằ or a -> à -> ằ.
+  for (const mark of inputParts.marks) {
+    if (!targetParts.marks.has(mark)) return false;
+  }
+
+  return inputParts.marks.size < targetParts.marks.size;
+}
+
+const VIETNAMESE_TONE_ROWS = [
+  "aáàảãạ",
+  "ăắằẳẵặ",
+  "âấầẩẫậ",
+  "eéèẻẽẹ",
+  "êếềểễệ",
+  "iíìỉĩị",
+  "oóòỏõọ",
+  "ôốồổỗộ",
+  "ơớờởỡợ",
+  "uúùủũụ",
+  "ưứừửữự",
+  "yýỳỷỹỵ",
+  "AÁÀẢÃẠ",
+  "ĂẮẰẲẴẶ",
+  "ÂẤẦẨẪẬ",
+  "EÉÈẺẼẸ",
+  "ÊẾỀỂỄỆ",
+  "IÍÌỈĨỊ",
+  "OÓÒỎÕỌ",
+  "ÔỐỒỔỖỘ",
+  "ƠỚỜỞỠỢ",
+  "UÚÙỦŨỤ",
+  "ƯỨỪỬỮỰ",
+  "YÝỲỶỸỴ",
+] as const;
+
+const TELEX_TONE_INDEX: Record<string, number> = {
+  s: 1,
+  f: 2,
+  r: 3,
+  x: 4,
+  j: 5,
+  z: 0,
+};
+
+function replaceVietnameseShape(
+  char: string,
+  fromRow: string,
+  toRow: string,
+): string | null {
+  const index = Array.from(fromRow).indexOf(char);
+  return index === -1 ? null : (Array.from(toRow)[index] ?? null);
+}
+
+function applyVietnameseTelexModifier(
+  char: string,
+  physicalKey: string,
+): string | null {
+  const key = physicalKey.toLowerCase();
+
+  const toneIndex = TELEX_TONE_INDEX[key];
+  if (toneIndex !== undefined) {
+    for (const row of VIETNAMESE_TONE_ROWS) {
+      const chars = Array.from(row);
+      if (chars.includes(char)) {
+        return chars[toneIndex] ?? null;
+      }
+    }
+  }
+
+  const upper = char === char.toUpperCase() && char !== char.toLowerCase();
+  const row = (lower: string, upperRow: string): string =>
+    upper ? upperRow : lower;
+
+  if (key === "a") {
+    return replaceVietnameseShape(
+      char,
+      row("aáàảãạ", "AÁÀẢÃẠ"),
+      row("âấầẩẫậ", "ÂẤẦẨẪẬ"),
+    );
+  }
+  if (key === "e") {
+    return replaceVietnameseShape(
+      char,
+      row("eéèẻẽẹ", "EÉÈẺẼẸ"),
+      row("êếềểễệ", "ÊẾỀỂỄỆ"),
+    );
+  }
+  if (key === "o") {
+    return replaceVietnameseShape(
+      char,
+      row("oóòỏõọ", "OÓÒỎÕỌ"),
+      row("ôốồổỗộ", "ÔỐỒỔỖỘ"),
+    );
+  }
+  if (key === "w") {
+    return (
+      replaceVietnameseShape(
+        char,
+        row("aáàảãạ", "AÁÀẢÃẠ"),
+        row("ăắằẳẵặ", "ĂẮẰẲẴẶ"),
+      ) ??
+      replaceVietnameseShape(
+        char,
+        row("oóòỏõọ", "OÓÒỎÕỌ"),
+        row("ơớờởỡợ", "ƠỚỜỞỠỢ"),
+      ) ??
+      replaceVietnameseShape(
+        char,
+        row("uúùủũụ", "UÚÙỦŨỤ"),
+        row("ưứừửữự", "ƯỨỪỬỮỰ"),
+      )
+    );
+  }
+  if (key === "d") {
+    if (char === "d") return "đ";
+    if (char === "D") return "Đ";
+  }
+
+  return null;
+}
+
+/**
+ * Resolve a physical Telex key even when the OS IME has lost its composition
+ * context (for example after Backspace navigation) or temporarily appends the
+ * key to the hidden textarea. The target word is used only to choose a safe
+ * character rewrite; unrelated literal keys are left untouched.
+ */
+export function deriveVietnameseTelexRewrite(
+  scoredInput: string,
+  physicalData: string,
+  targetWord: string,
+  inputLanguage = Config.inputLanguage,
+  testLanguage = Config.language,
+): VietnameseImeRewrite | null {
+  if (
+    !shouldUseVietnameseIme(inputLanguage, testLanguage) ||
+    Array.from(physicalData).length !== 1
+  ) {
+    return null;
+  }
+
+  const before = Array.from(
+    normalizeCommittedText(scoredInput, inputLanguage, testLanguage),
+  );
+  const target = Array.from(
+    normalizeTargetText(targetWord, inputLanguage, testLanguage),
+  );
+
+  for (let charIndex = before.length - 1; charIndex >= 0; charIndex--) {
+    const from = before[charIndex] as string;
+    const targetChar = target[charIndex];
+    if (targetChar === undefined || from === targetChar) continue;
+
+    const data = applyVietnameseTelexModifier(from, physicalData);
+    if (
+      data !== null &&
+      data !== from &&
+      (data === targetChar ||
+        isVietnameseImeProvisionalCharacter(
+          data,
+          targetChar,
+          inputLanguage,
+          testLanguage,
+        )) &&
+      isVietnameseImeProvisionalCharacter(
+        from,
+        targetChar,
+        inputLanguage,
+        testLanguage,
+      )
+    ) {
+      return { charIndex, from, data };
+    }
+  }
+
+  return null;
 }
 
 export type VietnameseImeRewrite = {
