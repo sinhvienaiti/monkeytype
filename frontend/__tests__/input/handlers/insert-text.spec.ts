@@ -103,6 +103,8 @@ vi.mock("../../../src/ts/input/state", () => ({
   setLastInsertCompositionTextData: (value: string) => {
     mockImeState.lastInsertCompositionTextData = value;
   },
+  setPendingVietnameseCompositionSeparator: () => undefined,
+  setActivePhysicalKeyCode: () => undefined,
 }));
 
 vi.mock("../../../src/ts/test/custom-text", () => ({
