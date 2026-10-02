@@ -182,6 +182,10 @@ function canBufferVietnameseDirectPreview(options: {
   const scorerChars = Array.from(options.scorerInput);
   const domChars = Array.from(options.domInput);
 
+  // Buffering may start only from a fully correct scorer prefix. Once a
+  // provisional character has been materialized as a real typo, normal
+  // stop-on-error rules must own every following key/boundary.
+  if (!options.targetWord.startsWith(options.scorerInput)) return false;
   if (domChars.length <= scorerChars.length) return false;
   if (
     scorerChars.some((char, index) => domChars[index] !== char)

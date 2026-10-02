@@ -1540,7 +1540,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
   });
 
-  it("allows a Telex modifier to correct an already wrong tone without bypassing accuracy rules", async () => {
+  it("keeps a corrected tone penalty after the unresolved preview crosses a boundary", async () => {
     replaceConfig({
       ...__testing.getConfig(),
       inputLanguage: "vietnamese",
@@ -1553,9 +1553,14 @@ describe("onInsertText - Vietnamese IME committed text", () => {
 
     await type("l", 1000);
     await type("á", 1001);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+
+    // Space commits the still-wrong tone as one real error and is blocked.
+    await type(" ", 1002);
+    expect(getInput()).toBe("lá");
     expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
 
-    await commitNativeDomRewrite("f", "là", 1002);
+    await commitNativeDomRewrite("f", "là", 1003);
 
     expect(getInput()).toBe("là");
     const accuracy = getAccuracy(buildEventLog());
@@ -1564,7 +1569,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     expect(accuracy.percentage).toBeCloseTo(66.67, 2);
   });
 
-  it("forgives a corrected Vietnamese tone only when the option is enabled", async () => {
+  it("forgives a materialized Vietnamese tone error when the option is enabled", async () => {
     replaceConfig({
       ...__testing.getConfig(),
       inputLanguage: "vietnamese",
@@ -1577,9 +1582,13 @@ describe("onInsertText - Vietnamese IME committed text", () => {
 
     await type("l", 1000);
     await type("á", 1001);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+
+    await type(" ", 1002);
+    expect(getInput()).toBe("lá");
     expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
 
-    await commitNativeDomRewrite("f", "là", 1002);
+    await commitNativeDomRewrite("f", "là", 1003);
 
     expect(getInput()).toBe("là");
     expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
