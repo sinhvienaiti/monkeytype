@@ -228,6 +228,7 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
   const testInput = normalizeCommittedText(getCurrentInput());
   const currentTestWord = TestWords.words.getCurrent();
   const currentWord = normalizeTargetText(currentTestWord?.textWithCommit ?? "");
+  const currentWordText = normalizeTargetText(currentTestWord?.text ?? "");
 
   // Native Vietnamese mode trusts the browser/OS IME DOM result. Do not
   // emulate Telex physical keys here. Convert browser-side committed rewrites
