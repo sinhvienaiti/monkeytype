@@ -285,6 +285,26 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
   if (
     replacementCharIndex === undefined &&
     isCompositionEnding !== true &&
+    automatic !== true &&
+    shouldUseVietnameseIme()
+  ) {
+    const expectedLiteralInput = normalizeCommittedText(testInput + options.data);
+    if (
+      inputValue !== expectedLiteralInput &&
+      currentWord.startsWith(expectedLiteralInput)
+    ) {
+      // UniKey/EVKey can transform a Telex-looking sequence even when the
+      // target contains literal English letters (e.g. "dd" in "address").
+      // When the physical append is exactly the target prefix, prefer that
+      // literal target over an unrelated browser-side Vietnamese rewrite.
+      setInputElementValue(expectedLiteralInput);
+      inputValue = expectedLiteralInput;
+    }
+  }
+
+  if (
+    replacementCharIndex === undefined &&
+    isCompositionEnding !== true &&
     automatic !== true
   ) {
     const directData = deriveVietnameseDirectInsert(

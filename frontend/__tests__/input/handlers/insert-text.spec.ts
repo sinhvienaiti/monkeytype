@@ -1076,6 +1076,48 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     ).toBe(false);
   });
 
+  it("preserves literal English letters inside Vietnamese mode when the IME rewrites them", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      language: "vietnamese_5k",
+      inputLanguage: "vietnamese",
+      stopOnError: "letter",
+    });
+    pushWords("address", "next");
+
+    await type("a", 1000);
+    await type("d", 1001);
+    expect(getInput()).toBe("ad");
+
+    // Simulate a browser-side UniKey rewrite of the first d when the second d
+    // is pressed. The target is English literal "dd", so scorer/DOM must be
+    // restored to the target prefix instead of accepting "đ".
+    setInput("ađ");
+    await onInsertText({ data: "d", now: 1002 });
+
+    expect(getInput()).toBe("add");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+  });
+
+  it("keeps mixed English Telex-looking words literal in Vietnamese mode", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      language: "vietnamese_5k",
+      inputLanguage: "vietnamese",
+      stopOnError: "letter",
+    });
+    pushWords("raw", "software", "next");
+
+    for (const [i, char] of Array.from("raw software").entries()) {
+      await type(char, 1000 + i);
+    }
+
+    expect(mockState.activeWordIndex).toBe(1);
+    expect(getInput()).toBe("software");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+  });
+
   it("counts an unresolved Vietnamese provisional as an error on word commit", async () => {
     replaceConfig({
       ...__testing.getConfig(),
