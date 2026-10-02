@@ -130,6 +130,7 @@ vi.mock("../../../src/ts/input/helpers/fail-or-finish", () => ({
 }));
 
 import { onInsertText } from "../../../src/ts/input/handlers/insert-text";
+import { onDelete } from "../../../src/ts/input/handlers/delete";
 import {
   buildEventLog,
   logTestEvent,
@@ -787,5 +788,62 @@ describe("onInsertText - Vietnamese IME committed text", () => {
 
     const inserts = insertEventsForWord(0);
     expect(inserts.some((event) => !event.data.correct)).toBe(true);
+  });
+
+  it("forgives a temporary base character rewritten by a Windows Vietnamese IME", async () => {
+    pushWords("à", "next");
+
+    await type("a", 1000);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
+
+    logTestEvent("keydown", 1010, { code: "KeyF" });
+    setInput("");
+    onDelete("deleteContentBackward", 1011);
+    await type("à", 1012);
+
+    expect(getAccuracy(buildEventLog())).toEqual({
+      correct: 1,
+      incorrect: 0,
+      percentage: 100,
+    });
+  });
+
+  it("forgives each intermediate rewrite in a multi-stage Telex character", async () => {
+    pushWords("ồ", "next");
+
+    await type("o", 1000);
+
+    logTestEvent("keydown", 1010, { code: "KeyO" });
+    setInput("");
+    onDelete("deleteContentBackward", 1011);
+    await type("ô", 1012);
+
+    logTestEvent("keydown", 1020, { code: "KeyF" });
+    setInput("");
+    onDelete("deleteContentBackward", 1021);
+    await type("ồ", 1022);
+
+    expect(getAccuracy(buildEventLog())).toEqual({
+      correct: 1,
+      incorrect: 0,
+      percentage: 100,
+    });
+  });
+
+  it("keeps a real Backspace correction as an accuracy error", async () => {
+    pushWords("à", "next");
+
+    await type("a", 1000);
+
+    logTestEvent("keydown", 1010, { code: "Backspace" });
+    setInput("");
+    onDelete("deleteContentBackward", 1011);
+    await type("à", 1020);
+
+    expect(getAccuracy(buildEventLog())).toEqual({
+      correct: 1,
+      incorrect: 1,
+      percentage: 50,
+    });
   });
 });

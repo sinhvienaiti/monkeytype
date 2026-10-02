@@ -6,11 +6,39 @@ import { Config } from "../../config/store";
 import { goToPreviousWord } from "../helpers/word-navigation";
 import { DeleteInputType } from "../helpers/input-type";
 import {
+  forgiveAccuracyErrorsAt,
   forgiveAccuracyErrorsForWord,
   getCurrentInput,
+  getLastKeydownCode,
   logTestEvent,
 } from "../../test/events/data";
 import { getActiveWordIndex } from "../../states/test";
+import { shouldUseVietnameseIme } from "../helpers/util";
+
+function forgiveVietnameseImeRewriteErrors(
+  inputBeforeDelete: string,
+  inputAfterDelete: string,
+  wordIndex: number,
+): void {
+  const lastKeydownCode = getLastKeydownCode();
+
+  if (
+    !shouldUseVietnameseIme() ||
+    lastKeydownCode === undefined ||
+    lastKeydownCode === "Backspace" ||
+    inputAfterDelete.length >= inputBeforeDelete.length
+  ) {
+    return;
+  }
+
+  for (
+    let charIndex = inputAfterDelete.length;
+    charIndex < inputBeforeDelete.length;
+    charIndex++
+  ) {
+    forgiveAccuracyErrorsAt(wordIndex, charIndex);
+  }
+}
 
 export function onDelete(inputType: DeleteInputType, now: number): void {
   const { realInputValue } = getInputElementValue();
@@ -73,6 +101,19 @@ export function onDelete(inputType: DeleteInputType, now: number): void {
       ...(inputBeforeDelete !== "" ? { clearedNextWord: true } : {}),
     });
   } else {
+    // Windows Vietnamese IMEs such as UniKey/EVKey can rewrite a character by
+    // emitting deleteContentBackward after the Telex/VNI trigger key, then
+    // inserting the composed Unicode character. The temporary base character
+    // must not remain as an accuracy error. A real user backspace still keeps
+    // the original Monkeytype accuracy behavior.
+    if (inputType === "deleteContentBackward") {
+      forgiveVietnameseImeRewriteErrors(
+        inputBeforeDelete,
+        inputAfterDelete,
+        activeWordIndexBeforeDelete,
+      );
+    }
+
     // Delete within current word
     logTestEvent("input", now, {
       inputType: inputType,
