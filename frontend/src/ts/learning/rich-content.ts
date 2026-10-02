@@ -51,20 +51,34 @@ export type RichContentFetcher = (
   init?: RequestInit,
 ) => Promise<Pick<Response, "ok" | "status" | "json">>;
 
+export type RichEnglishContentClient = {
+  loadSentences: () => Promise<PublishedEnglishSentence[]>;
+  loadExercises: (
+    types?: readonly PublishedEnglishExerciseType[],
+  ) => Promise<PublishedEnglishExercise[]>;
+  loadPublishedContextClozeExercises: (
+    cefr: string,
+    maxExercises: number,
+  ) => Promise<ContextClozeExercise[]>;
+  loadPublishedSentenceBuilderExercise: (
+    cefr?: string,
+  ) => Promise<SentenceBuilderExercise | null>;
+};
+
 function plainObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function nonEmpty(value: unknown, field: string): string {
   if (typeof value !== "string" || value.trim() === "") {
-    throw new TypeError(field + " must be a non-empty string");
+    throw new TypeError(`${field} must be a non-empty string`);
   }
   return value.normalize("NFC").trim();
 }
 
 function stringArray(value: unknown, field: string): string[] {
-  if (!Array.isArray(value)) throw new TypeError(field + " must be an array");
-  return value.map((item) => nonEmpty(item, field + "[]"));
+  if (!Array.isArray(value)) throw new TypeError(`${field} must be an array`);
+  return value.map((item) => nonEmpty(item, `${field}[]`));
 }
 
 function parseManifest(value: unknown, dataset: RuntimeDataset): RuntimeManifest {
@@ -75,7 +89,7 @@ function parseManifest(value: unknown, dataset: RuntimeDataset): RuntimeManifest
     !Number.isInteger(value["count"]) ||
     !Array.isArray(value["shards"])
   ) {
-    throw new TypeError("Invalid " + dataset + " runtime manifest");
+    throw new TypeError(`Invalid ${dataset} runtime manifest`);
   }
   const shards: RuntimeShard[] = value["shards"].map((raw) => {
     if (
@@ -86,7 +100,7 @@ function parseManifest(value: unknown, dataset: RuntimeDataset): RuntimeManifest
       raw["path"].trim() === "" ||
       !Number.isInteger(raw["count"])
     ) {
-      throw new TypeError("Invalid " + dataset + " runtime shard");
+      throw new TypeError(`Invalid ${dataset} runtime shard`);
     }
     return {
       id: raw["id"],
@@ -96,7 +110,7 @@ function parseManifest(value: unknown, dataset: RuntimeDataset): RuntimeManifest
   });
   const count = value["count"] as number;
   if (count < 0 || shards.reduce((sum, shard) => sum + shard.count, 0) !== count) {
-    throw new TypeError("Invalid " + dataset + " runtime manifest count");
+    throw new TypeError(`Invalid ${dataset} runtime manifest count`);
   }
   return {
     schemaVersion: 1,
@@ -181,7 +195,7 @@ function normalizeBaseUrl(value: string | undefined): string {
 
 export function createRichEnglishContentClient(
   options: { fetcher?: RichContentFetcher; baseUrl?: string } = {},
-) {
+): RichEnglishContentClient {
   const fetcher = options.fetcher ?? fetch;
   const base = normalizeBaseUrl(options.baseUrl);
   const manifestCache = new Map<RuntimeDataset, Promise<RuntimeManifest>>();
@@ -193,7 +207,9 @@ export function createRichEnglishContentClient(
       { cache: "no-store" },
     );
     if (!response.ok) {
-      throw new Error("English content request failed: " + response.status + " " + relative);
+      throw new Error(
+        `English content request failed: ${response.status} ${relative}`,
+      );
     }
     return response.json();
   }
@@ -201,7 +217,7 @@ export function createRichEnglishContentClient(
   async function loadManifest(dataset: RuntimeDataset): Promise<RuntimeManifest> {
     let pending = manifestCache.get(dataset);
     if (pending === undefined) {
-      pending = getJson(dataset + "/manifest.json").then((value) =>
+      pending = getJson(`${dataset}/manifest.json`).then((value) =>
         parseManifest(value, dataset),
       );
       manifestCache.set(dataset, pending);
@@ -215,10 +231,10 @@ export function createRichEnglishContentClient(
   }
 
   async function loadShard(dataset: RuntimeDataset, shard: RuntimeShard): Promise<unknown[]> {
-    const key = dataset + ":" + shard.path;
+    const key = `${dataset}:${shard.path}`;
     let pending = shardCache.get(key);
     if (pending === undefined) {
-      pending = getJson(dataset + "/" + shard.path).then((value) =>
+      pending = getJson(`${dataset}/${shard.path}`).then((value) =>
         parseEnvelope(value, shard.count),
       );
       shardCache.set(key, pending);
@@ -234,7 +250,11 @@ export function createRichEnglishContentClient(
   async function loadByPrefix(dataset: RuntimeDataset, prefix: string): Promise<unknown[]> {
     const manifest = await loadManifest(dataset);
     const shards = manifest.shards.filter((shard) => shard.id.startsWith(prefix));
-    return (await Promise.all(shards.map((shard) => loadShard(dataset, shard)))).flat();
+    const groups = [];
+    for (const shard of shards) {
+      groups.push(await loadShard(dataset, shard));
+    }
+    return groups.flat();
   }
 
   async function loadSentences(): Promise<PublishedEnglishSentence[]> {
@@ -318,15 +338,18 @@ export function createRichEnglishContentClient(
 
 const defaultClient = createRichEnglishContentClient();
 
-export function loadPublishedContextClozeExercises(
+export async function loadPublishedContextClozeExercises(
   cefr: string,
   maxExercises: number,
 ): Promise<ContextClozeExercise[]> {
-  return defaultClient.loadPublishedContextClozeExercises(cefr, maxExercises);
+  return await defaultClient.loadPublishedContextClozeExercises(
+    cefr,
+    maxExercises,
+  );
 }
 
-export function loadPublishedSentenceBuilderExercise(
+export async function loadPublishedSentenceBuilderExercise(
   cefr?: string,
 ): Promise<SentenceBuilderExercise | null> {
-  return defaultClient.loadPublishedSentenceBuilderExercise(cefr);
+  return await defaultClient.loadPublishedSentenceBuilderExercise(cefr);
 }

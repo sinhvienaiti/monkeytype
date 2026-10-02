@@ -1,8 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
-import { createRichEnglishContentClient } from "../../src/ts/learning/rich-content";
+import {
+  createRichEnglishContentClient,
+  type RichContentFetcher,
+} from "../../src/ts/learning/rich-content";
 
-function response(value: unknown) {
-  return { ok: true, status: 200, json: async () => value };
+function response(
+  value: unknown,
+): Awaited<ReturnType<RichContentFetcher>> {
+  return {
+    ok: true,
+    status: 200,
+    json: async (): Promise<unknown> => value,
+  };
 }
 
 describe("Rich English content adapter", () => {
@@ -47,7 +56,7 @@ describe("Rich English content adapter", () => {
           }],
         });
       }
-      throw new Error("Unexpected request: " + input);
+      throw new Error(`Unexpected request: ${input}`);
     });
 
     const client = createRichEnglishContentClient({ fetcher });
