@@ -130,6 +130,52 @@
     </section>
 
     <section
+      id="richPracticePanel"
+      class="hidden"
+      aria-label="Rich English Practice"
+    >
+      <div class="smartReviewHeader">
+        <div>
+          <div class="smartReviewEyebrow">rich english practice</div>
+          <div id="richPracticeType" class="smartReviewType"></div>
+          <div id="richPracticeGoal" class="smartReviewGoal"></div>
+        </div>
+        <div id="richPracticeProgress" class="smartReviewProgress"></div>
+      </div>
+
+      <div id="richPracticePrompt" class="smartReviewPrompt"></div>
+      <div id="richPracticeSecondary" class="smartReviewSecondary"></div>
+      <div id="richPracticeDetails" class="smartReviewMetrics"></div>
+
+      <input
+        id="richPracticeAnswer"
+        type="text"
+        autocomplete="off"
+        autocorrect="off"
+        spellcheck="false"
+        placeholder="Type your answer"
+      />
+
+      <div id="richPracticeHint" class="smartReviewHint"></div>
+      <div id="richPracticeFeedback" class="smartReviewFeedback"></div>
+
+      <div class="smartReviewActions">
+        <button id="richPracticeReplay" type="button" hidden>
+          replay
+        </button>
+        <button id="richPracticeReveal" type="button">
+          reveal hint
+        </button>
+        <button id="richPracticeSubmit" type="button" class="primary">
+          check answer
+        </button>
+        <button id="richPracticeNext" type="button" disabled>
+          next
+        </button>
+      </div>
+    </section>
+
+    <section
       id="smartReviewPanel"
       class="hidden"
       aria-label="Smart Review"

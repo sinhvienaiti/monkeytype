@@ -14,7 +14,7 @@ import {
   getTextReaderState,
   startTextReader,
 } from "./text-reader";
-import { getSettings } from "./store";
+import { getSettings, usesStandaloneLearningPanel } from "./store";
 import {
   markLearningHintUsed,
   markLearningMatchPresented,
@@ -482,8 +482,7 @@ export function applyLearningAppearance(
   const shouldApply =
     Config.mode === "custom" &&
     settings.enabled &&
-    settings.learningMode !== "sentence-builder" &&
-    settings.learningMode !== "context-cloze" &&
+    !usesStandaloneLearningPanel(settings.learningMode) &&
     dictionaryRaw.trim() !== "";
 
   if (!shouldApply) {

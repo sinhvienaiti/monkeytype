@@ -71,7 +71,8 @@
     margin: 0 auto;
   }
 
-  #smartReviewPanel {
+  #smartReviewPanel,
+  #richPracticePanel {
     display: grid;
     width: min(58rem, 100%);
     margin: 0 auto 1.2rem;
@@ -177,7 +178,8 @@
       }
     }
 
-    #smartReviewAnswer {
+    #smartReviewAnswer,
+    #richPracticeAnswer {
       width: 100%;
       padding: 0.8rem 0.9rem;
       border: 1px solid
@@ -236,6 +238,22 @@
     #enVnTranslationTopDisplay,
     #sentenceBuilderPanel,
     #contextClozePanel,
+    #richPracticePanel,
+    #wordsWrapper,
+    > [data-component="livestatstexttop"],
+    > [data-component="livestatsmini"],
+    > [data-component="compositiondisplay"],
+    > [data-component="keymap"],
+    > [data-component="monkey"] {
+      display: none !important;
+    }
+  }
+
+  &.rich-practice-active {
+    #enVnTranslationTopDisplay,
+    #sentenceBuilderPanel,
+    #contextClozePanel,
+    #smartReviewPanel,
     #wordsWrapper,
     > [data-component="livestatstexttop"],
     > [data-component="livestatsmini"],

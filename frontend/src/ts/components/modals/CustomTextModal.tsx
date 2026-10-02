@@ -43,7 +43,9 @@ import { SavedTextsModal } from "./SavedTextsModal";
 import { WordFilterModal } from "./WordFilterModal";
 import {
   getSettings as getEnVnTranslationSettings,
+  isRichPracticeLearningMode,
   setSettings as setEnVnTranslationSettings,
+  usesStandaloneLearningPanel,
 } from "../../custom/en-vn-translation/store";
 import {
   loadVocabularyGrammarIndex,
@@ -295,33 +297,36 @@ export function CustomTextModal(): JSXElement {
         null;
 
       if (value.translationLearningMode === "sentence-builder") {
-        try {
-          sentenceBuilderExercise = draftToExercise({
-            sentenceId: value.sentenceBuilderSentenceId,
-            grammarId: value.sentenceBuilderGrammarId,
-            prompt: value.sentenceBuilderPrompt,
-            meaning: value.sentenceBuilderMeaning,
-            acceptedAnswers: value.sentenceBuilderAcceptedAnswers,
-            difficulty: value.sentenceBuilderDifficulty,
-            distractors: value.sentenceBuilderDistractors,
-            grammarHint: value.sentenceBuilderGrammarHint,
-            classifiedAnswers: value.sentenceBuilderClassifiedAnswers,
-          });
-          sourceText = sentenceBuilderExercise.acceptedAnswers[0] ?? "";
-          form.setFieldValue("text", sourceText);
-        } catch (error) {
-          showErrorNotification(
-            error instanceof Error
-              ? error.message
-              : "Sentence Builder exercise is invalid.",
-            { durationMs: 5000 },
-          );
-          return;
+        if (value.sentenceBuilderAcceptedAnswers.trim() === "") {
+          sourceText = "learning";
+        } else {
+          try {
+            sentenceBuilderExercise = draftToExercise({
+              sentenceId: value.sentenceBuilderSentenceId,
+              grammarId: value.sentenceBuilderGrammarId,
+              prompt: value.sentenceBuilderPrompt,
+              meaning: value.sentenceBuilderMeaning,
+              acceptedAnswers: value.sentenceBuilderAcceptedAnswers,
+              difficulty: value.sentenceBuilderDifficulty,
+              distractors: value.sentenceBuilderDistractors,
+              grammarHint: value.sentenceBuilderGrammarHint,
+              classifiedAnswers: value.sentenceBuilderClassifiedAnswers,
+            });
+            sourceText = sentenceBuilderExercise.acceptedAnswers[0] ?? "";
+            form.setFieldValue("text", sourceText);
+          } catch (error) {
+            showErrorNotification(
+              error instanceof Error
+                ? error.message
+                : "Sentence Builder exercise is invalid.",
+              { durationMs: 5000 },
+            );
+            return;
+          }
         }
-      } else if (
-        value.typingTextSource === "level" &&
-        value.translationLearningMode !== "context-cloze"
-      ) {
+      } else if (usesStandaloneLearningPanel(value.translationLearningMode)) {
+        sourceText = "learning";
+      } else if (value.typingTextSource === "level") {
         try {
           const prepared = await prepareLevelPassageText(
             parseInt(value.typingTextLevel) || 1,
@@ -338,13 +343,6 @@ export function CustomTextModal(): JSXElement {
           );
           return;
         }
-      }
-
-      if (
-        sourceText === "" &&
-        value.translationLearningMode === "context-cloze"
-      ) {
-        sourceText = "context";
       }
 
       if (sourceText === "") {
@@ -433,8 +431,7 @@ export function CustomTextModal(): JSXElement {
 
       if (
         value.translationEnabled &&
-        value.translationLearningMode !== "sentence-builder" &&
-        value.translationLearningMode !== "context-cloze"
+        !usesStandaloneLearningPanel(value.translationLearningMode)
       ) {
         try {
           if (value.translationDictionarySource === "library") {
@@ -1668,11 +1665,11 @@ export function CustomTextModal(): JSXElement {
                 <div class="grid gap-1">
                   <SettingHelpLabel
                     label="learning mode"
-                    help="Normal keeps the existing EN-VN typing behavior. Learn shows English, Vietnamese and IPA. Recall hides English. Listen uses pronunciation. Sentence practices word order. Context builds cloze exercises from shared typing-text passages."
+                    help="Normal keeps EN-VN typing. Learn/Recall/Listen practice words. Sentence and Context use structured exercises. Grammar, Translate, Correct, Transform and Sentence Audio consume reviewed rich-content records."
                   />
                   <form.Field name="translationLearningMode">
                     {(field) => (
-                      <div class="grid grid-cols-2 gap-1 sm:grid-cols-6">
+                      <div class="grid grid-cols-2 gap-1 sm:grid-cols-4 lg:grid-cols-6">
                         <For
                           each={[
                             { value: "normal", label: "normal" },
@@ -1687,6 +1684,26 @@ export function CustomTextModal(): JSXElement {
                               value: "context-cloze",
                               label: "context",
                             },
+                            {
+                              value: "grammar-lesson",
+                              label: "grammar",
+                            },
+                            {
+                              value: "translation",
+                              label: "translate",
+                            },
+                            {
+                              value: "correction",
+                              label: "correct",
+                            },
+                            {
+                              value: "transformation",
+                              label: "transform",
+                            },
+                            {
+                              value: "sentence-listening",
+                              label: "sentence audio",
+                            },
                           ] as const}
                         >
                           {(option) => (
@@ -1696,7 +1713,10 @@ export function CustomTextModal(): JSXElement {
                               active={field().state.value === option.value}
                               onClick={() => {
                                 field().handleChange(option.value);
-                                if (option.value === "context-cloze") {
+                                if (
+                                  option.value === "context-cloze" ||
+                                  isRichPracticeLearningMode(option.value)
+                                ) {
                                   form.setFieldValue(
                                     "typingTextSource",
                                     "level",
@@ -1725,6 +1745,19 @@ export function CustomTextModal(): JSXElement {
                 </Show>
 
                 <Show
+                  when={isRichPracticeLearningMode(
+                    formValues().translationLearningMode,
+                  )}
+                >
+                  <div class="rounded bg-sub-alt px-3 py-2 text-xs text-sub">
+                    This mode reads only reviewed/published English-content
+                    records from the parent platform. The selected Typing Text
+                    level is used as the CEFR filter. Draft and candidate
+                    records are never exposed here.
+                  </div>
+                </Show>
+
+                <Show
                   when={
                     formValues().translationLearningMode ===
                     "sentence-builder"
@@ -1733,7 +1766,8 @@ export function CustomTextModal(): JSXElement {
                   <div class="grid gap-2 rounded bg-sub-alt px-3 py-3">
                     <div class="text-xs text-sub">
                       Sentence Builder accepts multiple valid answers. Put one
-                      accepted sentence per line.
+                      accepted sentence per line, or leave the answer list
+                      empty to use reviewed/published Sentence Builder content.
                     </div>
 
                     <div class="grid gap-2 sm:grid-cols-2">
