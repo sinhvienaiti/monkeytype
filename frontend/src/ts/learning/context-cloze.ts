@@ -7,6 +7,7 @@ import {
   prepareLevelPassages,
   type TypingTextPassage,
 } from "../custom/typing-text-library";
+import { loadPublishedContextClozeExercises } from "./rich-content";
 
 export type ContextClozeEntityType = "vocabulary" | "grammar";
 
@@ -20,6 +21,7 @@ export type ContextClozeExercise = {
   sentence: string;
   maskedSentence: string;
   target: string;
+  acceptedAnswers?: string[];
   entityType: ContextClozeEntityType;
   entityId: string;
   grammarId?: string;
@@ -28,6 +30,7 @@ export type ContextClozeExercise = {
 export type ContextClozeValidation = {
   correct: boolean;
   normalizedAnswer: string;
+  matchedAnswer?: string;
   errorType?: "spelling" | "wrong-form" | "wrong-tense";
 };
 
@@ -223,10 +226,21 @@ export async function prepareContextClozeExercises(
   passageCount = 1,
   maxExercises = 12,
 ): Promise<ContextClozeExercise[]> {
-  const [prepared, grammar] = await Promise.all([
-    prepareLevelPassages(level, passageCount),
-    loadVocabularyGrammarIndex(),
-  ]);
+  const prepared = await prepareLevelPassages(level, passageCount);
+  const limit = Math.min(40, Math.max(1, Math.floor(maxExercises)));
+
+  try {
+    const published = await loadPublishedContextClozeExercises(
+      prepared.cefr,
+      limit,
+    );
+    if (published.length > 0) return published;
+  } catch {
+    // Rich content is optional. Keep the current derived mode working when
+    // the parent runtime is unavailable or has no published records.
+  }
+
+  const grammar = await loadVocabularyGrammarIndex();
 
   const vocabulary = prepared.passages.flatMap((passage) =>
     vocabularyExercises(passage, prepared.level, prepared.cefr),
@@ -241,7 +255,6 @@ export async function prepareContextClozeExercises(
     ),
   );
 
-  const limit = Math.min(40, Math.max(1, Math.floor(maxExercises)));
   const exercises = interleave(vocabulary, grammarForPassages, limit);
   if (exercises.length === 0) {
     throw new Error(
@@ -256,10 +269,20 @@ export function validateContextClozeAnswer(
   answer: string,
 ): ContextClozeValidation {
   const normalizedAnswer = normalizePhrase(answer);
-  const correct = normalizedAnswer === normalizePhrase(exercise.target);
+  const primary = normalizePhrase(exercise.target);
+  const accepted = exercise.acceptedAnswers ?? [exercise.target];
+  const matched = accepted.find(
+    (candidate) => normalizePhrase(candidate) === normalizedAnswer,
+  );
+  const correct = matched !== undefined;
   return {
     correct,
     normalizedAnswer,
+    ...(correct &&
+    matched !== undefined &&
+    normalizePhrase(matched) !== primary
+      ? { matchedAnswer: matched }
+      : {}),
     ...(correct
       ? {}
       : {
@@ -293,7 +316,7 @@ export function buildContextClozeLearningEvent(options: {
     hintUsed: options.hintUsed,
     replayUsed: false,
     userAnswer: options.answer,
-    expectedAnswer: options.exercise.target,
+    expectedAnswer: options.validation.matchedAnswer ?? options.exercise.target,
     ...(options.validation.errorType === undefined
       ? {}
       : { errorType: options.validation.errorType }),
