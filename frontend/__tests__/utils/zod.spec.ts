@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { z, ZodString, ZodNumber } from "zod";
-import { unwrapSchema } from "../../src/ts/utils/zod";
+import { getOptions, unwrapSchema } from "../../src/ts/utils/zod";
 
 describe("unwrapSchema", () => {
   it("unwraps optional", () => {
@@ -57,5 +57,20 @@ describe("unwrapSchema", () => {
     const unwrapped = unwrapSchema(schema);
 
     expect(unwrapped).toBe(schema);
+  });
+});
+
+
+describe("getOptions", () => {
+  it("gets options from a default-wrapped enum", () => {
+    const schema = z.enum(["auto", "english", "vietnamese"]).default("auto");
+
+    expect(getOptions(schema)).toEqual(["auto", "english", "vietnamese"]);
+  });
+
+  it("gets options through nested wrappers", () => {
+    const schema = z.enum(["off", "on"]).optional().nullable();
+
+    expect(getOptions(schema)).toEqual(["off", "on"]);
   });
 });

@@ -132,6 +132,11 @@ import { isDevEnvironment } from "../utils/env";
 import { EventLog } from "./events/types";
 import { resetModifierState } from "../states/modifiers";
 import { nthElementFromArray } from "../utils/arrays";
+import {
+  clearBackspaceIntent,
+  setActivePhysicalKeyCode,
+} from "../input/state";
+import { invalidateVietnameseImeSession } from "../input/vietnamese-ime/state";
 
 let failReason = "";
 
@@ -295,14 +300,16 @@ export async function restart(options = {} as RestartOptions): Promise<void> {
   TestTimer.clear();
   setIsTestInvalid(false);
   resetModifierState();
+  clearBackspaceIntent();
+  setActivePhysicalKeyCode(null);
+  invalidateVietnameseImeSession();
   setTestActive(false);
   Replay.pauseReplay();
   setBailedOut(false);
   PaceCaret.reset();
   setKoreanStatus(false);
   clearQuoteStats();
-  CompositionState.setComposing(false);
-  CompositionState.setData("");
+  CompositionState.invalidate();
   Strings.clearWordDirectionCache();
   testReinitCount = 0;
   failReason = "";

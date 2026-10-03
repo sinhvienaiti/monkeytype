@@ -106,6 +106,10 @@ export type InputEventData =
       correct: boolean;
       isCompositionEnding?: true;
       inputStopped?: true;
+      // true when this keypress should not affect accuracy.
+      accuracyIgnored?: true;
+      // This insert replaced the character at charIndex instead of appending.
+      replacesChar?: true;
       // true when this was a space that advanced to the next word (commit
       // attempt) rather than being inserted as a literal character
       commitsWord?: true;

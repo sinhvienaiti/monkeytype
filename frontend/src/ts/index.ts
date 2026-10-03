@@ -38,6 +38,10 @@ import { setVersion } from "./states/core";
 import { loadFromLocalStorage } from "./config/lifecycle";
 
 import "./input/hotkeys";
+import "./learning/review-dataset";
+import "./learning/sentence-builder-ui";
+import "./learning/context-cloze-ui";
+import "./learning/smart-review-ui";
 import { showModal } from "./states/modals";
 import { getLastEventLog } from "./states/test";
 import { buildEventLog } from "./test/events/data";

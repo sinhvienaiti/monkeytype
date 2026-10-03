@@ -42,6 +42,7 @@ describe("ConfigMeta", () => {
         "customLayoutfluid",
         "strictSpace",
         "stopOnError",
+        "vietnameseImeMode",
         "lazyMode",
         "layout",
         "codeUnindentOnBackspace",

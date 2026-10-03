@@ -27,6 +27,14 @@ vi.mock("../../../src/ts/input/input-element", () => ({
   blurInputElement: () => undefined,
 }));
 
+const mockImeState = vi.hoisted(() => ({
+  composing: false,
+  data: "",
+  compositionText: "",
+  lastInsertCompositionTextData: "",
+  revision: 0,
+}));
+
 const mockState = vi.hoisted(() => ({
   activeWordIndex: 0,
   correctShiftUsed: true as boolean,
@@ -79,6 +87,9 @@ vi.mock("../../../src/ts/states/test", () => ({
   getCurrentQuote: () => null,
   getBailedOut: () => false,
   getKoreanStatus: () => false,
+  setCompositionText: (value: string) => {
+    mockImeState.compositionText = value;
+  },
 }));
 
 vi.mock("../../../src/ts/input/state", () => ({
@@ -87,6 +98,13 @@ vi.mock("../../../src/ts/input/state", () => ({
   incrementIncorrectShiftsInARow: () => undefined,
   resetIncorrectShiftsInARow: () => undefined,
   isAwaitingNextWord: () => false,
+  getLastInsertCompositionTextData: () =>
+    mockImeState.lastInsertCompositionTextData,
+  setLastInsertCompositionTextData: (value: string) => {
+    mockImeState.lastInsertCompositionTextData = value;
+  },
+  setPendingVietnameseCompositionSeparator: () => undefined,
+  setActivePhysicalKeyCode: () => undefined,
 }));
 
 vi.mock("../../../src/ts/test/custom-text", () => ({
@@ -96,6 +114,8 @@ vi.mock("../../../src/ts/test/custom-text", () => ({
 // peripheral collaborators - none of them feed back into the events we assert
 vi.mock("../../../src/ts/test/test-ui", () => ({
   afterTestTextInput: vi.fn(),
+  afterTestCompositionUpdate: vi.fn(),
+  afterTestDelete: vi.fn(),
   // words scrolled off the screen are removed from the dom
   getWordElement: vi.fn((index: number) =>
     mockState.wordsScrolledOff.has(index) ? null : {},
@@ -114,8 +134,20 @@ vi.mock("../../../src/ts/states/notifications", () => ({
   showNoticeNotification: vi.fn(),
 }));
 vi.mock("../../../src/ts/legacy-states/composition", () => ({
-  getComposing: () => false,
-  getData: () => "",
+  getComposing: () => mockImeState.composing,
+  setComposing: (value: boolean) => {
+    mockImeState.composing = value;
+  },
+  getData: () => mockImeState.data,
+  setData: (value: string) => {
+    mockImeState.data = value;
+  },
+  getRevision: () => mockImeState.revision,
+  invalidate: () => {
+    mockImeState.composing = false;
+    mockImeState.data = "";
+    mockImeState.revision++;
+  },
 }));
 vi.mock("../../../src/ts/test/words-generator", () => ({
   areAllWordsGenerated: () => true,
@@ -130,7 +162,10 @@ vi.mock("../../../src/ts/input/helpers/fail-or-finish", () => ({
 }));
 
 import { onInsertText } from "../../../src/ts/input/handlers/insert-text";
+import { onDelete } from "../../../src/ts/input/handlers/delete";
 import {
+  buildEventLog,
+  logTestEvent,
   resetTestEvents,
   getAllTestEvents,
   getInputForWord,
@@ -140,9 +175,19 @@ import {
   getEventsForWord,
 } from "../../../src/ts/test/events/helpers";
 import type { InputEventNoMs } from "../../../src/ts/test/events/types";
+import { getAccuracy } from "../../../src/ts/test/events/stats";
+import { getLiveCachedAccuracy } from "../../../src/ts/test/events/live-cache";
 import { words as TestWords } from "../../../src/ts/test/test-words";
 import { __testing } from "../../../src/ts/config/testing";
 import { DeleteInputType } from "../../../src/ts/input/helpers/input-type";
+import {
+  onVietnameseCompositionEnd,
+  onVietnameseCompositionStart,
+} from "../../../src/ts/input/vietnamese-ime/native-events";
+import {
+  invalidateVietnameseImeSession,
+  queueVietnameseImeSeparator,
+} from "../../../src/ts/input/vietnamese-ime/state";
 
 const { replaceConfig } = __testing;
 
@@ -191,9 +236,37 @@ async function type(data: string, now = 1000): Promise<void> {
   await onInsertText({ data, now });
 }
 
+async function commitComposition(data: string, now = 1000): Promise<void> {
+  inputEl.value += data;
+  await onInsertText({ data, now, isCompositionEnding: true });
+}
+
+async function commitNativeDomRewrite(
+  physicalData: string,
+  domValue: string,
+  now = 1000,
+): Promise<void> {
+  setInput(domValue);
+  await onInsertText({ data: physicalData, now });
+}
+
 function inputEventsForWord(wordIndex: number): InputEventNoMs[] {
   return getEventsForWord(getAllTestEvents(), wordIndex).filter(
     (e): e is InputEventNoMs => e.type === "input",
+  );
+}
+
+type InsertInputEventData = Extract<
+  InputEventNoMs["data"],
+  { data: string; correct: boolean }
+>;
+type InsertInputEventNoMs = Omit<InputEventNoMs, "data"> & {
+  data: InsertInputEventData;
+};
+
+function insertEventsForWord(wordIndex: number): InsertInputEventNoMs[] {
+  return inputEventsForWord(wordIndex).filter(
+    (event): event is InsertInputEventNoMs => "correct" in event.data,
   );
 }
 
@@ -209,6 +282,11 @@ function deletesForWord(
 describe("onInsertText - delete on error", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockImeState.composing = false;
+    mockImeState.data = "";
+    mockImeState.compositionText = "";
+    mockImeState.lastInsertCompositionTextData = "";
+    mockImeState.revision = 0;
     resetTestEvents();
     TestWords.reset();
     mockState.activeWordIndex = 0;
@@ -220,6 +298,7 @@ describe("onInsertText - delete on error", () => {
       language: "english",
       deleteOnError: "letter",
       stopOnError: "off",
+      forgiveCorrectedErrors: false,
       difficulty: "normal",
       strictSpace: false,
       oppositeShiftMode: "off",
@@ -430,4 +509,1616 @@ describe("onInsertText - delete on error", () => {
     );
     expect(incorrect).toHaveLength(1);
   });
+});
+
+
+describe("onInsertText - forgive corrected errors", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetTestEvents();
+    TestWords.reset();
+    mockState.activeWordIndex = 0;
+    mockState.correctShiftUsed = true;
+    mockState.wordsScrolledOff.clear();
+    setInput("");
+    replaceConfig({
+      mode: "words",
+      language: "english",
+      deleteOnError: "off",
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: false,
+      ignoreRepeatedBlockedErrors: false,
+      forgiveCorrectedErrors: true,
+      difficulty: "normal",
+      strictSpace: false,
+      oppositeShiftMode: "off",
+      keymapMode: "off",
+      blindMode: false,
+    });
+  });
+
+  it("counts repeated blocked attempts at one character only once", async () => {
+    pushWords("hello", "world");
+
+    await type("x");
+    await type("y");
+
+    const inserts = insertEventsForWord(0);
+    expect(inserts).toHaveLength(2);
+    expect(inserts[0]?.data.correct).toBe(false);
+    expect(inserts[0]?.data.accuracyIgnored).toBeUndefined();
+    expect(inserts[1]?.data.correct).toBe(false);
+    expect(inserts[1]?.data.accuracyIgnored).toBe(true);
+  });
+
+  it("forgives the counted error after the blocked character is corrected", async () => {
+    pushWords("hello", "world");
+
+    await type("x");
+    await type("y");
+    await type("h");
+
+    const inserts = insertEventsForWord(0);
+    expect(inserts[0]?.data.accuracyIgnored).toBe(true);
+    expect(inserts[1]?.data.accuracyIgnored).toBe(true);
+    expect(inserts[2]?.data.correct).toBe(true);
+    expect(inserts[2]?.data.accuracyIgnored).toBeUndefined();
+
+    expect(getLiveCachedAccuracy()).toBe(100);
+    expect(getAccuracy(buildEventLog())).toEqual({
+      correct: 1,
+      incorrect: 0,
+      percentage: 100,
+    });
+  });
+
+  it("treats a blocked word as one accuracy error and forgives it after correction", async () => {
+    replaceConfig({ ...__testing.getConfig(), stopOnError: "word" });
+    pushWords("hello", "world");
+
+    await type("x");
+    await type("y");
+
+    let inserts = insertEventsForWord(0);
+    expect(inserts[0]?.data.accuracyIgnored).toBeUndefined();
+    expect(inserts[1]?.data.accuracyIgnored).toBe(true);
+
+    setInput("");
+    logTestEvent("input", 1100, {
+      inputType: "deleteWordBackward",
+      wordIndex: 0,
+      charIndex: 2,
+      inputValue: "",
+    });
+
+    for (const char of "hello") await type(char);
+
+    inserts = insertEventsForWord(0);
+    expect(inserts[0]?.data.accuracyIgnored).toBe(true);
+    expect(getLiveCachedAccuracy()).toBe(100);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+  });
+
+  it("keeps the original Monkeytype accuracy behavior when disabled", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      forgiveCorrectedErrors: false,
+    });
+    pushWords("hello", "world");
+
+    await type("x");
+    await type("y");
+    await type("h");
+
+    const inserts = insertEventsForWord(0);
+    expect(inserts[0]?.data.accuracyIgnored).toBeUndefined();
+    expect(inserts[1]?.data.accuracyIgnored).toBeUndefined();
+    expect(inserts[2]?.data.correct).toBe(true);
+
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(2);
+  });
+});
+
+describe("onInsertText - ignore repeated blocked errors", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetTestEvents();
+    TestWords.reset();
+    mockState.activeWordIndex = 0;
+    mockState.correctShiftUsed = true;
+    mockState.wordsScrolledOff.clear();
+    setInput("");
+    replaceConfig({
+      mode: "words",
+      language: "english",
+      deleteOnError: "off",
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: false,
+      ignoreRepeatedBlockedErrors: true,
+      forgiveCorrectedErrors: false,
+      difficulty: "normal",
+      strictSpace: false,
+      oppositeShiftMode: "off",
+      keymapMode: "off",
+      blindMode: false,
+    });
+  });
+
+  it("ignores repeated blocked mistakes but keeps the first accuracy penalty", async () => {
+    pushWords("hello", "world");
+
+    await type("x");
+    await type("y");
+    await type("h");
+
+    const inserts = insertEventsForWord(0);
+    expect(inserts[0]?.data.correct).toBe(false);
+    expect(inserts[0]?.data.accuracyIgnored).toBeUndefined();
+    expect(inserts[1]?.data.correct).toBe(false);
+    expect(inserts[1]?.data.accuracyIgnored).toBe(true);
+    expect(inserts[2]?.data.correct).toBe(true);
+
+    expect(getAccuracy(buildEventLog())).toEqual({
+      correct: 1,
+      incorrect: 1,
+      percentage: 50,
+    });
+  });
+
+  it("keeps the first blocked-word penalty after the word is corrected", async () => {
+    replaceConfig({ ...__testing.getConfig(), stopOnError: "word" });
+    pushWords("hello", "world");
+
+    await type("x");
+    await type("y");
+
+    let inserts = insertEventsForWord(0);
+    expect(inserts[0]?.data.accuracyIgnored).toBeUndefined();
+    expect(inserts[1]?.data.accuracyIgnored).toBe(true);
+
+    setInput("");
+    logTestEvent("input", 1100, {
+      inputType: "deleteWordBackward",
+      wordIndex: 0,
+      charIndex: 2,
+      inputValue: "",
+    });
+
+    for (const char of "hello") await type(char);
+
+    inserts = insertEventsForWord(0);
+    expect(inserts[0]?.data.accuracyIgnored).toBeUndefined();
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
+  });
+});
+
+describe("onInsertText - keep first wrong letter", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetTestEvents();
+    TestWords.reset();
+    mockState.activeWordIndex = 0;
+    mockState.correctShiftUsed = true;
+    mockState.wordsScrolledOff.clear();
+    setInput("");
+    replaceConfig({
+      mode: "words",
+      language: "english",
+      deleteOnError: "off",
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: true,
+      ignoreRepeatedBlockedErrors: false,
+      forgiveCorrectedErrors: false,
+      difficulty: "normal",
+      strictSpace: false,
+      oppositeShiftMode: "off",
+      keymapMode: "off",
+      blindMode: false,
+    });
+  });
+
+  it("keeps the first wrong letter and blocks later input until it is deleted", async () => {
+    pushWords("modern", "software");
+
+    await type("m");
+    await type("a");
+
+    let inserts = insertEventsForWord(0);
+    expect(getInput()).toBe("ma");
+    expect(inserts).toHaveLength(2);
+    expect(inserts[1]?.data.correct).toBe(false);
+    expect(inserts[1]?.data.inputStopped).toBeUndefined();
+
+    // Defensive handler guard mirrors the normal before-insert block.
+    await type("x");
+    inserts = insertEventsForWord(0);
+    expect(getInput()).toBe("ma");
+    expect(inserts).toHaveLength(2);
+
+    setInput("m");
+    logTestEvent("input", 1100, {
+      inputType: "deleteContentBackward",
+      wordIndex: 0,
+      charIndex: 2,
+      inputValue: "m",
+    });
+
+    await type("o");
+    inserts = insertEventsForWord(0);
+    expect(getInput()).toBe("mo");
+    expect(inserts).toHaveLength(3);
+    expect(inserts[2]?.data.correct).toBe(true);
+  });
+});
+
+describe("onInsertText - Vietnamese IME committed text", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
+    mockImeState.composing = false;
+    mockImeState.data = "";
+    mockImeState.compositionText = "";
+    mockImeState.lastInsertCompositionTextData = "";
+    mockImeState.revision = 0;
+    invalidateVietnameseImeSession();
+    resetTestEvents();
+    TestWords.reset();
+    mockState.activeWordIndex = 0;
+    mockState.correctShiftUsed = true;
+    mockState.wordsScrolledOff.clear();
+    setInput("");
+    replaceConfig({
+      mode: "words",
+      language: "english",
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+      deleteOnError: "off",
+      stopOnError: "off",
+      forgiveCorrectedErrors: false,
+      difficulty: "normal",
+      strictSpace: false,
+      oppositeShiftMode: "off",
+      keymapMode: "off",
+      blindMode: false,
+    });
+  });
+
+  it("scores a decomposed ấ commit as one correct committed character", async () => {
+    pushWords("ấ", "next");
+
+    await commitComposition("ấ".normalize("NFD"));
+
+    const inserts = insertEventsForWord(0);
+    expect(inserts).toHaveLength(1);
+    expect(inserts[0]?.data.data).toBe("ấ");
+    expect(inserts[0]?.data.correct).toBe(true);
+    expect(inserts[0]?.data.isCompositionEnding).toBe(true);
+    expect(getInput()).toBe("ấ");
+    expect(getAccuracy(buildEventLog())).toEqual({
+      correct: 1,
+      incorrect: 0,
+      percentage: 100,
+    });
+  });
+
+  it.each(["ộ", "ường", "nghiêng"])(
+    "scores a decomposed Vietnamese commit without intermediate penalties: %s",
+    async (word) => {
+      pushWords(word, "next");
+
+      await commitComposition(word.normalize("NFD"));
+
+      const inserts = insertEventsForWord(0);
+      expect(inserts.map((event) => event.data.data)).toEqual(Array.from(word));
+      expect(inserts.every((event) => event.data.correct)).toBe(true);
+      expect(inserts.filter((event) => !event.data.correct)).toHaveLength(0);
+      expect(getInput()).toBe(word);
+    },
+  );
+
+  it("normalizes a Vietnamese target before comparing committed text", async () => {
+    const decomposedTarget = "Việt".normalize("NFD");
+    pushWords(decomposedTarget, "next");
+
+    await commitComposition("Việt".normalize("NFD"));
+
+    const inserts = insertEventsForWord(0);
+    expect(inserts.map((event) => event.data.data)).toEqual(Array.from("Việt"));
+    expect(inserts.every((event) => event.data.correct)).toBe(true);
+  });
+
+  it("auto mode enables IME scoring when the selected language is Vietnamese", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      inputLanguage: "auto",
+      language: "vietnamese",
+    });
+    pushWords("Việt", "next");
+
+    await commitComposition("Việt".normalize("NFD"));
+
+    expect(insertEventsForWord(0).every((event) => event.data.correct)).toBe(
+      true,
+    );
+  });
+
+  it("keeps English mode unchanged instead of silently applying Vietnamese NFC", async () => {
+    replaceConfig({ ...__testing.getConfig(), inputLanguage: "english" });
+    pushWords("é", "next");
+
+    await commitComposition("é".normalize("NFD"));
+
+    const inserts = insertEventsForWord(0);
+    expect(inserts.some((event) => !event.data.correct)).toBe(true);
+  });
+
+  it("keeps a Windows IME base character provisional until its rewrite", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: true,
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+    });
+    pushWords("phép", "next");
+
+    await type("p", 1000);
+    await type("h", 1001);
+    await type("e", 1002);
+
+    expect(getInput()).toBe("phe");
+    expect(getInputForWord(0)).toBe("ph");
+    expect(insertEventsForWord(0)).toHaveLength(2);
+    expect(getLiveCachedAccuracy()).toBe(100);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+  });
+
+  it("reconciles the real Windows UniKey p h e + s -> phé sequence", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: true,
+      ignoreRepeatedBlockedErrors: true,
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+    });
+    pushWords("phép", "next");
+
+    await type("p", 1000);
+    await type("h", 1001);
+    await type("e", 1002);
+    expect(getInput()).toBe("phe");
+    expect(getInputForWord(0)).toBe("ph");
+    expect(getLiveCachedAccuracy()).toBe(100);
+
+    // UniKey rewrites the already-visible base e into é.
+    setInput("phé");
+    await onInsertText({ data: "s", now: 1010 });
+
+    expect(getInput()).toBe("phé");
+    expect(getAccuracy(buildEventLog())).toEqual({
+      correct: 3,
+      incorrect: 0,
+      percentage: 100,
+    });
+
+    const last = insertEventsForWord(0).at(-1);
+    expect(last?.data.data).toBe("é");
+    expect(last?.data.charIndex).toBe(2);
+    expect(last?.data.replacesChar).toBeUndefined();
+    expect(last?.data.correct).toBe(true);
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+
+    await type("p", 1020);
+    expect(getInput()).toBe("phép");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+  });
+
+  it("reconciles staged Windows UniKey b + o + o + s -> bố and can retype after deletion", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      language: "vietnamese_5k",
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: true,
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+    });
+    pushWords("bố", "next");
+
+    const typeBo = async (start: number): Promise<void> => {
+      await type("b", start);
+      await type("o", start + 1);
+      expect(getInput()).toBe("bo");
+      expect(getInputForWord(0)).toBe("b");
+
+      // Windows UniKey may rewrite outside composition by internally deleting
+      // the preview "o" under KeyO, then inserting "ô".
+      setInput("bô");
+      await onInsertText({ data: "o", now: start + 2 });
+      expect(getInput()).toBe("bô");
+      expect(getInputForWord(0)).toBe("b");
+      expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+
+      setInput("bố");
+      await onInsertText({ data: "s", now: start + 3 });
+      expect(getInput()).toBe("bố");
+      expect(getInputForWord(0)).toBe("bố");
+      expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+    };
+
+    await typeBo(1000);
+
+    // Delete the completed word fully and make sure the IME/scorer can start a
+    // fresh staged rewrite instead of getting stuck at "bo".
+    setInput("b");
+    onDelete("deleteContentBackward", 1010);
+    setInput("");
+    onDelete("deleteContentBackward", 1011);
+    expect(getInput()).toBe("");
+
+    await typeBo(1020);
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+  });
+
+  it.each([
+    ["ă", "a", "w"],
+    ["â", "a", "a"],
+    ["ê", "e", "e"],
+    ["ô", "o", "o"],
+    ["ơ", "o", "w"],
+    ["ư", "u", "w"],
+    ["đ", "d", "d"],
+  ])(
+    "accepts every Telex base-shape rewrite %s",
+    async (target, base, modifier) => {
+      replaceConfig({
+        ...__testing.getConfig(),
+        language: "vietnamese_5k",
+        stopOnError: "letter",
+        stopOnErrorKeepFirstError: true,
+        inputLanguage: "vietnamese",
+        vietnameseImeMode: "native",
+      });
+      pushWords(target, "next");
+
+      await type(base, 1100);
+      setInput(target);
+      await onInsertText({ data: modifier, now: 1101 });
+
+      expect(getInput()).toBe(target);
+      expect(getInputForWord(0)).toBe(target);
+      expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+    },
+  );
+
+  const toneRewriteCases = [
+    ["a", "a", null, "á", "s"],
+    ["a", "a", null, "à", "f"],
+    ["a", "a", null, "ả", "r"],
+    ["a", "a", null, "ã", "x"],
+    ["a", "a", null, "ạ", "j"],
+    ["a", "ă", "w", "ắ", "s"],
+    ["a", "ă", "w", "ằ", "f"],
+    ["a", "ă", "w", "ẳ", "r"],
+    ["a", "ă", "w", "ẵ", "x"],
+    ["a", "ă", "w", "ặ", "j"],
+    ["a", "â", "a", "ấ", "s"],
+    ["a", "â", "a", "ầ", "f"],
+    ["a", "â", "a", "ẩ", "r"],
+    ["a", "â", "a", "ẫ", "x"],
+    ["a", "â", "a", "ậ", "j"],
+    ["e", "e", null, "é", "s"],
+    ["e", "e", null, "è", "f"],
+    ["e", "e", null, "ẻ", "r"],
+    ["e", "e", null, "ẽ", "x"],
+    ["e", "e", null, "ẹ", "j"],
+    ["e", "ê", "e", "ế", "s"],
+    ["e", "ê", "e", "ề", "f"],
+    ["e", "ê", "e", "ể", "r"],
+    ["e", "ê", "e", "ễ", "x"],
+    ["e", "ê", "e", "ệ", "j"],
+    ["i", "i", null, "í", "s"],
+    ["i", "i", null, "ì", "f"],
+    ["i", "i", null, "ỉ", "r"],
+    ["i", "i", null, "ĩ", "x"],
+    ["i", "i", null, "ị", "j"],
+    ["o", "o", null, "ó", "s"],
+    ["o", "o", null, "ò", "f"],
+    ["o", "o", null, "ỏ", "r"],
+    ["o", "o", null, "õ", "x"],
+    ["o", "o", null, "ọ", "j"],
+    ["o", "ô", "o", "ố", "s"],
+    ["o", "ô", "o", "ồ", "f"],
+    ["o", "ô", "o", "ổ", "r"],
+    ["o", "ô", "o", "ỗ", "x"],
+    ["o", "ô", "o", "ộ", "j"],
+    ["o", "ơ", "w", "ớ", "s"],
+    ["o", "ơ", "w", "ờ", "f"],
+    ["o", "ơ", "w", "ở", "r"],
+    ["o", "ơ", "w", "ỡ", "x"],
+    ["o", "ơ", "w", "ợ", "j"],
+    ["u", "u", null, "ú", "s"],
+    ["u", "u", null, "ù", "f"],
+    ["u", "u", null, "ủ", "r"],
+    ["u", "u", null, "ũ", "x"],
+    ["u", "u", null, "ụ", "j"],
+    ["u", "ư", "w", "ứ", "s"],
+    ["u", "ư", "w", "ừ", "f"],
+    ["u", "ư", "w", "ử", "r"],
+    ["u", "ư", "w", "ữ", "x"],
+    ["u", "ư", "w", "ự", "j"],
+    ["y", "y", null, "ý", "s"],
+    ["y", "y", null, "ỳ", "f"],
+    ["y", "y", null, "ỷ", "r"],
+    ["y", "y", null, "ỹ", "x"],
+    ["y", "y", null, "ỵ", "j"],
+  ] as const;
+
+  it.each(toneRewriteCases)(
+    "accepts staged Telex rewrite %s/%s -> %s",
+    async (plain, shaped, shapeModifier, target, toneModifier) => {
+      replaceConfig({
+        ...__testing.getConfig(),
+        language: "vietnamese_5k",
+        stopOnError: "letter",
+        stopOnErrorKeepFirstError: true,
+        inputLanguage: "vietnamese",
+        vietnameseImeMode: "native",
+      });
+      pushWords(target, "next");
+
+      await type(plain, 1200);
+
+      if (shapeModifier !== null) {
+        setInput(shaped);
+        await onInsertText({ data: shapeModifier, now: 1201 });
+        expect(getInput()).toBe(shaped);
+        expect(getInputForWord(0)).toBe("");
+      }
+
+      setInput(target);
+      await onInsertText({ data: toneModifier, now: 1202 });
+
+      expect(getInput()).toBe(target);
+      expect(getInputForWord(0)).toBe(target);
+      expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+      expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+    },
+  );
+
+  it.each([
+    ["bố", "b", "o", "bô", "6", "bố", "1"],
+    ["rằ", "r", "a", "ră", "8", "rằ", "2"],
+    ["cờ", "c", "o", "cơ", "7", "cờ", "2"],
+    ["từ", "t", "u", "tư", "7", "từ", "2"],
+  ])(
+    "keeps VNI digit modifiers inside the IME transaction for %s",
+    async (target, prefix, plain, shapedDom, shapeDigit, finalDom, toneDigit) => {
+      replaceConfig({
+        ...__testing.getConfig(),
+        language: "vietnamese_5k",
+        stopOnError: "letter",
+        stopOnErrorKeepFirstError: true,
+        inputLanguage: "vietnamese",
+        vietnameseImeMode: "native",
+      });
+      pushWords(target, "next");
+
+      await type(prefix, 1300);
+      await type(plain, 1301);
+
+      setInput(shapedDom);
+      await onInsertText({ data: shapeDigit, now: 1302 });
+      expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+
+      setInput(finalDom);
+      await onInsertText({ data: toneDigit, now: 1303 });
+
+      expect(getInput()).toBe(finalDom);
+      expect(getInputForWord(0)).toBe(finalDom);
+      expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+      expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+    },
+  );
+
+  it("accepts VNI 9 for d -> đ outside composition", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      language: "vietnamese_5k",
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: true,
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+    });
+    pushWords("đ", "next");
+
+    await type("d", 1350);
+    setInput("đ");
+    await onInsertText({ data: "9", now: 1351 });
+
+    expect(getInput()).toBe("đ");
+    expect(getInputForWord(0)).toBe("đ");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+  });
+
+  it("buffers exact suffix letters until a pending Vietnamese tone is resolved", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: true,
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+    });
+    pushWords("hòa", "next");
+
+    await type("h", 1030);
+    await type("o", 1031);
+    await type("a", 1032);
+
+    expect(getInput()).toBe("hoa");
+    expect(getInputForWord(0)).toBe("h");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+
+    setInput("hòa");
+    await onInsertText({ data: "f", now: 1033 });
+
+    expect(getInput()).toBe("hòa");
+    expect(getInputForWord(0)).toBe("hòa");
+    expect(getAccuracy(buildEventLog())).toEqual({
+      correct: 3,
+      incorrect: 0,
+      percentage: 100,
+    });
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+  });
+
+  it("scores a composition commit without exposing its preview text", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      stopOnError: "letter",
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+    });
+    pushWords("phép", "next");
+
+    await type("p", 1000);
+    await type("h", 1001);
+    await commitComposition("é", 1010);
+
+    expect(getInput()).toBe("phé");
+    expect(getAccuracy(buildEventLog()).percentage).toBe(100);
+    expect(insertEventsForWord(0).at(-1)?.data.isCompositionEnding).toBe(true);
+  });
+
+  it("scores only the final commit for a multi-stage Vietnamese composition", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      stopOnError: "letter",
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+    });
+    pushWords("ồ", "next");
+
+    await commitComposition("ồ", 1020);
+
+    expect(getInput()).toBe("ồ");
+    expect(getAccuracy(buildEventLog())).toEqual({
+      correct: 1,
+      incorrect: 0,
+      percentage: 100,
+    });
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+  });
+
+  it("does not score transient Telex stages while typing rằng", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: true,
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+    });
+    pushWords("rằng", "next");
+
+    await commitComposition("rằng", 1005);
+
+    expect(getInput()).toBe("rằng");
+    expect(getLiveCachedAccuracy()).toBe(100);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+  });
+
+  it("accepts the final IME result regardless of Telex key order", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      stopOnError: "letter",
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+    });
+    pushWords("ằ", "next");
+
+    await commitComposition("ằ", 1002);
+
+    expect(getInput()).toBe("ằ");
+    expect(getLiveCachedAccuracy()).toBe(100);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+  });
+
+  it("restores Telex conversion after IME context is lost", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      stopOnError: "letter",
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+    });
+    pushWords("là", "next");
+
+    await type("l", 1000);
+
+    // After IME context is rebuilt, only the final committed Unicode reaches
+    // the scorer.
+    await commitComposition("à", 1010);
+
+    expect(getInput()).toBe("là");
+    expect(getLiveCachedAccuracy()).toBe(100);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+  });
+
+  it("blocks further text after an incomplete Vietnamese word is committed", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: true,
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+    });
+    pushWords("là", "cơ");
+
+    await type("l", 1000);
+    await type("a", 1001);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+
+    await type(" ", 1002);
+
+    expect(getInput()).toBe("la");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
+    const countAfterBlockedSpace = insertEventsForWord(0).length;
+
+    // Further input must stay blocked until the wrong separator is deleted.
+    await type("c", 1003);
+    await type("o", 1004);
+
+    expect(getInput()).toBe("la");
+    expect(insertEventsForWord(0)).toHaveLength(countAfterBlockedSpace);
+    expect(mockState.activeWordIndex).toBe(0);
+  });
+
+  it.each([
+    ["người", "nguowif"],
+    ["đường", "dduowngf"],
+    ["tiếng", "tieengs"],
+  ])(
+    "scores common Vietnamese IME committed words without false errors: %s",
+    async (word, _keys) => {
+      replaceConfig({
+        ...__testing.getConfig(),
+        stopOnError: "letter",
+        stopOnErrorKeepFirstError: true,
+        inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+      });
+      pushWords(word, "next");
+
+      await commitComposition(word, 1000);
+
+      expect(getInput()).toBe(word);
+      expect(getLiveCachedAccuracy()).toBe(100);
+      expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+      expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+    },
+  );
+
+  it("keeps English auto mode byte-for-byte literal for Telex-looking keys", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      language: "english",
+      inputLanguage: "auto",
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: true,
+    });
+    pushWords("raw", "software", "next");
+
+    for (const [i, char] of Array.from("raw software").entries()) {
+      await type(char, 1000 + i);
+    }
+
+    expect(mockState.activeWordIndex).toBe(1);
+    expect(getInput()).toBe("software");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+    expect(
+      [...insertEventsForWord(0), ...insertEventsForWord(1)].some(
+        (event) => event.data.replacesChar === true,
+      ),
+    ).toBe(false);
+  });
+
+  it("preserves literal English letters inside Vietnamese mode when the IME rewrites them", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      language: "vietnamese_5k",
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+      stopOnError: "letter",
+    });
+    pushWords("address", "next");
+
+    await type("a", 1000);
+    await type("d", 1001);
+    expect(getInput()).toBe("ad");
+
+    // Simulate a browser-side UniKey rewrite of the first d when the second d
+    // is pressed. The target is English literal "dd", so scorer/DOM must be
+    // restored to the target prefix instead of accepting "đ".
+    setInput("ađ");
+    await onInsertText({ data: "d", now: 1002 });
+
+    expect(getInput()).toBe("add");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+  });
+
+  it("keeps mixed English Telex-looking words literal in Vietnamese mode", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      language: "vietnamese_5k",
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+      stopOnError: "letter",
+    });
+    pushWords("raw", "software", "next");
+
+    for (const [i, char] of Array.from("raw software").entries()) {
+      await type(char, 1000 + i);
+    }
+
+    expect(mockState.activeWordIndex).toBe(1);
+    expect(getInput()).toBe("software");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+  });
+
+  it.each([
+    ["as", "a", "á", "s"],
+    ["raw", "ra", "ră", "w"],
+    ["book", "bo", "bô", "o"],
+  ])(
+    "restores a literal English target after an incompatible Telex DOM rewrite: %s",
+    async (word, prefix, rewrittenDom, physicalKey) => {
+      replaceConfig({
+        ...__testing.getConfig(),
+        language: "vietnamese_5k",
+        inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+        stopOnError: "letter",
+        stopOnErrorKeepFirstError: true,
+      });
+      pushWords(word, "next");
+
+      for (const [i, char] of Array.from(prefix).entries()) {
+        await type(char, 1100 + i);
+      }
+
+      setInput(rewrittenDom);
+      await onInsertText({ data: physicalKey, now: 1200 });
+
+      expect(getInput()).toBe(prefix + physicalKey);
+      expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+      expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+      expect(insertEventsForWord(0).at(-1)?.data.replacesChar).toBeUndefined();
+    },
+  );
+
+  it.each(["off", "word", "letter"] as const)(
+    "keeps a correct Vietnamese Telex sequence clean with stop on error=%s",
+    async (stopOnError) => {
+      replaceConfig({
+        ...__testing.getConfig(),
+        language: "vietnamese_5k",
+        inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+        stopOnError,
+        stopOnErrorKeepFirstError: true,
+      });
+      pushWords("đường", "next");
+
+      await commitComposition("đường", 1300);
+
+      expect(getInput()).toBe("đường");
+      expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+      expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+    },
+  );
+
+  it("does not trigger delete-on-error for a valid Vietnamese provisional character", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      language: "vietnamese_5k",
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+      stopOnError: "off",
+      deleteOnError: "letter",
+    });
+    pushWords("là", "next");
+
+    await type("l", 1400);
+    await commitNativeDomRewrite("f", "là", 1402);
+
+    expect(getInput()).toBe("là");
+    expect(deletesForWord(0)).toEqual([]);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+
+    expect(getInput()).toBe("là");
+    expect(deletesForWord(0)).toEqual([]);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+  });
+
+  it("counts an unresolved Vietnamese provisional as an error on word commit", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      stopOnError: "off",
+      deleteOnError: "off",
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+    });
+    pushWords("là", "next");
+
+    await type("l", 1000);
+    await type("a", 1001);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+    expect(getLiveCachedAccuracy()).toBe(100);
+
+    await type(" ", 1002);
+
+    expect(mockState.activeWordIndex).toBe(1);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
+    expect(getLiveCachedAccuracy()).toBeLessThan(100);
+  });
+
+  it("keeps a last-word provisional accent clean until the final modifier", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      quickEnd: true,
+      stopOnError: "off",
+      deleteOnError: "off",
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+    });
+    pushWords("là");
+
+    await type("l", 1000);
+    await commitNativeDomRewrite("f", "là", 1002);
+    expect(getLiveCachedAccuracy()).toBe(100);
+
+    expect(getInput()).toBe("là");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+  });
+
+  it("accepts a browser-transformed direct append such as w -> ư", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      stopOnError: "letter",
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+    });
+    pushWords("ư", "next");
+
+    setInput("ư");
+    await onInsertText({ data: "w", now: 1000 });
+
+    expect(getInput()).toBe("ư");
+    expect(getAccuracy(buildEventLog())).toEqual({
+      correct: 1,
+      incorrect: 0,
+      percentage: 100,
+    });
+  });
+
+  it("resets stale Vietnamese composition state after Backspace", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      stopOnError: "letter",
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+    });
+    pushWords("là", "next");
+
+    await type("l", 1000);
+    expect(getInput()).toBe("l");
+
+    // "a" exists only in the IME preview. Backspace cancels that preview and
+    // must invalidate stale composition state without scoring "a".
+    mockImeState.composing = true;
+    mockImeState.data = "a";
+    mockImeState.compositionText = "a";
+    mockImeState.lastInsertCompositionTextData = "a";
+
+    setInput("l");
+    onDelete("deleteContentBackward", 1010);
+
+    expect(getInput()).toBe("l");
+    expect(mockImeState.composing).toBe(false);
+    expect(mockImeState.data).toBe("");
+    expect(mockImeState.compositionText).toBe("");
+    expect(mockImeState.lastInsertCompositionTextData).toBe("");
+
+    await commitComposition("à", 1030);
+
+    expect(getInput()).toBe("là");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+  });
+
+  it("can rebuild ư after deleting an IME preview", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: true,
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+    });
+    pushWords("ư", "next");
+
+    mockImeState.composing = true;
+    mockImeState.data = "u";
+    mockImeState.compositionText = "u";
+
+    setInput("");
+    onDelete("deleteContentBackward", 1010);
+    expect(getInput()).toBe("");
+    expect(mockImeState.composing).toBe(false);
+
+    await commitComposition("ư", 1030);
+
+    expect(getInput()).toBe("ư");
+    expect(getLiveCachedAccuracy()).toBe(100);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+  });
+
+  it("invalidates the IME session revision on every Vietnamese Backspace", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+    });
+    pushWords("là", "next");
+
+    await type("l", 1000);
+    await type("a", 1001);
+    const revisionBeforeDelete = mockImeState.revision;
+
+    setInput("l");
+    onDelete("deleteContentBackward", 1010);
+    expect(mockImeState.revision).toBe(revisionBeforeDelete + 1);
+
+    setInput("");
+    onDelete("deleteContentBackward", 1020);
+    expect(mockImeState.revision).toBe(revisionBeforeDelete + 2);
+  });
+
+  it("goes back to a Vietnamese previous word, deletes, then resumes Telex cleanly", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+      stopOnError: "letter",
+    });
+    pushWords("là", "cơ", "next");
+
+    await type("l", 1000);
+    await commitNativeDomRewrite("f", "là", 1001);
+    await type(" ", 1002);
+    expect(mockState.activeWordIndex).toBe(1);
+
+    // Browser Backspace at the empty next word removes Monkeytype's sentinel,
+    // which is the signal to navigate back to the previous word.
+    inputEl.value = "";
+    onDelete("deleteContentBackward", 1010);
+    expect(mockState.activeWordIndex).toBe(0);
+    expect(getInput()).toBe("là");
+
+    // Delete the composed character, then rebuild it from a clean IME state.
+    setInput("l");
+    onDelete("deleteContentBackward", 1020);
+    await commitComposition("à", 1040);
+
+    expect(getInput()).toBe("là");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+  });
+
+  it("resets Vietnamese IME state for Ctrl+Backspace and allows a clean retype", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+      stopOnError: "letter",
+    });
+    pushWords("người", "next");
+
+    await commitComposition("người", 1000);
+    expect(getInput()).toBe("người");
+
+    mockImeState.composing = true;
+    mockImeState.data = "ời";
+    setInput("");
+    onDelete("deleteWordBackward", 1100);
+
+    expect(getInput()).toBe("");
+    expect(mockImeState.composing).toBe(false);
+    expect(mockImeState.data).toBe("");
+
+    await commitComposition("người", 1200);
+
+    expect(getInput()).toBe("người");
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+  });
+
+  it("handles consecutive Backspaces inside a Vietnamese word before retyping", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+      stopOnError: "letter",
+    });
+    pushWords("đường", "next");
+
+    await commitComposition("đường", 1000);
+    expect(getInput()).toBe("đường");
+
+    setInput("đườn");
+    onDelete("deleteContentBackward", 1100);
+    setInput("đườ");
+    onDelete("deleteContentBackward", 1110);
+    setInput("đư");
+    onDelete("deleteContentBackward", 1120);
+    setInput("đ");
+    onDelete("deleteContentBackward", 1130);
+
+    await commitComposition("ường", 1200);
+
+    expect(getInput()).toBe("đường");
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+  });
+
+  it("supports uppercase Vietnamese Telex without false penalties", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+      stopOnError: "letter",
+    });
+    pushWords("Đường", "next");
+
+    await commitComposition("Đường", 1000);
+
+    expect(getInput()).toBe("Đường");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+  });
+
+  it("does not apply opposite-shift rules to a Telex modifier replacement", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+      stopOnError: "letter",
+      oppositeShiftMode: "on",
+    });
+    pushWords("Đ", "next");
+
+    // "D" is only an IME preview. The browser commits Đ while the physical
+    // Telex modifier key has opposite-shift state; that state must not be
+    // applied to the committed logical character.
+    mockState.correctShiftUsed = false;
+    await commitNativeDomRewrite("d", "Đ", 1001);
+
+    expect(getInput()).toBe("Đ");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+  });
+
+  it("treats punctuation as a boundary when a Vietnamese accent is still pending", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: true,
+    });
+    pushWords("là,", "next");
+
+    await type("l", 1000);
+    await type("a", 1001);
+    await type(",", 1002);
+
+    expect(getInput()).toBe("la");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
+
+    // A tone key after the rejected boundary must not reach backwards and
+    // silently fix the earlier vowel.
+    await type("f", 1003);
+    expect(getInput()).toBe("la");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
+  });
+
+  it("types Vietnamese punctuation normally when the accent is completed first", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+      stopOnError: "letter",
+    });
+    pushWords("là,", "next");
+
+    await type("l", 1000);
+    await commitNativeDomRewrite("f", "là", 1001);
+    await type(",", 1002);
+
+    expect(getInput()).toBe("là,");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+  });
+
+  it("keeps a corrected tone penalty after the unresolved preview crosses a boundary", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: true,
+      forgiveCorrectedErrors: false,
+    });
+    pushWords("là", "next");
+
+    await type("l", 1000);
+    await type("á", 1001);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+
+    // Space commits the still-wrong tone as one real error and is blocked.
+    await type(" ", 1002);
+    expect(getInput()).toBe("lá");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
+
+    await commitNativeDomRewrite("f", "là", 1003);
+
+    expect(getInput()).toBe("là");
+    const accuracy = getAccuracy(buildEventLog());
+    expect(accuracy.correct).toBe(2);
+    expect(accuracy.incorrect).toBe(1);
+    expect(accuracy.percentage).toBeCloseTo(66.67, 2);
+  });
+
+  it("forgives a materialized Vietnamese tone error when the option is enabled", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: true,
+      forgiveCorrectedErrors: true,
+    });
+    pushWords("là", "next");
+
+    await type("l", 1000);
+    await type("á", 1001);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+
+    await type(" ", 1002);
+    expect(getInput()).toBe("lá");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
+
+    await commitNativeDomRewrite("f", "là", 1003);
+
+    expect(getInput()).toBe("là");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+    expect(getLiveCachedAccuracy()).toBe(100);
+  });
+
+  it("still penalizes a real Backspace correction when forgiveness is disabled", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+      forgiveCorrectedErrors: false,
+      stopOnError: "off",
+    });
+    pushWords("à", "next");
+
+    // x is a genuine mistake, not a Vietnamese base form.
+    await type("x", 1000);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
+
+    setInput("");
+    onDelete("deleteContentBackward", 1010);
+    await type("à", 1020);
+
+    expect(getAccuracy(buildEventLog())).toEqual({
+      correct: 1,
+      incorrect: 1,
+      percentage: 50,
+    });
+  });
+
+
+  it("allows phé to be rebuilt after deleting the composed vowel", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      language: "vietnamese_5k",
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: true,
+      ignoreRepeatedBlockedErrors: true,
+      forgiveCorrectedErrors: false,
+    });
+    pushWords("phép", "next");
+
+    await type("p", 1500);
+    await type("h", 1501);
+    await type("e", 1502);
+    setInput("phé");
+    await onInsertText({ data: "s", now: 1503 });
+    expect(getInput()).toBe("phé");
+
+    setInput("ph");
+    onDelete("deleteContentBackward", 1510);
+    expect(getInput()).toBe("ph");
+
+    await type("e", 1520);
+    expect(getInput()).toBe("phe");
+    expect(getInputForWord(0)).toBe("ph");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+
+    setInput("phé");
+    await onInsertText({ data: "s", now: 1521 });
+
+    expect(getInput()).toBe("phé");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+    expect(getLiveCachedAccuracy()).toBe(100);
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+  });
+
+  it("keeps commerce literal and commits Space after an IME rewrite", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      language: "vietnamese_5k",
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+      stopOnError: "letter",
+    });
+    pushWords("commerce", "next");
+
+    for (const [i, char] of Array.from("commerc").entries()) {
+      await type(char, 1600 + i);
+    }
+
+    setInput("commercê");
+    await onInsertText({ data: "e", now: 1610 });
+
+    expect(getInput()).toBe("commerce");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+
+    await type(" ", 1620);
+
+    expect(mockState.activeWordIndex).toBe(1);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+  });
+
+  it("never lets an insert event shrink committed scorer text", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      language: "vietnamese_5k",
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+      stopOnError: "off",
+    });
+    pushWords("một", "next");
+
+    await commitComposition("mụ", 1700);
+    expect(getInput()).toBe("mụ");
+
+    const eventCountBeforeStaleMutation = insertEventsForWord(0).length;
+
+    // Reproduce the dangerous shape from the reported "mụ -> m" issue:
+    // an insert event arrives while the browser DOM has moved backwards.
+    setInput("m");
+    await onInsertText({ data: "x", now: 1710 });
+
+    expect(getInput()).toBe("mụ");
+    expect(insertEventsForWord(0)).toHaveLength(
+      eventCountBeforeStaleMutation,
+    );
+
+    // Normal input can continue afterwards without inheriting the stale DOM.
+    setInput("mụx");
+    await onInsertText({ data: "x", now: 1720 });
+    expect(getInput()).toBe("mụx");
+  });
+
+
+  it("blocks a wrong native replacement without truncating the word suffix", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      language: "vietnamese_5k",
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: false,
+    });
+    pushWords("rằng", "next");
+
+    await commitComposition("rằng", 1800);
+    expect(getInput()).toBe("rằng");
+
+    // A wrong tone key rewrites the vowel in the middle of the committed word.
+    // Stop-on-letter must revert that replacement, not remove the final "g".
+    setInput("rắng");
+    await onInsertText({ data: "s", now: 1810 });
+
+    expect(getInput()).toBe("rằng");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+  });
+
+
+  it("aborts a multi-step native DOM transaction when its first rewrite is blocked", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      language: "vietnamese_5k",
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: false,
+    });
+    pushWords("àz", "next");
+
+    await type("à", 1900);
+    expect(getInput()).toBe("à");
+
+    // One browser input event both rewrites the committed vowel incorrectly
+    // and appends another character. The rejected rewrite must abort the
+    // transaction before the appended character reaches the scorer.
+    setInput("áx");
+    await onInsertText({ data: "x", now: 1910 });
+
+    expect(getInput()).toBe("à");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
+    expect(insertEventsForWord(0).at(-1)?.data.data).toBe("á");
+    expect(insertEventsForWord(0).at(-1)?.data.inputStopped).toBe(true);
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+  });
+
+  it("aborts composition replay when a replacement is rejected", async () => {
+    const performanceNow = vi
+      .spyOn(performance, "now")
+      .mockReturnValue(2010);
+
+    replaceConfig({
+      ...__testing.getConfig(),
+      language: "vietnamese_5k",
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: false,
+    });
+    pushWords("àz", "next");
+
+    await type("à", 2000);
+    onVietnameseCompositionStart(
+      new CompositionEvent("compositionstart", { data: "" }),
+    );
+
+    setInput("áx");
+    await onVietnameseCompositionEnd(
+      new CompositionEvent("compositionend", { data: "áx" }),
+    );
+
+    expect(getInput()).toBe("à");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
+    expect(insertEventsForWord(0).at(-1)?.data.data).toBe("á");
+    expect(insertEventsForWord(0).at(-1)?.data.inputStopped).toBe(true);
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+    performanceNow.mockRestore();
+  });
+
+
+  it("applies a queued Space only after the native composition commit", async () => {
+    const performanceNow = vi
+      .spyOn(performance, "now")
+      .mockReturnValue(2110);
+
+    replaceConfig({
+      ...__testing.getConfig(),
+      language: "vietnamese_5k",
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+      stopOnError: "letter",
+    });
+    pushWords("commerce", "next");
+
+    for (const [i, char] of Array.from("commerc").entries()) {
+      await type(char, 2100 + i);
+    }
+
+    onVietnameseCompositionStart(
+      new CompositionEvent("compositionstart", { data: "" }),
+    );
+    setInput("commerce");
+    queueVietnameseImeSeparator(" ");
+
+    await onVietnameseCompositionEnd(
+      new CompositionEvent("compositionend", { data: "e" }),
+    );
+
+    expect(mockState.activeWordIndex).toBe(1);
+    expect(getInput()).toBe("");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+    performanceNow.mockRestore();
+  });
+
+  it("rejects a composition result that shrinks committed scorer text", async () => {
+    const performanceNow = vi
+      .spyOn(performance, "now")
+      .mockReturnValue(2210);
+
+    replaceConfig({
+      ...__testing.getConfig(),
+      language: "vietnamese_5k",
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+      stopOnError: "off",
+    });
+    pushWords("mụ", "next");
+
+    await commitComposition("mụ", 2200);
+    const inputEventsBefore = insertEventsForWord(0).length;
+
+    onVietnameseCompositionStart(
+      new CompositionEvent("compositionstart", { data: "" }),
+    );
+    setInput("m");
+
+    await onVietnameseCompositionEnd(
+      new CompositionEvent("compositionend", { data: "m" }),
+    );
+
+    expect(getInput()).toBe("mụ");
+    expect(insertEventsForWord(0)).toHaveLength(inputEventsBefore);
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+    performanceNow.mockRestore();
+  });
+
+
+  it("ignores a native physical-key event when the DOM committed no text", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      language: "vietnamese_5k",
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+      stopOnError: "letter",
+    });
+    pushWords("rằng", "next");
+
+    await type("r", 2300);
+    const eventsBefore = insertEventsForWord(0).length;
+
+    // A Telex modifier can surface as insertText even though the IME keeps it
+    // internal and the textarea remains unchanged. It must not be scored.
+    setInput("r");
+    await onInsertText({ data: "w", now: 2310 });
+
+    expect(getInput()).toBe("r");
+    expect(insertEventsForWord(0)).toHaveLength(eventsBefore);
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+  });
+
 });
