@@ -254,14 +254,36 @@ describe("Vietnamese IME helpers", () => {
         hasBackspaceIntent: false,
       }),
     ).toBe(false);
-    expect(
-      shouldIgnoreVietnameseImeDelete({
-        ...base,
-        isComposing: false,
-        activeKeyCode: "KeyW",
-        hasBackspaceIntent: false,
-      }),
-    ).toBe(false);
+    for (const activeKeyCode of [
+      "KeyW",
+      "KeyO",
+      "KeyS",
+      "Digit1",
+      "Digit6",
+      "Digit9",
+      "Numpad1",
+    ]) {
+      expect(
+        shouldIgnoreVietnameseImeDelete({
+          ...base,
+          isComposing: false,
+          activeKeyCode,
+          hasBackspaceIntent: false,
+        }),
+      ).toBe(true);
+    }
+
+    for (const activeKeyCode of [null, "Unidentified"]) {
+      expect(
+        shouldIgnoreVietnameseImeDelete({
+          ...base,
+          isComposing: false,
+          activeKeyCode,
+          hasBackspaceIntent: false,
+        }),
+      ).toBe(false);
+    }
+
     expect(
       shouldIgnoreVietnameseImeDelete({
         inputType: "deleteContentBackward",

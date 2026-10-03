@@ -5,6 +5,7 @@ import { getAsciiTargetRestore } from "../../../src/ts/input/vietnamese-ime/asci
 import { isVietnameseImePreviewCharacter } from "../../../src/ts/input/vietnamese-ime/preview";
 import {
   hasOnlyVietnameseImeCorrectableMismatches,
+  isVietnameseImeBoundary,
   isVietnameseImeCorrectableCharacter,
   isVietnameseImeProvisionalCharacter,
 } from "../../../src/ts/input/vietnamese-ime/provisional";
@@ -217,6 +218,21 @@ describe("Vietnamese IME preview rendering", () => {
 
 
 describe("Vietnamese IME provisional characters", () => {
+  const vowelFamilies = [
+    ["a", "á", "à", "ả", "ã", "ạ"],
+    ["ă", "ắ", "ằ", "ẳ", "ẵ", "ặ"],
+    ["â", "ấ", "ầ", "ẩ", "ẫ", "ậ"],
+    ["e", "é", "è", "ẻ", "ẽ", "ẹ"],
+    ["ê", "ế", "ề", "ể", "ễ", "ệ"],
+    ["i", "í", "ì", "ỉ", "ĩ", "ị"],
+    ["o", "ó", "ò", "ỏ", "õ", "ọ"],
+    ["ô", "ố", "ồ", "ổ", "ỗ", "ộ"],
+    ["ơ", "ớ", "ờ", "ở", "ỡ", "ợ"],
+    ["u", "ú", "ù", "ủ", "ũ", "ụ"],
+    ["ư", "ứ", "ừ", "ử", "ữ", "ự"],
+    ["y", "ý", "ỳ", "ỷ", "ỹ", "ỵ"],
+  ] as const;
+
   it.each([
     ["e", "é"],
     ["o", "ô"],
@@ -226,6 +242,38 @@ describe("Vietnamese IME provisional characters", () => {
     ["d", "đ"],
   ])("accepts %s as a provisional form of %s", (input, target) => {
     expect(isVietnameseImeProvisionalCharacter(input, target)).toBe(true);
+  });
+
+  it("covers every Vietnamese vowel family, tone and uppercase counterpart", () => {
+    for (const family of vowelFamilies) {
+      const base = family[0];
+      for (const target of family.slice(1)) {
+        expect(
+          isVietnameseImeProvisionalCharacter(base, target),
+          `${base} -> ${target}`,
+        ).toBe(true);
+        expect(
+          isVietnameseImeProvisionalCharacter(
+            base.toUpperCase(),
+            target.toUpperCase(),
+          ),
+          `${base.toUpperCase()} -> ${target.toUpperCase()}`,
+        ).toBe(true);
+      }
+    }
+
+    expect(isVietnameseImeProvisionalCharacter("d", "đ")).toBe(true);
+    expect(isVietnameseImeProvisionalCharacter("D", "Đ")).toBe(true);
+  });
+
+  it("treats Telex letters and VNI digits as non-boundaries", () => {
+    for (const data of ["a", "w", "s", "1", "5", "6", "7", "8", "9", "0"]) {
+      expect(isVietnameseImeBoundary(data), data).toBe(false);
+    }
+
+    for (const data of [" ", "\n", ",", ".", "!", "?", ";", ":"]) {
+      expect(isVietnameseImeBoundary(data), data).toBe(true);
+    }
   });
 
   it("allows same-base tone rewrites without calling them provisional", () => {

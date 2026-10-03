@@ -914,6 +914,233 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
   });
 
+  it("reconciles staged Windows UniKey b + o + o + s -> bố and can retype after deletion", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      language: "vietnamese_5k",
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: true,
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+    });
+    pushWords("bố", "next");
+
+    const typeBo = async (start: number): Promise<void> => {
+      await type("b", start);
+      await type("o", start + 1);
+      expect(getInput()).toBe("bo");
+      expect(getInputForWord(0)).toBe("b");
+
+      // Windows UniKey may rewrite outside composition by internally deleting
+      // the preview "o" under KeyO, then inserting "ô".
+      setInput("bô");
+      await onInsertText({ data: "o", now: start + 2 });
+      expect(getInput()).toBe("bô");
+      expect(getInputForWord(0)).toBe("b");
+      expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+
+      setInput("bố");
+      await onInsertText({ data: "s", now: start + 3 });
+      expect(getInput()).toBe("bố");
+      expect(getInputForWord(0)).toBe("bố");
+      expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+    };
+
+    await typeBo(1000);
+
+    // Delete the completed word fully and make sure the IME/scorer can start a
+    // fresh staged rewrite instead of getting stuck at "bo".
+    setInput("b");
+    onDelete("deleteContentBackward", 1010);
+    setInput("");
+    onDelete("deleteContentBackward", 1011);
+    expect(getInput()).toBe("");
+
+    await typeBo(1020);
+    expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+  });
+
+  it.each([
+    ["ă", "a", "w"],
+    ["â", "a", "a"],
+    ["ê", "e", "e"],
+    ["ô", "o", "o"],
+    ["ơ", "o", "w"],
+    ["ư", "u", "w"],
+    ["đ", "d", "d"],
+  ])(
+    "accepts every Telex base-shape rewrite %s",
+    async (target, base, modifier) => {
+      replaceConfig({
+        ...__testing.getConfig(),
+        language: "vietnamese_5k",
+        stopOnError: "letter",
+        stopOnErrorKeepFirstError: true,
+        inputLanguage: "vietnamese",
+        vietnameseImeMode: "native",
+      });
+      pushWords(target, "next");
+
+      await type(base, 1100);
+      setInput(target);
+      await onInsertText({ data: modifier, now: 1101 });
+
+      expect(getInput()).toBe(target);
+      expect(getInputForWord(0)).toBe(target);
+      expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+    },
+  );
+
+  const toneRewriteCases = [
+    ["a", "a", null, "á", "s"],
+    ["a", "a", null, "à", "f"],
+    ["a", "a", null, "ả", "r"],
+    ["a", "a", null, "ã", "x"],
+    ["a", "a", null, "ạ", "j"],
+    ["a", "ă", "w", "ắ", "s"],
+    ["a", "ă", "w", "ằ", "f"],
+    ["a", "ă", "w", "ẳ", "r"],
+    ["a", "ă", "w", "ẵ", "x"],
+    ["a", "ă", "w", "ặ", "j"],
+    ["a", "â", "a", "ấ", "s"],
+    ["a", "â", "a", "ầ", "f"],
+    ["a", "â", "a", "ẩ", "r"],
+    ["a", "â", "a", "ẫ", "x"],
+    ["a", "â", "a", "ậ", "j"],
+    ["e", "e", null, "é", "s"],
+    ["e", "e", null, "è", "f"],
+    ["e", "e", null, "ẻ", "r"],
+    ["e", "e", null, "ẽ", "x"],
+    ["e", "e", null, "ẹ", "j"],
+    ["e", "ê", "e", "ế", "s"],
+    ["e", "ê", "e", "ề", "f"],
+    ["e", "ê", "e", "ể", "r"],
+    ["e", "ê", "e", "ễ", "x"],
+    ["e", "ê", "e", "ệ", "j"],
+    ["i", "i", null, "í", "s"],
+    ["i", "i", null, "ì", "f"],
+    ["i", "i", null, "ỉ", "r"],
+    ["i", "i", null, "ĩ", "x"],
+    ["i", "i", null, "ị", "j"],
+    ["o", "o", null, "ó", "s"],
+    ["o", "o", null, "ò", "f"],
+    ["o", "o", null, "ỏ", "r"],
+    ["o", "o", null, "õ", "x"],
+    ["o", "o", null, "ọ", "j"],
+    ["o", "ô", "o", "ố", "s"],
+    ["o", "ô", "o", "ồ", "f"],
+    ["o", "ô", "o", "ổ", "r"],
+    ["o", "ô", "o", "ỗ", "x"],
+    ["o", "ô", "o", "ộ", "j"],
+    ["o", "ơ", "w", "ớ", "s"],
+    ["o", "ơ", "w", "ờ", "f"],
+    ["o", "ơ", "w", "ở", "r"],
+    ["o", "ơ", "w", "ỡ", "x"],
+    ["o", "ơ", "w", "ợ", "j"],
+    ["u", "u", null, "ú", "s"],
+    ["u", "u", null, "ù", "f"],
+    ["u", "u", null, "ủ", "r"],
+    ["u", "u", null, "ũ", "x"],
+    ["u", "u", null, "ụ", "j"],
+    ["u", "ư", "w", "ứ", "s"],
+    ["u", "ư", "w", "ừ", "f"],
+    ["u", "ư", "w", "ử", "r"],
+    ["u", "ư", "w", "ữ", "x"],
+    ["u", "ư", "w", "ự", "j"],
+    ["y", "y", null, "ý", "s"],
+    ["y", "y", null, "ỳ", "f"],
+    ["y", "y", null, "ỷ", "r"],
+    ["y", "y", null, "ỹ", "x"],
+    ["y", "y", null, "ỵ", "j"],
+  ] as const;
+
+  it.each(toneRewriteCases)(
+    "accepts staged Telex rewrite %s/%s -> %s",
+    async (plain, shaped, shapeModifier, target, toneModifier) => {
+      replaceConfig({
+        ...__testing.getConfig(),
+        language: "vietnamese_5k",
+        stopOnError: "letter",
+        stopOnErrorKeepFirstError: true,
+        inputLanguage: "vietnamese",
+        vietnameseImeMode: "native",
+      });
+      pushWords(target, "next");
+
+      await type(plain, 1200);
+
+      if (shapeModifier !== null) {
+        setInput(shaped);
+        await onInsertText({ data: shapeModifier, now: 1201 });
+        expect(getInput()).toBe(shaped);
+        expect(getInputForWord(0)).toBe("");
+      }
+
+      setInput(target);
+      await onInsertText({ data: toneModifier, now: 1202 });
+
+      expect(getInput()).toBe(target);
+      expect(getInputForWord(0)).toBe(target);
+      expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+      expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+    },
+  );
+
+  it.each([
+    ["bố", "b", "o", "bô", "6", "bố", "1"],
+    ["rằ", "r", "a", "ră", "8", "rằ", "2"],
+    ["cờ", "c", "o", "cơ", "7", "cờ", "2"],
+    ["từ", "t", "u", "tư", "7", "từ", "2"],
+  ])(
+    "keeps VNI digit modifiers inside the IME transaction for %s",
+    async (target, prefix, plain, shapedDom, shapeDigit, finalDom, toneDigit) => {
+      replaceConfig({
+        ...__testing.getConfig(),
+        language: "vietnamese_5k",
+        stopOnError: "letter",
+        stopOnErrorKeepFirstError: true,
+        inputLanguage: "vietnamese",
+        vietnameseImeMode: "native",
+      });
+      pushWords(target, "next");
+
+      await type(prefix, 1300);
+      await type(plain, 1301);
+
+      setInput(shapedDom);
+      await onInsertText({ data: shapeDigit, now: 1302 });
+      expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+
+      setInput(finalDom);
+      await onInsertText({ data: toneDigit, now: 1303 });
+
+      expect(getInput()).toBe(finalDom);
+      expect(getInputForWord(0)).toBe(finalDom);
+      expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+      expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
+    },
+  );
+
+  it("accepts VNI 9 for d -> đ outside composition", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      language: "vietnamese_5k",
+      stopOnError: "letter",
+      stopOnErrorKeepFirstError: true,
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+    });
+    pushWords("đ", "next");
+
+    await type("d", 1350);
+    setInput("đ");
+    await onInsertText({ data: "9", now: 1351 });
+
+    expect(getInput()).toBe("đ");
+    expect(getInputForWord(0)).toBe("đ");
+    expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
+  });
+
   it("buffers exact suffix letters until a pending Vietnamese tone is resolved", async () => {
     replaceConfig({
       ...__testing.getConfig(),
