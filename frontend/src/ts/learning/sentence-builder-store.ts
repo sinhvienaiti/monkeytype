@@ -3,6 +3,7 @@ import {
   type SentenceBuilderDifficulty,
   type SentenceBuilderExercise,
 } from "./sentence-builder";
+import { loadPublishedSentenceBuilderExercise } from "./rich-content";
 
 const STORAGE_KEY = "personalSentenceBuilderExerciseV1";
 
@@ -105,4 +106,15 @@ export function draftToExercise(
         };
       }),
   });
+}
+
+export async function loadSentenceBuilderExerciseWithPublishedFallback(): Promise<SentenceBuilderExercise | null> {
+  const local = loadSentenceBuilderExercise();
+  if (local !== null) return local;
+
+  try {
+    return await loadPublishedSentenceBuilderExercise();
+  } catch {
+    return null;
+  }
 }

@@ -41,6 +41,7 @@ import "./input/hotkeys";
 import "./learning/review-dataset";
 import "./learning/sentence-builder-ui";
 import "./learning/context-cloze-ui";
+import "./learning/rich-practice-ui";
 import "./learning/smart-review-ui";
 import { showModal } from "./states/modals";
 import { getLastEventLog } from "./states/test";

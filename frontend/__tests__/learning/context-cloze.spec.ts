@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   prepareLevelPassages: vi.fn(),
   loadVocabularyGrammarIndex: vi.fn(),
+  loadPublishedContextClozeExercises: vi.fn(),
 }));
 
 vi.mock("../../src/ts/custom/typing-text-library", () => ({
@@ -11,6 +12,10 @@ vi.mock("../../src/ts/custom/typing-text-library", () => ({
 
 vi.mock("../../src/ts/custom/en-vn-translation/library", () => ({
   loadVocabularyGrammarIndex: mocks.loadVocabularyGrammarIndex,
+}));
+
+vi.mock("../../src/ts/learning/rich-content", () => ({
+  loadPublishedContextClozeExercises: mocks.loadPublishedContextClozeExercises,
 }));
 
 import {
@@ -40,6 +45,7 @@ describe("Context / Cloze", () => {
         },
       ],
     });
+    mocks.loadPublishedContextClozeExercises.mockResolvedValue([]);
     mocks.loadVocabularyGrammarIndex.mockResolvedValue({
       version: 1,
       primaryTimeGroups: ["time.present", "time.past", "time.future"],
@@ -91,6 +97,53 @@ describe("Context / Cloze", () => {
     ]);
     expect(exercises[0]?.maskedSentence).toBe("I go to ____ today.");
     expect(exercises[1]?.maskedSentence).toBe("I go to school ____.");
+  });
+
+  it("prefers published cloze content before derived passage exercises", async () => {
+    mocks.loadPublishedContextClozeExercises.mockResolvedValue([
+      {
+        version: 1,
+        id: "ex.cloze.00000001",
+        passageId: "sent.00000001",
+        level: 0,
+        cefr: "A1",
+        topic: "gr.a1.present-simple-routines",
+        sentence: "She takes the bus every morning.",
+        maskedSentence: "She ___ the bus every morning.",
+        target: "takes",
+        acceptedAnswers: ["takes"],
+        entityType: "grammar",
+        entityId: "gr.a1.present-simple-routines",
+        grammarId: "gr.a1.present-simple-routines",
+      },
+    ]);
+
+    const exercises = await prepareContextClozeExercises(1, 1, 4);
+
+    expect(exercises).toHaveLength(1);
+    expect(exercises[0]?.id).toBe("ex.cloze.00000001");
+    expect(mocks.loadVocabularyGrammarIndex).not.toHaveBeenCalled();
+  });
+
+  it("accepts authored alternative cloze answers without changing the primary target", () => {
+    const exercise = {
+      version: 1 as const,
+      id: "ex.cloze.alt",
+      passageId: "sent.alt",
+      level: 0,
+      cefr: "B1",
+      topic: "grammar",
+      sentence: "I have already finished.",
+      maskedSentence: "I ___ finished.",
+      target: "have already",
+      acceptedAnswers: ["have already", "'ve already"],
+      entityType: "grammar" as const,
+      entityId: "gr.b1.present-perfect",
+    };
+    expect(validateContextClozeAnswer(exercise, "'ve already")).toMatchObject({
+      correct: true,
+      matchedAnswer: "'ve already",
+    });
   });
 
   it("scores vocabulary cloze errors as spelling", async () => {

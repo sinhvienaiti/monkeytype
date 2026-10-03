@@ -8,7 +8,10 @@ import {
   validateSentenceBuilderAnswer,
   type SentenceBuilderExercise,
 } from "./sentence-builder";
-import { loadSentenceBuilderExercise } from "./sentence-builder-store";
+import {
+  loadSentenceBuilderExercise,
+  loadSentenceBuilderExerciseWithPublishedFallback,
+} from "./sentence-builder-store";
 
 const LEARNING_ATTEMPT_MESSAGE = "typing-game:learning:v1:attempt";
 
@@ -18,6 +21,7 @@ let hintUsed = false;
 let startedAt = 0;
 let requestSequence = 0;
 let boundPanel: HTMLElement | null = null;
+let publishedLoadGeneration = 0;
 
 function byId<T extends HTMLElement>(id: string): T | null {
   return document.getElementById(id) as T | null;
@@ -259,20 +263,45 @@ export function syncSentenceBuilderPanel(): void {
   typingTest.classList.toggle("sentence-builder-active", active);
 
   if (!active) {
+    publishedLoadGeneration++;
     exercise = null;
     return;
   }
 
   exercise = loadSentenceBuilderExercise();
-  if (exercise === null) {
-    setFeedback(
-      "Open Custom Text settings and create a Sentence Builder exercise.",
-      "wrong",
-    );
+  if (exercise !== null) {
+    renderExercise(exercise);
     return;
   }
 
-  renderExercise(exercise);
+  const generation = ++publishedLoadGeneration;
+  setFeedback("Loading published Sentence Builder content...");
+  void loadSentenceBuilderExerciseWithPublishedFallback()
+    .then((published) => {
+      if (
+        generation !== publishedLoadGeneration ||
+        Config.mode !== "custom" ||
+        getSettings().learningMode !== "sentence-builder"
+      ) {
+        return;
+      }
+      exercise = published;
+      if (exercise === null) {
+        setFeedback(
+          "Open Custom Text settings and create a Sentence Builder exercise.",
+          "wrong",
+        );
+        return;
+      }
+      renderExercise(exercise);
+    })
+    .catch(() => {
+      if (generation !== publishedLoadGeneration) return;
+      setFeedback(
+        "Open Custom Text settings and create a Sentence Builder exercise.",
+        "wrong",
+      );
+    });
 }
 
 syncSentenceBuilderPanel();

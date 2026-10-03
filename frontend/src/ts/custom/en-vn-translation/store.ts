@@ -42,6 +42,11 @@ const LearningModeSchema = z.enum([
   "sentence-builder",
   "context-cloze",
   "smart-review",
+  "grammar-lesson",
+  "translation",
+  "correction",
+  "transformation",
+  "sentence-listening",
 ]);
 
 const EnVnTranslationSettingsSchema = z.object({
@@ -92,6 +97,38 @@ export type PronunciationRate = z.infer<typeof PronunciationRateSchema>;
 export type TextReaderLanguage = z.infer<typeof TextReaderLanguageSchema>;
 export type DictionarySource = z.infer<typeof DictionarySourceSchema>;
 export type LearningMode = z.infer<typeof LearningModeSchema>;
+export type RichPracticeLearningMode = Extract<
+  LearningMode,
+  | "grammar-lesson"
+  | "translation"
+  | "correction"
+  | "transformation"
+  | "sentence-listening"
+>;
+
+const richPracticeLearningModes = new Set<LearningMode>([
+  "grammar-lesson",
+  "translation",
+  "correction",
+  "transformation",
+  "sentence-listening",
+]);
+
+export function isRichPracticeLearningMode(
+  mode: LearningMode,
+): mode is RichPracticeLearningMode {
+  return richPracticeLearningModes.has(mode);
+}
+
+export function usesStandaloneLearningPanel(mode: LearningMode): boolean {
+  return (
+    mode === "sentence-builder" ||
+    mode === "context-cloze" ||
+    mode === "smart-review" ||
+    isRichPracticeLearningMode(mode)
+  );
+}
+
 export type EnVnTranslationSettings = z.infer<
   typeof EnVnTranslationSettingsSchema
 >;
