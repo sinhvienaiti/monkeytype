@@ -133,5 +133,10 @@ export function findFirstVietnameseImeProvisionalMismatch(
 
 export function isVietnameseImeBoundary(data: string): boolean {
   const first = Array.from(data)[0];
-  return first !== undefined && !/[\p{L}\p{M}]/u.test(first);
+
+  // Native mode must remain input-method agnostic. Telex modifiers are letters
+  // and VNI modifiers are digits (1-5 tones, 6-9 shapes, 0 tone removal), so
+  // neither letters/marks nor numbers are commit boundaries. Spaces and
+  // punctuation still flush unresolved preview text.
+  return first !== undefined && !/[\p{L}\p{M}\p{N}]/u.test(first);
 }

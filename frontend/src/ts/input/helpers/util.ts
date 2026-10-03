@@ -101,10 +101,22 @@ export function shouldIgnoreVietnameseImeDelete(options: {
     return false;
   }
 
-  // Only browser-internal deletes inside active composition are ignored.
-  // Outside composition, Native Mode never guesses Telex behavior from
-  // physical key codes.
-  return isComposing;
+  // Inside composition, a delete produced without Backspace intent belongs
+  // to the browser/OS IME.
+  if (isComposing) return true;
+
+  // Windows UniKey/EVKey can also rewrite committed preview text outside a
+  // composition session by emitting deleteContentBackward under the physical
+  // Telex/VNI modifier key, followed by insertText for the rewritten Unicode
+  // character. A normal backward delete cannot be caused by a letter/digit
+  // key, so preserve scorer state for that rewrite. Keep null/Unidentified
+  // conservative for mobile/virtual keyboards where no physical intent exists.
+  const activeKeyCode = options.activeKeyCode;
+  return (
+    activeKeyCode !== null &&
+    activeKeyCode !== "Unidentified" &&
+    /^(?:Key[A-Z]|Digit[0-9]|Numpad[0-9])$/.test(activeKeyCode)
+  );
 }
 
 export function getCommitCharacterType(options: {
