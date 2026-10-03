@@ -1088,7 +1088,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
 
   it.each([
     ["bố", "b", "o", "bô", "6", "bố", "1"],
-    ["rằng", "r", "a", "ră", "8", "rắ", "1"],
+    ["rằ", "r", "a", "ră", "8", "rằ", "2"],
     ["cờ", "c", "o", "cơ", "7", "cờ", "2"],
     ["từ", "t", "u", "tư", "7", "từ", "2"],
   ])(
