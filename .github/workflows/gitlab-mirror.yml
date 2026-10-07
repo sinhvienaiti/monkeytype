@@ -1,0 +1,42 @@
+name: Mirror to GitLab
+
+on:
+  push:
+  delete:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gitlab-mirror-${{ github.repository }}
+  cancel-in-progress: true
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mirror GitHub repository to GitLab
+        shell: bash
+        env:
+          GITLAB_MIRROR_TOKEN: ${{ secrets.GITLAB_MIRROR_TOKEN }}
+          TARGET_REPO: ${{ github.event.repository.name }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${GITLAB_MIRROR_TOKEN:-}" ]]; then
+            echo "GITLAB_MIRROR_TOKEN is not configured"
+            exit 1
+          fi
+
+          git clone --mirror \
+            "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" \
+            repo.git
+
+          cd repo.git
+          git remote add gitlab \
+            "https://oauth2:${GITLAB_MIRROR_TOKEN}@gitlab.com/sinhvienaiti/${TARGET_REPO}.git"
+
+          git push --mirror gitlab
