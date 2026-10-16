@@ -6,7 +6,7 @@ on:
       - feature/en-vn-translation
   pull_request:
     branches:
-      - feature/en-vn-translation
+      - master
   workflow_dispatch:
 
 concurrency:
