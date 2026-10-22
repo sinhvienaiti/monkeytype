@@ -134,3 +134,6 @@ frontend/.env.sentry-build-plugin
 .claude/worktrees
 1024MiB
 .pnpm-store
+
+# Local Adobe Commerce study notes, never published (owner, 22/10/2026)
+/adobe_commerce_lessons_1_180_package/
