@@ -26,12 +26,47 @@ import {
 import { showNoticeNotification } from "../../states/notifications";
 import { goToNextWord, goToPreviousWord } from "../helpers/word-navigation";
 import { onBeforeInsertText } from "./before-insert-text";
-import { shouldGoToNextWord, isCharCorrect } from "../helpers/validation";
-import { getCurrentInput, logTestEvent } from "../../test/events/data";
-import { getCommitCharacterType, normalizeData } from "../helpers/util";
+import {
+  hasUnresolvedInputError,
+  shouldGoToNextWord,
+  isCharCorrect,
+} from "../helpers/validation";
+import {
+  forgiveAccuracyErrorsAt,
+  forgiveAccuracyErrorsForWord,
+  getCurrentInput,
+  hasCountedAccuracyError,
+  hasCountedAccuracyErrorInWord,
+  logTestEvent,
+} from "../../test/events/data";
+import {
+  getCommitCharacterType,
+  normalizeCommittedText,
+  normalizeData,
+  normalizeTargetText,
+  shouldUseVietnameseIme,
+  splitCommittedText,
+} from "../helpers/util";
 import { areAllWordsGenerated } from "../../test/words-generator";
-import { getActiveWordIndex, isTestActive } from "../../states/test";
+import {
+  getActiveWordIndex,
+  isResultCalculating,
+  isTestActive,
+} from "../../states/test";
 import { DeleteInputType } from "../helpers/input-type";
+import { handleStartedWord as handleEnVnTranslationStart } from "../../custom/en-vn-translation";
+import { getAsciiTargetRestore } from "../vietnamese-ime/ascii-guard";
+import { createVietnameseCommitTransaction } from "../vietnamese-ime/transaction";
+import {
+  hasOnlyVietnameseImeCorrectableMismatches,
+  isVietnameseImeBoundary,
+} from "../vietnamese-ime/provisional";
+import {
+  clearVietnameseImeDirectPreview,
+  getVietnameseImeDirectPreview,
+  setVietnameseImeDirectPreview,
+  type VietnameseImeDirectPreview,
+} from "../vietnamese-ime/state";
 
 const charOverrides = new Map<string, string>([
   ["…", "..."],
@@ -58,6 +93,14 @@ type OnInsertTextParams = {
   lastInMultiIndex?: boolean;
   // true if monkeytype is inserting this itself, not the user
   automatic?: true;
+  // IME replaced a previously committed character at this index.
+  replacementCharIndex?: number;
+  // Browser/OS IME produced the logical committed character. Physical-key
+  // shift state must not be applied to this scorer event.
+  nativeImeCommit?: true;
+  // Buffered browser preview is being converted into real scorer events
+  // because the IME did not finish rewriting it.
+  materializingImePreview?: true;
 };
 
 function logDeleteOnErrorEvent(
@@ -130,21 +173,103 @@ function handleDeleteOnError(now: number): void {
   }
 }
 
-export async function onInsertText(options: OnInsertTextParams): Promise<void> {
-  const { now, lastInMultiIndex, isCompositionEnding, automatic } = options;
-  const { inputValue } = getInputElementValue();
+function isPrefixOfTarget(inputValue: string, targetWord: string): boolean {
+  return targetWord.startsWith(inputValue);
+}
 
-  if (options.data.length > 1) {
-    // remove the entire data from the input value
+function canBufferVietnameseDirectPreview(options: {
+  scorerInput: string;
+  domInput: string;
+  targetWord: string;
+  physicalData: string;
+}): boolean {
+  const scorerChars = Array.from(options.scorerInput);
+  const domChars = Array.from(options.domInput);
+
+  // A separator/punctuation key is an explicit boundary. It must flush any
+  // pending IME preview before normal stop-on-error/navigation logic runs.
+  if (isVietnameseImeBoundary(options.physicalData)) return false;
+
+  // Buffering may start only from a fully correct scorer prefix. Once a
+  // provisional character has been materialized as a real typo, normal
+  // stop-on-error rules must own every following key/boundary.
+  if (!options.targetWord.startsWith(options.scorerInput)) return false;
+  if (domChars.length <= scorerChars.length) return false;
+  if (
+    scorerChars.some((char, index) => domChars[index] !== char)
+  ) {
+    return false;
+  }
+
+  return hasOnlyVietnameseImeCorrectableMismatches(
+    options.domInput,
+    options.targetWord,
+  );
+}
+
+async function materializeVietnameseDirectPreview(
+  preview: VietnameseImeDirectPreview,
+  now: number,
+): Promise<boolean> {
+  const scorerChars = Array.from(preview.scorerPrefix);
+  const previewChars = Array.from(preview.domValue);
+  const bufferedChars = previewChars.slice(scorerChars.length);
+
+  clearVietnameseImeDirectPreview();
+  setInputElementValue(preview.scorerPrefix);
+
+  for (let index = 0; index < bufferedChars.length; index++) {
+    const data = bufferedChars[index] as string;
+    const expectedInput =
+      preview.scorerPrefix + bufferedChars.slice(0, index + 1).join("");
+
+    setInputElementValue(expectedInput);
+    await onInsertText({
+      data,
+      now,
+      nativeImeCommit: true,
+      materializingImePreview: true,
+      lastInMultiIndex: index === bufferedChars.length - 1,
+    });
+
+    if (
+      isResultCalculating() ||
+      getActiveWordIndex() !== preview.wordIndex ||
+      normalizeCommittedText(getCurrentInput()) !== expectedInput
+    ) {
+      setInputElementValue(normalizeCommittedText(getCurrentInput()));
+      return false;
+    }
+  }
+
+  return true;
+}
+
+export async function onInsertText(options: OnInsertTextParams): Promise<void> {
+  const normalizedCommittedData = normalizeCommittedText(options.data);
+  if (normalizedCommittedData !== options.data) {
+    const { inputValue: rawInputValue } = getInputElementValue();
+    setInputElementValue(normalizeCommittedText(rawInputValue));
+    options = { ...options, data: normalizedCommittedData };
+  }
+
+  const { now, lastInMultiIndex, isCompositionEnding, automatic } = options;
+  let { inputValue } = getInputElementValue();
+
+  const committedCharacters = splitCommittedText(options.data);
+
+  if (committedCharacters.length > 1) {
+    // remove the entire committed text, then replay it one Unicode code point
+    // at a time through the normal Monkeytype scorer.
     setInputElementValue(inputValue.slice(0, -options.data.length));
-    for (let i = 0; i < options.data.length; i++) {
-      const char = options.data[i] as string;
+    for (let i = 0; i < committedCharacters.length; i++) {
+      const char = committedCharacters[i] as string;
 
       // then add it one by one
       await emulateInsertText({
         ...options,
         data: char,
-        lastInMultiIndex: i === options.data.length - 1,
+        lastInMultiIndex: i === committedCharacters.length - 1,
       });
     }
     return;
@@ -192,14 +317,209 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
   }
 
   // input and target word
-  const testInput = getCurrentInput();
-  const currentWord = TestWords.words.getCurrent()?.textWithCommit ?? "";
+  const testInput = normalizeCommittedText(getCurrentInput());
+  const currentTestWord = TestWords.words.getCurrent();
+  const currentWord = normalizeTargetText(currentTestWord?.textWithCommit ?? "");
+  const currentWordText = normalizeTargetText(currentTestWord?.text ?? "");
+
+  // Native Vietnamese mode trusts the browser/OS IME DOM result. Do not
+  // emulate Telex physical keys here. Convert browser-side committed rewrites
+  // into scorer transactions instead.
+  let replacementCharIndex = options.replacementCharIndex;
+  if (
+    replacementCharIndex === undefined &&
+    isCompositionEnding !== true &&
+    automatic !== true &&
+    options.nativeImeCommit !== true &&
+    options.materializingImePreview !== true &&
+    shouldUseVietnameseIme()
+  ) {
+    const asciiRestore = getAsciiTargetRestore({
+      scorerInput: testInput,
+      domInput: inputValue,
+      physicalData: options.data,
+      targetWord: currentWord,
+    });
+
+    if (asciiRestore !== null) {
+      setInputElementValue(asciiRestore);
+      inputValue = asciiRestore;
+    }
+
+    const wordIndex = getActiveWordIndex();
+    let directPreview = getVietnameseImeDirectPreview();
+
+    if (
+      directPreview !== null &&
+      (directPreview.wordIndex !== wordIndex ||
+        directPreview.scorerPrefix !== testInput)
+    ) {
+      clearVietnameseImeDirectPreview();
+      directPreview = null;
+    }
+
+    if (
+      canBufferVietnameseDirectPreview({
+        scorerInput: testInput,
+        domInput: inputValue,
+        targetWord: currentWord,
+        physicalData: options.data,
+      })
+    ) {
+      setVietnameseImeDirectPreview({
+        wordIndex,
+        scorerPrefix: testInput,
+        domValue: inputValue,
+      });
+      TestUI.afterTestCompositionUpdate();
+      return;
+    }
+
+    if (directPreview !== null) {
+      if (isPrefixOfTarget(inputValue, currentWord)) {
+        clearVietnameseImeDirectPreview();
+      } else {
+        const currentDomValue = inputValue;
+        const previewApplied = await materializeVietnameseDirectPreview(
+          directPreview,
+          now,
+        );
+
+        if (!previewApplied || isResultCalculating()) {
+          setInputElementValue(normalizeCommittedText(getCurrentInput()));
+          return;
+        }
+
+        setInputElementValue(currentDomValue);
+        await onInsertText(options);
+        return;
+      }
+    }
+
+    const transaction = createVietnameseCommitTransaction({
+      wordIndex: getActiveWordIndex(),
+      before: testInput,
+      after: inputValue,
+      source: "direct",
+    });
+
+    // A native insert event with no committed DOM change is an IME-internal
+    // physical-key signal, not text for the scorer. ASCII target recovery runs
+    // above this guard so literal words such as "raw" still type normally.
+    if (transaction === null) {
+      setInputElementValue(testInput);
+      return;
+    }
+
+    if (transaction !== null) {
+      const insertedChars = Array.from(transaction.insertText);
+      const scorerChars = Array.from(testInput);
+
+      // insertText/composition events may rewrite committed characters, but
+      // they must never shrink scorer state. Only an explicit delete event may
+      // delete committed input. This prevents stale IME DOM mutations from
+      // pulling the scorer backwards.
+      if (transaction.deleteCount > insertedChars.length) {
+        setInputElementValue(testInput);
+        return;
+      }
+
+      if (transaction.deleteCount > 0 || insertedChars.length > 1) {
+        const logicalChars = [...scorerChars];
+        const replaceCount = transaction.deleteCount;
+        const transactionWordIndex = getActiveWordIndex();
+
+        for (let i = 0; i < replaceCount; i++) {
+          const charIndex = transaction.start + i;
+          const data = insertedChars[i] as string;
+          logicalChars[charIndex] = data;
+          const expectedInput = logicalChars.join("");
+          setInputElementValue(expectedInput);
+          await onInsertText({
+            ...options,
+            data,
+            replacementCharIndex: charIndex,
+            nativeImeCommit: true,
+            lastInMultiIndex:
+              i === insertedChars.length - 1 &&
+              replaceCount === insertedChars.length,
+          });
+
+          const scorerAfterStep = normalizeCommittedText(getCurrentInput());
+          if (
+            isResultCalculating() ||
+            getActiveWordIndex() !== transactionWordIndex ||
+            scorerAfterStep !== expectedInput
+          ) {
+            setInputElementValue(scorerAfterStep);
+            return;
+          }
+        }
+
+        for (let i = replaceCount; i < insertedChars.length; i++) {
+          const data = insertedChars[i] as string;
+          logicalChars.splice(transaction.start + i, 0, data);
+          const expectedInput = logicalChars.join("");
+          setInputElementValue(expectedInput);
+          await onInsertText({
+            ...options,
+            data,
+            nativeImeCommit: true,
+            lastInMultiIndex: i === insertedChars.length - 1,
+          });
+
+          const scorerAfterStep = normalizeCommittedText(getCurrentInput());
+          if (
+            isResultCalculating() ||
+            getActiveWordIndex() !== transactionWordIndex ||
+            scorerAfterStep !== expectedInput
+          ) {
+            setInputElementValue(scorerAfterStep);
+            return;
+          }
+        }
+        return;
+      }
+
+      if (transaction.start === scorerChars.length && insertedChars.length > 0) {
+        options = {
+          ...options,
+          data: transaction.insertText,
+          nativeImeCommit: true,
+        };
+      } else {
+        // The caret is expected to stay at the end of wordsInput. If an
+        // insertText event mutates an earlier committed range without a
+        // replacement transaction, keep the scorer/event log authoritative.
+        setInputElementValue(testInput);
+        return;
+      }
+    }
+  }
+
+  const scoreInput =
+    replacementCharIndex === undefined
+      ? testInput
+      : Array.from(testInput).slice(0, replacementCharIndex).join("");
+
+  // onBeforeInsertText normally catches this before the DOM value changes.
+  // Keep this defensive guard for composition/emulated paths that can reach
+  // the handler with a character already appended.
+  if (
+    replacementCharIndex === undefined &&
+    Config.stopOnError === "letter" &&
+    Config.stopOnErrorKeepFirstError &&
+    hasUnresolvedInputError(testInput, currentWord)
+  ) {
+    replaceInputElementLastValueChar("");
+    return;
+  }
 
   // if the character is visually equal, replace it with the target character
   // this ensures all future equivalence checks work correctly
   const normalizedData = normalizeDataAndUpdateInputIfNeeded(
     options.data,
-    testInput,
+    scoreInput,
     currentWord,
   );
   const data = normalizedData ?? options.data;
@@ -215,33 +535,82 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
   const wordIndex = getActiveWordIndex();
   const correctShiftUsed =
     Config.oppositeShiftMode === "off" ? null : isCorrectShiftUsed();
+  const effectiveCorrectShiftUsed =
+    shouldUseVietnameseIme() &&
+    (replacementCharIndex !== undefined ||
+      isCompositionEnding === true ||
+      options.nativeImeCommit === true)
+      ? null
+      : correctShiftUsed;
+  const charIndex = replacementCharIndex ?? testInput.length;
   const commitCharacterType = getCommitCharacterType({
     data,
-    inputValue: testInput,
+    inputValue: scoreInput,
     targetWord: currentWord,
   });
 
-  // is char correct
+  if (
+    replacementCharIndex === undefined &&
+    testInput.length === 0 &&
+    commitCharacterType === false &&
+    automatic !== true
+  ) {
+    handleEnVnTranslationStart(wordIndex);
+  }
+
   const correct = isCharCorrect({
     data,
-    inputValue: testInput,
+    inputValue: scoreInput,
     targetWord: currentWord,
-    correctShiftUsed,
+    correctShiftUsed: effectiveCorrectShiftUsed,
   });
+  const acceptedInput = correct;
+
+  const ignoreRepeatedBlockedErrors =
+    (Config.forgiveCorrectedErrors || Config.ignoreRepeatedBlockedErrors) &&
+    Config.stopOnError !== "off";
+  const accuracyIgnored =
+    ignoreRepeatedBlockedErrors &&
+    !correct &&
+    (Config.stopOnError === "word"
+      ? hasCountedAccuracyErrorInWord(wordIndex)
+      : hasCountedAccuracyError(wordIndex, charIndex));
+
+  if (
+    Config.forgiveCorrectedErrors &&
+    Config.stopOnError !== "off" &&
+    correct
+  ) {
+    if (Config.stopOnError === "letter") {
+      forgiveAccuracyErrorsAt(wordIndex, charIndex);
+    } else if (testInput + data === currentWordText) {
+      forgiveAccuracyErrorsForWord(wordIndex);
+    }
+  }
 
   // handing cases where last char needs to be removed
   // this is here and not in beforeInsertText because we want to penalize for incorrect spaces
   // like accuracy, keypress errors, and missed words
   let removeLastChar = false;
   let visualInputOverride: string | undefined;
-  if (Config.stopOnError === "letter" && !correct) {
+  if (
+    Config.stopOnError === "letter" &&
+    !acceptedInput &&
+    !Config.stopOnErrorKeepFirstError
+  ) {
     if (!Config.blindMode) {
-      visualInputOverride = testInput + data;
+      if (replacementCharIndex === undefined) {
+        visualInputOverride = testInput + data;
+      } else {
+        const previewChars = Array.from(testInput);
+        previewChars[replacementCharIndex] = data;
+        visualInputOverride = previewChars.join("");
+      }
     }
     removeLastChar = true;
   }
 
-  if (correctShiftUsed === false) {
+  if (effectiveCorrectShiftUsed === false) {
     removeLastChar = true;
     visualInputOverride = undefined;
     incrementIncorrectShiftsInARow();
@@ -260,17 +629,29 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     !removeLastChar &&
     shouldGoToNextWord({
       data,
-      inputValue: testInput,
+      inputValue: scoreInput,
       targetWord: currentWord,
       commitCharacterType,
     });
 
+  if (
+    Config.forgiveCorrectedErrors &&
+    Config.stopOnError === "word" &&
+    goingToNextWord
+  ) {
+    forgiveAccuracyErrorsForWord(wordIndex);
+  }
+
   if (Config.keymapMode === "react") {
-    flash(data, correct);
+    flash(data, acceptedInput);
   }
 
   if (removeLastChar) {
-    replaceInputElementLastValueChar("");
+    if (replacementCharIndex === undefined) {
+      replaceInputElementLastValueChar("");
+    } else {
+      setInputElementValue(testInput);
+    }
   }
 
   // capture DOM before goToNextWord clears it for the new word
@@ -285,9 +666,11 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     data,
     correct,
     wordIndex,
-    charIndex: testInput.length,
+    charIndex,
     isCompositionEnding: isCompositionEnding ? true : undefined,
     inputStopped: removeLastChar ? true : undefined,
+    accuracyIgnored: accuracyIgnored ? true : undefined,
+    replacesChar: replacementCharIndex !== undefined ? true : undefined,
     automatic: automatic ? true : undefined,
     // inputValue is captured from the input element after this event (before goToNextWord clears it).
     inputValue: inputValueAfterEvent,
@@ -301,12 +684,20 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
   // delete on error
   // skipped when the input was stopped - nothing was inserted to delete
   // before the UI update so it renders the input after the deletion, in one go
-  if (Config.deleteOnError !== "off" && !correct && !removeLastChar) {
+  if (
+    Config.deleteOnError !== "off" &&
+    !acceptedInput &&
+    !removeLastChar
+  ) {
     handleDeleteOnError(now);
   }
 
-  if (lastInMultiOrSingle) {
-    TestUI.afterTestTextInput(correct, visualInputOverride, goingToNextWord);
+  if (lastInMultiOrSingle || options.nativeImeCommit === true) {
+    TestUI.afterTestTextInput(
+      acceptedInput,
+      visualInputOverride,
+      goingToNextWord,
+    );
   }
 
   // going to next word
@@ -315,7 +706,11 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
   if (goingToNextWord) {
     const result = await goToNextWord({
       correctInsert:
-        Config.mode === "zen" ? true : testInput + data === currentWord,
+        Config.mode === "zen"
+          ? true
+          : replacementCharIndex !== undefined
+            ? inputValueAfterEvent === currentWord
+            : testInput + data === currentWord,
       now,
     });
     lastBurst = result.lastBurst;
@@ -339,36 +734,45 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     }, 0);
   }
 
-  if (!CompositionState.getComposing() && lastInMultiOrSingle) {
-    if (
+  const testInputAfterEvent =
+    replacementCharIndex !== undefined ? inputValueAfterEvent : testInput + data;
+
+  if (!CompositionState.getComposing()) {
+    const shouldCheckDifficulty =
+      lastInMultiOrSingle || options.nativeImeCommit === true;
+    const difficultyFailed =
+      shouldCheckDifficulty &&
       checkIfFailedDueToDifficulty({
         data,
-        testInput: testInput,
+        testInput: scoreInput,
         targetWord: currentWord,
-        correct,
+        correct: acceptedInput,
         commitCharacterType,
-      })
-    ) {
+      });
+
+    if (difficultyFailed) {
       TestLogic.fail("difficulty");
-    } else if (
-      increasedWordIndex &&
-      checkIfFailedDueToMinBurst({
-        testInputWithData: testInput + data,
-        currentWord,
-        lastBurst,
-      })
-    ) {
-      TestLogic.fail("min burst");
-    } else if (
-      checkIfFinished({
-        goingToNextWord,
-        testInputWithData: testInput + data,
-        currentWord,
-        allWordsTyped: wordIndex >= TestWords.words.length - 1,
-        allWordsGenerated: areAllWordsGenerated(),
-      })
-    ) {
-      void TestLogic.finish();
+    } else if (lastInMultiOrSingle) {
+      if (
+        increasedWordIndex &&
+        checkIfFailedDueToMinBurst({
+          testInputWithData: testInputAfterEvent,
+          currentWord,
+          lastBurst,
+        })
+      ) {
+        TestLogic.fail("min burst");
+      } else if (
+        checkIfFinished({
+          goingToNextWord,
+          testInputWithData: testInputAfterEvent,
+          currentWord,
+          allWordsTyped: wordIndex >= TestWords.words.length - 1,
+          allWordsGenerated: areAllWordsGenerated(),
+        })
+      ) {
+        void TestLogic.finish();
+      }
     }
   }
 }

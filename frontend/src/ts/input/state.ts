@@ -3,6 +3,8 @@ let incorrectShiftsInARow = 0;
 let awaitingNextWord = false;
 let lastBailoutAttempt = -1;
 let lastInsertCompositionTextData = "";
+let activePhysicalKeyCode: string | null = null;
+let lastBackspaceIntentAt = Number.NEGATIVE_INFINITY;
 
 export function isCorrectShiftUsed(): boolean {
   return correctShiftUsed;
@@ -50,4 +52,36 @@ export function getLastInsertCompositionTextData(): string {
 
 export function setLastInsertCompositionTextData(value: string): void {
   lastInsertCompositionTextData = value;
+}
+
+export function getActivePhysicalKeyCode(): string | null {
+  return activePhysicalKeyCode;
+}
+
+export function setActivePhysicalKeyCode(value: string | null): void {
+  activePhysicalKeyCode = value;
+}
+
+export function clearActivePhysicalKeyCode(code: string): void {
+  if (activePhysicalKeyCode === code) {
+    activePhysicalKeyCode = null;
+  }
+}
+
+const BACKSPACE_INTENT_WINDOW_MS = 750;
+
+export function markBackspaceIntent(now: number): void {
+  lastBackspaceIntentAt = now;
+}
+
+export function hasRecentBackspaceIntent(now: number): boolean {
+  return (
+    Number.isFinite(now) &&
+    now >= lastBackspaceIntentAt &&
+    now - lastBackspaceIntentAt <= BACKSPACE_INTENT_WINDOW_MS
+  );
+}
+
+export function clearBackspaceIntent(): void {
+  lastBackspaceIntentAt = Number.NEGATIVE_INFINITY;
 }

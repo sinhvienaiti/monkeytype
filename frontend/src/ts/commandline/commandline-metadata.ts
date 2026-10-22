@@ -311,6 +311,21 @@ export const commandlineConfigMetadata: CommandlineConfigMetadataObject = {
       options: "fromSchema",
     },
   },
+  stopOnErrorKeepFirstError: {
+    subgroup: {
+      options: "fromSchema",
+    },
+  },
+  ignoreRepeatedBlockedErrors: {
+    subgroup: {
+      options: "fromSchema",
+    },
+  },
+  forgiveCorrectedErrors: {
+    subgroup: {
+      options: "fromSchema",
+    },
+  },
   deleteOnError: {
     subgroup: {
       options: "fromSchema",
@@ -330,6 +345,17 @@ export const commandlineConfigMetadata: CommandlineConfigMetadataObject = {
   indicateTypos: {
     subgroup: {
       options: "fromSchema",
+    },
+  },
+  inputLanguage: {
+    subgroup: {
+      options: "fromSchema",
+    },
+  },
+  vietnameseImeMode: {
+    subgroup: {
+      options: "fromSchema",
+      afterExec: () => void TestLogic.restart(),
     },
   },
   compositionDisplay: {

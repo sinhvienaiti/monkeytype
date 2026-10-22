@@ -11,10 +11,23 @@ import {
   isTestActive,
   setCompositionText,
 } from "../../states/test";
+import { recordImeDebugEvent } from "../ime-debug";
+import { isVietnameseImeSafeModeActive } from "../vietnamese-ime/gate";
+import {
+  onVietnameseCompositionEnd,
+  onVietnameseCompositionStart,
+  onVietnameseCompositionUpdate,
+} from "../vietnamese-ime/native-events";
 
 const inputEl = getInputElement();
 
 inputEl.addEventListener("compositionstart", (event) => {
+  if (isVietnameseImeSafeModeActive()) {
+    onVietnameseCompositionStart(event);
+    return;
+  }
+
+  recordImeDebugEvent("compositionstart", "before", event);
   console.debug("wordsInput event compositionstart", {
     event,
     data: event.data,
@@ -34,9 +47,16 @@ inputEl.addEventListener("compositionstart", (event) => {
     event: "start",
     wordIndex: getActiveWordIndex(),
   });
+  recordImeDebugEvent("compositionstart", "after", event);
 });
 
 inputEl.addEventListener("compositionupdate", (event) => {
+  if (isVietnameseImeSafeModeActive()) {
+    onVietnameseCompositionUpdate(event);
+    return;
+  }
+
+  recordImeDebugEvent("compositionupdate", "before", event);
   console.debug("wordsInput event compositionupdate", {
     event,
     data: event.data,
@@ -53,9 +73,16 @@ inputEl.addEventListener("compositionupdate", (event) => {
     data: event.data,
     wordIndex: getActiveWordIndex(),
   });
+  recordImeDebugEvent("compositionupdate", "after", event);
 });
 
 inputEl.addEventListener("compositionend", async (event) => {
+  if (isVietnameseImeSafeModeActive()) {
+    await onVietnameseCompositionEnd(event);
+    return;
+  }
+
+  recordImeDebugEvent("compositionend", "before", event);
   console.debug("wordsInput event compositionend", { event, data: event.data });
 
   if (isTestRestarting() || isResultCalculating()) return;
@@ -79,4 +106,6 @@ inputEl.addEventListener("compositionend", async (event) => {
     data: event.data,
     wordIndex: getActiveWordIndex(),
   });
+
+  recordImeDebugEvent("compositionend", "after", event);
 });
