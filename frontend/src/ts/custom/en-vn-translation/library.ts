@@ -1,4 +1,4 @@
-import { normalizePhrase } from "./dictionary";
+import { normalizePhrase, parseDictionary } from "./dictionary";
 
 const BASE_URL = "https://typing-game.local/vocabulary";
 const CACHE_KEY = "personalEnVnLibraryDictionaryCache";
@@ -93,6 +93,34 @@ let grammarDictionaryId = "";
 let reviewDictionaryRaw = "";
 let cacheLoaded = false;
 
+function isVocabularyEntry(value: unknown): value is VocabularyEntry {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const entry = value as Record<string, unknown>;
+  return (
+    typeof entry["id"] === "string" &&
+    typeof entry["en"] === "string" &&
+    normalizePhrase(entry["en"]) !== "" &&
+    typeof entry["vi"] === "string" &&
+    typeof entry["ipa"] === "string"
+  );
+}
+
+function cachedDictionaryKeys(): Set<string> {
+  const keys = new Set<string>();
+  for (const raw of [
+    libraryDictionaryRaw,
+    topicDictionaryRaw,
+    posDictionaryRaw,
+    grammarDictionaryRaw,
+    reviewDictionaryRaw,
+  ]) {
+    for (const key of parseDictionary(raw).translations.keys()) keys.add(key);
+  }
+  return keys;
+}
+
 function readCachedDictionaries(): void {
   if (cacheLoaded) return;
   cacheLoaded = true;
@@ -130,12 +158,33 @@ function readCachedDictionaries(): void {
     if (typeof data["reviewDictionary"] === "string") {
       reviewDictionaryRaw = data["reviewDictionary"];
     }
+    if (Array.isArray(data["entryMetadata"])) {
+      const keys = cachedDictionaryKeys();
+      for (const value of data["entryMetadata"] as unknown[]) {
+        if (!isVocabularyEntry(value)) continue;
+        const key = normalizePhrase(value.en);
+        if (keys.has(key) && !entryMetadataCache.has(key)) {
+          entryMetadataCache.set(key, {
+            id: value.id,
+            en: value.en,
+            vi: value.vi,
+            ipa: value.ipa,
+          });
+        }
+      }
+    }
   } catch {
     // Ignore malformed local cache; it can be rebuilt on the next submit.
   }
 }
 
 function writeCachedDictionaries(): void {
+  const entryMetadata = [...cachedDictionaryKeys()].flatMap((key) => {
+    const entry = entryMetadataCache.get(key);
+    return isVocabularyEntry(entry)
+      ? [{ id: entry.id, en: entry.en, vi: entry.vi, ipa: entry.ipa }]
+      : [];
+  });
   localStorage.setItem(
     CACHE_KEY,
     JSON.stringify({
@@ -147,6 +196,7 @@ function writeCachedDictionaries(): void {
       grammarDictionary: grammarDictionaryRaw,
       grammarId: grammarDictionaryId,
       reviewDictionary: reviewDictionaryRaw,
+      entryMetadata,
     }),
   );
 }
@@ -202,7 +252,9 @@ function isTopicMeta(value: unknown): value is VocabularyTopicMeta {
         topic["groupLabel"].trim() !== "")) &&
     Array.isArray(topic["levels"]) &&
     Array.isArray(topic["keys"]) &&
-    topic["keys"].every((key) => typeof key === "string" && key.trim() !== "") &&
+    topic["keys"].every(
+      (key) => typeof key === "string" && key.trim() !== "",
+    ) &&
     (topic["entries"] === undefined ||
       (Array.isArray(topic["entries"]) &&
         topic["entries"].every(isReference))) &&
@@ -278,14 +330,15 @@ export async function loadVocabularyTopicIndex(): Promise<VocabularyTopicIndex> 
   return data;
 }
 
-
 export async function loadVocabularyPosIndex(): Promise<VocabularyPosIndex> {
   if (posIndexCache !== null) return posIndexCache;
   const response = await fetch(`${BASE_URL}/parts-of-speech/index.json`, {
     cache: "no-cache",
   });
   if (!response.ok) {
-    throw new Error(`Vocabulary word-type index request failed: ${response.status}`);
+    throw new Error(
+      `Vocabulary word-type index request failed: ${response.status}`,
+    );
   }
   const data = (await response.json()) as VocabularyPosIndex;
   if (
@@ -306,7 +359,9 @@ export async function loadVocabularyGrammarIndex(): Promise<VocabularyGrammarInd
     cache: "no-cache",
   });
   if (!response.ok) {
-    throw new Error(`Vocabulary grammar index request failed: ${response.status}`);
+    throw new Error(
+      `Vocabulary grammar index request failed: ${response.status}`,
+    );
   }
   const data = (await response.json()) as VocabularyGrammarIndex;
   if (
@@ -369,7 +424,7 @@ function findRequiredLevels(
     .filter(Boolean);
   const levels = new Set<number>();
 
-  for (let index = 0; index < words.length; ) {
+  for (let index = 0; index < words.length;) {
     let matched = false;
     const max = Math.min(lookup.maxWordCount, words.length - index);
 
@@ -410,6 +465,7 @@ function dictionaryLinesForKeys(
 
 export async function prepareLibraryDictionary(
   sourceText: string,
+  shouldApply: () => boolean = () => true,
 ): Promise<{ entries: number; levels: number[] }> {
   const lookup = await loadLookup();
   const levels = [...findRequiredLevels(sourceText, lookup)].sort(
@@ -424,9 +480,11 @@ export async function prepareLibraryDictionary(
   );
   const lines = dictionaryLinesForKeys(keys, documents);
 
-  readCachedDictionaries();
-  libraryDictionaryRaw = lines.join("\n");
-  writeCachedDictionaries();
+  if (shouldApply()) {
+    readCachedDictionaries();
+    libraryDictionaryRaw = lines.join("\n");
+    writeCachedDictionaries();
+  }
 
   return { entries: lines.length, levels };
 }
@@ -448,9 +506,9 @@ async function dictionaryForReferences(
   references: readonly VocabularyTopicEntry[],
   keys: readonly string[],
 ): Promise<{ raw: string; entries: number; levels: number[] }> {
-  const levels = [
-    ...new Set(references.map((entry) => entry.level)),
-  ].sort((left, right) => left - right);
+  const levels = [...new Set(references.map((entry) => entry.level))].sort(
+    (left, right) => left - right,
+  );
   const documents = await Promise.all(levels.map(loadLevel));
   const lines = dictionaryLinesForKeys(keys, documents);
   if (lines.length === 0) {
@@ -501,7 +559,9 @@ export async function preparePosDictionary(
 
   const label = category.id
     .split("-")
-    .map((part) => part === "" ? part : part.charAt(0).toUpperCase() + part.slice(1))
+    .map((part) =>
+      part === "" ? part : part.charAt(0).toUpperCase() + part.slice(1),
+    )
     .join(" ");
   return { entries: result.entries, levels: result.levels, label };
 }
@@ -533,7 +593,11 @@ export async function prepareGrammarDictionary(
   grammarDictionaryId = module.id;
   writeCachedDictionaries();
 
-  return { entries: result.entries, levels: result.levels, label: module.label };
+  return {
+    entries: result.entries,
+    levels: result.levels,
+    label: module.label,
+  };
 }
 
 export async function prepareReviewDictionary(
@@ -551,9 +615,9 @@ export async function prepareReviewDictionary(
     const level = lookup.entries[key];
     return level === undefined ? [] : [{ key, level }];
   });
-  const levels = [
-    ...new Set(references.map((entry) => entry.level)),
-  ].sort((left, right) => left - right);
+  const levels = [...new Set(references.map((entry) => entry.level))].sort(
+    (left, right) => left - right,
+  );
   const documents = await Promise.all(levels.map(loadLevel));
   const lines = dictionaryLinesForKeys(keys, documents);
 
@@ -564,9 +628,8 @@ export async function prepareReviewDictionary(
   return { entries: lines.length, levels };
 }
 
-export function getCachedVocabularyEntry(
-  key: string,
-): VocabularyEntry | null {
+export function getCachedVocabularyEntry(key: string): VocabularyEntry | null {
+  readCachedDictionaries();
   return entryMetadataCache.get(normalizePhrase(key)) ?? null;
 }
 
@@ -596,13 +659,7 @@ export function getReviewDictionaryRaw(): string {
 }
 
 export function getActiveDictionaryRaw(
-  source:
-    | "library"
-    | "topic"
-    | "word-type"
-    | "grammar"
-    | "review"
-    | "custom",
+  source: "library" | "topic" | "word-type" | "grammar" | "review" | "custom",
   customDictionary: string,
   topicId = "",
   posId = "",

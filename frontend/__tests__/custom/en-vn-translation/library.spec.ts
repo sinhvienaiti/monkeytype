@@ -17,118 +17,142 @@ function installStorage(): void {
 function installFetch(): ReturnType<typeof vi.fn> {
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = requestUrl(input);
-    const body =
-      url.endsWith("/topics/index.json")
+    const body = url.endsWith("/topics/index.json")
+      ? {
+          version: 1,
+          totalGroups: 2,
+          totalTopics: 2,
+          uniqueVocabularyKeys: 3,
+          topics: [
+            {
+              id: "travel.airport",
+              label: "Airport",
+              group: "travel-tourism",
+              groupLabel: "Travel & Tourism",
+              levels: ["A1", "B1"],
+              count: 2,
+              keys: ["passport", "airport"],
+              entries: [
+                { key: "passport", level: 2 },
+                { key: "airport", level: 1 },
+              ],
+            },
+            {
+              id: "everyday.routine",
+              label: "Daily Routine",
+              group: "everyday-life",
+              groupLabel: "Everyday Life",
+              levels: ["A1"],
+              count: 1,
+              keys: ["work"],
+              entries: [{ key: "work", level: 2 }],
+            },
+          ],
+        }
+      : url.endsWith("/parts-of-speech/index.json")
         ? {
             version: 1,
-            totalGroups: 2,
-            totalTopics: 2,
-            uniqueVocabularyKeys: 3,
-            topics: [
+            categories: [
               {
-                id: "travel.airport",
-                label: "Airport",
-                group: "travel-tourism",
-                groupLabel: "Travel & Tourism",
-                levels: ["A1", "B1"],
-                count: 2,
-                keys: ["passport", "airport"],
+                id: "noun",
+                tokens: ["airport", "passport"],
                 entries: [
-                  { key: "passport", level: 2 },
                   { key: "airport", level: 1 },
+                  { key: "passport", level: 2 },
                 ],
+                missing: [],
               },
               {
-                id: "everyday.routine",
-                label: "Daily Routine",
-                group: "everyday-life",
-                groupLabel: "Everyday Life",
-                levels: ["A1"],
-                count: 1,
-                keys: ["work"],
-                entries: [{ key: "work", level: 2 }],
+                id: "phrasal-verb",
+                tokens: ["wake up"],
+                entries: [],
+                missing: ["wake up"],
               },
             ],
           }
-        : url.endsWith("/parts-of-speech/index.json")
+        : url.endsWith("/grammar/index.json")
           ? {
               version: 1,
-              categories: [
+              primaryTimeGroups: ["time.present", "time.past", "time.future"],
+              modules: [
                 {
-                  id: "noun",
-                  tokens: ["airport", "passport"],
-                  entries: [
-                    { key: "airport", level: 1 },
-                    { key: "passport", level: 2 },
-                  ],
-                  missing: [],
-                },
-                {
-                  id: "phrasal-verb",
-                  tokens: ["wake up"],
-                  entries: [],
-                  missing: ["wake up"],
+                  id: "time.present",
+                  label: "Present",
+                  group: "present",
+                  focus: ["habits and routines"],
+                  topicIds: ["everyday.routine"],
+                  signalTokens: ["today"],
+                  signalEntries: [{ key: "today", level: 1 }],
+                  missingSignalKeys: [],
                 },
               ],
             }
-          : url.endsWith("/grammar/index.json")
+          : url.endsWith("/lookup.json")
             ? {
                 version: 1,
-                primaryTimeGroups: ["time.present", "time.past", "time.future"],
-                modules: [
-                  {
-                    id: "time.present",
-                    label: "Present",
-                    group: "present",
-                    focus: ["habits and routines"],
-                    topicIds: ["everyday.routine"],
-                    signalTokens: ["today"],
-                    signalEntries: [{ key: "today", level: 1 }],
-                    missingSignalKeys: [],
-                  },
-                ],
+                totalEntries: 5,
+                maxWordCount: 1,
+                entries: {
+                  airport: 1,
+                  passport: 2,
+                  today: 1,
+                  work: 2,
+                  breakfast: 3,
+                },
               }
-            : url.endsWith("/lookup.json")
+            : url.endsWith("/levels/001.json")
               ? {
                   version: 1,
-                  totalEntries: 5,
-                  maxWordCount: 1,
-                  entries: {
-                    airport: 1,
-                    passport: 2,
-                    today: 1,
-                    work: 2,
-                    breakfast: 3,
-                  },
+                  level: 1,
+                  label: "One",
+                  entries: [
+                    {
+                      id: "L001-001",
+                      en: "airport",
+                      vi: "sân bay",
+                      ipa: "/ˈerˌpɔrt/",
+                    },
+                    {
+                      id: "L001-002",
+                      en: "today",
+                      vi: "hôm nay",
+                      ipa: "/təˈdeɪ/",
+                    },
+                  ],
                 }
-              : url.endsWith("/levels/001.json")
+              : url.endsWith("/levels/002.json")
                 ? {
                     version: 1,
-                    level: 1,
-                    label: "One",
+                    level: 2,
+                    label: "Two",
                     entries: [
-                      { id: "L001-001", en: "airport", vi: "sân bay", ipa: "/ˈerˌpɔrt/" },
-                      { id: "L001-002", en: "today", vi: "hôm nay", ipa: "/təˈdeɪ/" },
+                      {
+                        id: "L002-001",
+                        en: "passport",
+                        vi: "hộ chiếu",
+                        ipa: "/ˈpæsˌpɔrt/",
+                      },
+                      {
+                        id: "L002-002",
+                        en: "work",
+                        vi: "công việc",
+                        ipa: "/wɝk/",
+                      },
                     ],
                   }
-                : url.endsWith("/levels/002.json")
-                  ? {
-                      version: 1,
-                      level: 2,
-                      label: "Two",
-                      entries: [
-                        { id: "L002-001", en: "passport", vi: "hộ chiếu", ipa: "/ˈpæsˌpɔrt/" },
-                        { id: "L002-002", en: "work", vi: "công việc", ipa: "/wɝk/" },
-                      ],
-                    }
-                  : {
-                      version: 1,
-                      level: 3,
-                      label: "Three",
-                      entries: [
-                        { id: "L003-001", en: "breakfast", vi: "bữa sáng", ipa: "/ˈbrɛkfəst/" },
-                      ],
-                    };
+                : {
+                    version: 1,
+                    level: 3,
+                    label: "Three",
+                    entries: [
+                      {
+                        id: "L003-001",
+                        en: "breakfast",
+                        vi: "bữa sáng",
+                        ipa: "/ˈbrɛkfəst/",
+                      },
+                    ],
+                  };
 
     return {
       ok: true,
@@ -149,9 +173,8 @@ describe("EN-VN shared curriculum dictionaries", () => {
   it("loads only levels used by the selected topic and keeps topic order", async () => {
     installStorage();
     const fetchMock = installFetch();
-    const library = await import(
-      "../../../src/ts/custom/en-vn-translation/library"
-    );
+    const library =
+      await import("../../../src/ts/custom/en-vn-translation/library");
 
     const result = await library.prepareTopicDictionary("travel.airport");
 
@@ -160,9 +183,9 @@ describe("EN-VN shared curriculum dictionaries", () => {
       levels: [1, 2],
       label: "Airport",
     });
-    expect(
-      library.getActiveDictionaryRaw("topic", "", "travel.airport"),
-    ).toBe("passport = hộ chiếu\nairport = sân bay");
+    expect(library.getActiveDictionaryRaw("topic", "", "travel.airport")).toBe(
+      "passport = hộ chiếu\nairport = sân bay",
+    );
 
     const urls = fetchMock.mock.calls.map(([input]) => requestUrl(input));
     expect(urls.some((url) => url.endsWith("/lookup.json"))).toBe(false);
@@ -172,9 +195,8 @@ describe("EN-VN shared curriculum dictionaries", () => {
   it("reuses shared level documents across repeated curriculum preparation", async () => {
     installStorage();
     const fetchMock = installFetch();
-    const library = await import(
-      "../../../src/ts/custom/en-vn-translation/library"
-    );
+    const library =
+      await import("../../../src/ts/custom/en-vn-translation/library");
 
     await library.prepareTopicDictionary("travel.airport");
     await library.preparePosDictionary("noun");
@@ -183,16 +205,19 @@ describe("EN-VN shared curriculum dictionaries", () => {
     const levelUrls = fetchMock.mock.calls
       .map(([input]) => requestUrl(input))
       .filter((url) => url.includes("/levels/"));
-    expect(levelUrls.filter((url) => url.endsWith("/001.json"))).toHaveLength(1);
-    expect(levelUrls.filter((url) => url.endsWith("/002.json"))).toHaveLength(1);
+    expect(levelUrls.filter((url) => url.endsWith("/001.json"))).toHaveLength(
+      1,
+    );
+    expect(levelUrls.filter((url) => url.endsWith("/002.json"))).toHaveLength(
+      1,
+    );
   });
 
   it("loads Word type from embedded level hints without the 18k lookup", async () => {
     installStorage();
     const fetchMock = installFetch();
-    const library = await import(
-      "../../../src/ts/custom/en-vn-translation/library"
-    );
+    const library =
+      await import("../../../src/ts/custom/en-vn-translation/library");
 
     const result = await library.preparePosDictionary("noun");
 
@@ -211,30 +236,22 @@ describe("EN-VN shared curriculum dictionaries", () => {
   it("builds Grammar dictionary from signal words plus linked topic context", async () => {
     installStorage();
     installFetch();
-    const library = await import(
-      "../../../src/ts/custom/en-vn-translation/library"
-    );
+    const library =
+      await import("../../../src/ts/custom/en-vn-translation/library");
 
     const result = await library.prepareGrammarDictionary("time.present");
 
     expect(result.label).toBe("Present");
     expect(
-      library.getActiveDictionaryRaw(
-        "grammar",
-        "",
-        "",
-        "",
-        "time.present",
-      ),
+      library.getActiveDictionaryRaw("grammar", "", "", "", "time.present"),
     ).toBe("today = hôm nay\nwork = công việc");
   });
 
   it("prepares an ordered review dictionary and exposes shared IPA metadata", async () => {
     installStorage();
     installFetch();
-    const library = await import(
-      "../../../src/ts/custom/en-vn-translation/library"
-    );
+    const library =
+      await import("../../../src/ts/custom/en-vn-translation/library");
 
     const result = await library.prepareReviewDictionary([
       "passport",
@@ -250,12 +267,140 @@ describe("EN-VN shared curriculum dictionaries", () => {
     );
   });
 
+  it("keeps the active dictionary and persisted cache when preparation becomes stale", async () => {
+    installStorage();
+    installFetch();
+    const library =
+      await import("../../../src/ts/custom/en-vn-translation/library");
+    await library.prepareLibraryDictionary("breakfast");
+    const cacheBefore = localStorage.getItem(
+      "personalEnVnLibraryDictionaryCache",
+    );
+    const writesBefore = vi.mocked(localStorage.setItem).mock.calls.length;
+    let current = true;
+    const shouldApply = vi.fn(() => current);
+
+    const preparation = library.prepareLibraryDictionary(
+      "airport",
+      shouldApply,
+    );
+    current = false;
+    const result = await preparation;
+
+    expect(result).toEqual({ entries: 2, levels: [1] });
+    expect(shouldApply).toHaveBeenCalledOnce();
+    expect(library.getActiveDictionaryRaw("library", "")).toBe(
+      "breakfast = bữa sáng",
+    );
+    expect(localStorage.getItem("personalEnVnLibraryDictionaryCache")).toBe(
+      cacheBefore,
+    );
+    expect(vi.mocked(localStorage.setItem).mock.calls).toHaveLength(
+      writesBefore,
+    );
+  });
+
+  it("restores IPA after reload without fetching and persists only cached dictionary entries", async () => {
+    installStorage();
+    const fetchMock = installFetch();
+    const library =
+      await import("../../../src/ts/custom/en-vn-translation/library");
+    await library.prepareLibraryDictionary("airport");
+    await library.prepareLibraryDictionary("breakfast");
+    await library.prepareTopicDictionary("travel.airport");
+    const cached = JSON.parse(
+      localStorage.getItem("personalEnVnLibraryDictionaryCache") ?? "{}",
+    ) as { entryMetadata: { en: string }[] };
+    expect(cached.entryMetadata.map((entry) => entry.en).sort()).toEqual([
+      "airport",
+      "breakfast",
+      "passport",
+    ]);
+
+    fetchMock.mockClear();
+    vi.resetModules();
+    const reloaded =
+      await import("../../../src/ts/custom/en-vn-translation/library");
+    expect(reloaded.getCachedVocabularyEntry("breakfast")).toEqual({
+      id: "L003-001",
+      en: "breakfast",
+      vi: "bữa sáng",
+      ipa: "/ˈbrɛkfəst/",
+    });
+    expect(reloaded.getCachedVocabularyEntry("AIRPORT")?.ipa).toBe(
+      "/ˈerˌpɔrt/",
+    );
+    expect(reloaded.getCachedVocabularyEntry("passport")?.ipa).toBe(
+      "/ˈpæsˌpɔrt/",
+    );
+    expect(reloaded.getCachedVocabularyEntry("today")).toBeNull();
+    expect(reloaded.getCachedVocabularyEntry("work")).toBeNull();
+    expect(reloaded.getActiveDictionaryRaw("library", "")).toBe(
+      "breakfast = bữa sáng",
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("ignores malformed and unrelated metadata while preserving cached translations", async () => {
+    installStorage();
+    const fetchMock = installFetch();
+    const entry = { id: "L002-002", en: "work", vi: "công việc", ipa: "/wɝk/" };
+    localStorage.setItem(
+      "personalEnVnLibraryDictionaryCache",
+      JSON.stringify({
+        libraryDictionary: "airport = sân bay\nwork = công việc",
+        entryMetadata: [
+          null,
+          [],
+          {},
+          "invalid",
+          { id: "L001-001", en: "airport", vi: "sân bay", ipa: "/ˈerˌpɔrt/" },
+          { ...entry, id: 5 },
+          { ...entry, en: 5 },
+          { ...entry, en: " " },
+          { ...entry, vi: null },
+          { ...entry, ipa: false },
+          { ...entry, en: "unrelated" },
+        ],
+      }),
+    );
+    const library =
+      await import("../../../src/ts/custom/en-vn-translation/library");
+
+    expect(library.getCachedVocabularyEntry("airport")?.ipa).toBe("/ˈerˌpɔrt/");
+    expect(library.getCachedVocabularyEntry("work")).toBeNull();
+    expect(library.getCachedVocabularyEntry("unrelated")).toBeNull();
+    expect(library.getActiveDictionaryRaw("library", "")).toBe(
+      "airport = sân bay\nwork = công việc",
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps legacy single dictionaries usable without metadata", async () => {
+    installStorage();
+    const fetchMock = installFetch();
+    localStorage.setItem(
+      "personalEnVnLibraryDictionaryCache",
+      JSON.stringify({
+        dictionary: "airport = sân bay",
+        entryMetadata: { en: "airport", ipa: "/invalid/" },
+      }),
+    );
+    const library =
+      await import("../../../src/ts/custom/en-vn-translation/library");
+
+    expect(library.getActiveDictionaryRaw("library", "")).toBe(
+      "airport = sân bay",
+    );
+    expect(library.getCachedVocabularyEntry("airport")).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("keeps Library, Topic, Word type and Grammar caches separate", async () => {
     installStorage();
     installFetch();
-    const library = await import(
-      "../../../src/ts/custom/en-vn-translation/library"
-    );
+    const library =
+      await import("../../../src/ts/custom/en-vn-translation/library");
 
     await library.prepareLibraryDictionary("breakfast");
     await library.prepareTopicDictionary("travel.airport");
@@ -272,13 +417,7 @@ describe("EN-VN shared curriculum dictionaries", () => {
       library.getActiveDictionaryRaw("word-type", "", "", "noun"),
     ).toContain("airport = sân bay");
     expect(
-      library.getActiveDictionaryRaw(
-        "grammar",
-        "",
-        "",
-        "",
-        "time.present",
-      ),
+      library.getActiveDictionaryRaw("grammar", "", "", "", "time.present"),
     ).toContain("today = hôm nay");
   });
 });

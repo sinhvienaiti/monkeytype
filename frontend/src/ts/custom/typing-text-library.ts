@@ -7,12 +7,13 @@ const BASE_URL = "https://typing-game.local/typing-texts";
 const SETTINGS_KEY = "personalTypingTextLibrarySettings";
 const PROGRESS_KEY = "personalTypingTextLibraryProgress";
 
-export type TypingTextSource = "custom" | "level";
+export type TypingTextSource = "custom" | "level" | "everyday";
 
 export type TypingTextSettings = {
   source: TypingTextSource;
   level: number;
   passageCount: number;
+  everydayLesson: number;
 };
 
 export type TypingTextLevelMeta = {
@@ -63,22 +64,17 @@ const defaultSettings: TypingTextSettings = {
   source: "custom",
   level: 1,
   passageCount: 1,
+  everydayLesson: 0,
 };
 
 let indexCache: TypingTextIndex | null = null;
 const levelCache = new Map<number, TypingTextLevel>();
 
-function validInteger(
-  value: unknown,
-  min: number,
-  max: number,
-): number | null {
-  return (
-    typeof value === "number" &&
+function validInteger(value: unknown, min: number, max: number): number | null {
+  return typeof value === "number" &&
     Number.isInteger(value) &&
     value >= min &&
     value <= max
-  )
     ? value
     : null;
 }
@@ -90,20 +86,24 @@ export function loadTypingTextSettings(): TypingTextSettings {
 
     const data = JSON.parse(raw) as Record<string, unknown>;
     return {
-      source: data["source"] === "level" ? "level" : "custom",
+      source:
+        data["source"] === "level" || data["source"] === "everyday"
+          ? data["source"]
+          : "custom",
       level: validInteger(data["level"], 1, 100) ?? defaultSettings.level,
       passageCount:
         validInteger(data["passageCount"], 1, 15) ??
         defaultSettings.passageCount,
+      everydayLesson:
+        validInteger(data["everydayLesson"], 0, 10000) ??
+        defaultSettings.everydayLesson,
     };
   } catch {
     return { ...defaultSettings };
   }
 }
 
-export function saveTypingTextSettings(
-  settings: TypingTextSettings,
-): void {
+export function saveTypingTextSettings(settings: TypingTextSettings): void {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
 }
 
@@ -127,9 +127,7 @@ export async function loadTypingTextIndex(): Promise<TypingTextIndex> {
     cache: "no-cache",
   });
   if (!response.ok) {
-    throw new Error(
-      `Typing-text index request failed: ${response.status}`,
-    );
+    throw new Error(`Typing-text index request failed: ${response.status}`);
   }
 
   const data = (await response.json()) as TypingTextIndex;
@@ -168,18 +166,14 @@ async function loadTypingTextLevel(
 
   const metadata = index.levels.find((item) => item.level === level);
   if (metadata === undefined) {
-    throw new Error(
-      `Typing-text level ${level} is unavailable`,
-    );
+    throw new Error(`Typing-text level ${level} is unavailable`);
   }
 
   const response = await fetch(`${BASE_URL}/${metadata.file}`, {
     cache: "no-cache",
   });
   if (!response.ok) {
-    throw new Error(
-      `Typing-text level request failed: ${response.status}`,
-    );
+    throw new Error(`Typing-text level request failed: ${response.status}`);
   }
 
   const data = (await response.json()) as TypingTextLevel;
@@ -189,18 +183,12 @@ async function loadTypingTextLevel(
     !Array.isArray(data.passages) ||
     !data.passages.every(isPassage)
   ) {
-    throw new Error(
-      `Typing-text level ${level} is invalid`,
-    );
+    throw new Error(`Typing-text level ${level} is invalid`);
   }
 
-  const uniqueIds = new Set(
-    data.passages.map((passage) => passage.id),
-  );
+  const uniqueIds = new Set(data.passages.map((passage) => passage.id));
   if (uniqueIds.size !== data.passages.length) {
-    throw new Error(
-      `Typing-text level ${level} has duplicate passage ids`,
-    );
+    throw new Error(`Typing-text level ${level} has duplicate passage ids`);
   }
 
   levelCache.set(level, data);
@@ -239,9 +227,7 @@ function saveProgress(progress: ProgressStore): void {
 }
 
 function passageSignature(document: TypingTextLevel): string {
-  return document.passages
-    .map((passage) => passage.id)
-    .join("|");
+  return document.passages.map((passage) => passage.id).join("|");
 }
 
 export async function prepareLevelPassages(
@@ -256,9 +242,7 @@ export async function prepareLevelPassages(
   const document = await loadTypingTextLevel(level, index);
 
   if (document.passages.length === 0) {
-    throw new Error(
-      `Typing-text level ${level} has no passages`,
-    );
+    throw new Error(`Typing-text level ${level} has no passages`);
   }
 
   const count = Math.min(
@@ -282,17 +266,11 @@ export async function prepareLevelPassages(
   const bag = new PassageShuffleBag(ids, state);
   const passageIds = bag.take(count);
   const passageById = new Map(
-    document.passages.map((passage) => [
-      passage.id,
-      passage,
-    ]),
+    document.passages.map((passage) => [passage.id, passage]),
   );
   const passages = passageIds
     .map((id) => passageById.get(id))
-    .filter(
-      (passage): passage is TypingTextPassage =>
-        passage !== undefined,
-    );
+    .filter((passage): passage is TypingTextPassage => passage !== undefined);
 
   if (passages.length !== count) {
     throw new Error("Typing-text passage selection is incomplete");

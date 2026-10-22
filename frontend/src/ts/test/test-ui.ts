@@ -8,10 +8,12 @@ import { z } from "zod";
 import { Config } from "../config/store";
 import { setConfig } from "../config/setters";
 import * as TestWords from "./test-words";
-import { handleActiveWord } from "../custom/en-vn-translation";
+import {
+  applyLearningAppearance,
+  handleActiveWord,
+} from "../custom/en-vn-translation";
 import { getLearningRecallTargetInfo } from "../learning/learning-memory";
 import { getSettings as getEnVnTranslationSettings } from "../custom/en-vn-translation/store";
-import { getActiveDictionaryRaw } from "../custom/en-vn-translation/library";
 import { getCurrentInput } from "./events/data";
 import { getLiveCachedAccuracy } from "./events/live-cache";
 import * as CustomText from "./custom-text";
@@ -449,48 +451,6 @@ function buildWordHTML(
   return retval;
 }
 
-function syncEnVnLearningClasses(): void {
-  wordsEl.native.classList.remove(
-    "en-vn-line-spacing-normal",
-    "en-vn-line-spacing-comfortable",
-    "en-vn-line-spacing-wide",
-    "en-vn-recall-mode",
-  );
-  wordsWrapperEl.removeClass("en-vn-learning");
-
-  const settings = getEnVnTranslationSettings();
-  const dictionaryRaw = getActiveDictionaryRaw(
-    settings.dictionarySource,
-    settings.dictionary,
-    settings.dictionaryTopicId,
-    settings.dictionaryPosId,
-    settings.dictionaryGrammarId,
-  );
-  const enabled =
-    Config.mode === "custom" &&
-    settings.enabled &&
-    settings.learningMode !== "sentence-builder" &&
-    settings.learningMode !== "context-cloze" &&
-    dictionaryRaw.trim() !== "";
-
-  if (!enabled) return;
-
-  wordsWrapperEl.addClass("en-vn-learning");
-
-  if (settings.lineSpacing === "comfortable") {
-    wordsEl.addClass("en-vn-line-spacing-comfortable");
-  } else if (settings.lineSpacing === "wide") {
-    wordsEl.addClass("en-vn-line-spacing-wide");
-  }
-
-  if (
-    settings.learningMode === "recall" ||
-    settings.learningMode === "listen"
-  ) {
-    wordsEl.addClass("en-vn-recall-mode");
-  }
-}
-
 function getRecallTargetInfo(): {
   targets: Set<number>;
   starts: Set<number>;
@@ -514,7 +474,7 @@ function getRecallTargetInfo(): {
 function updateWordWrapperClasses(): void {
   // outoffocus applies transition, need to remove it
   setTestFocusState("focused");
-  syncEnVnLearningClasses();
+  applyLearningAppearance();
 
   if (Config.tapeMode !== "off") {
     wordsEl.addClass("tape");
@@ -811,10 +771,14 @@ export function addWord(
   // if the current active word is the last word, we need to NOT use raf
   // because other ui parts depend on the word existing
   if (getActiveWordIndex() === wordIndex - 1) {
-    wordsEl.appendHtml(buildWordHTML(word, wordIndex, recallTarget, recallStart));
+    wordsEl.appendHtml(
+      buildWordHTML(word, wordIndex, recallTarget, recallStart),
+    );
   } else {
     requestAnimationFrame(async () => {
-      wordsEl.appendHtml(buildWordHTML(word, wordIndex, recallTarget, recallStart));
+      wordsEl.appendHtml(
+        buildWordHTML(word, wordIndex, recallTarget, recallStart),
+      );
     });
   }
 

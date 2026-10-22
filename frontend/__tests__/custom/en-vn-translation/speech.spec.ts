@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { speakEnglish, stopEnglishSpeech } from "../../../src/ts/custom/en-vn-translation/speech";
+import {
+  speakEnglish,
+  stopEnglishSpeech,
+} from "../../../src/ts/custom/en-vn-translation/speech";
 import type { EnVnTranslationSettings } from "../../../src/ts/custom/en-vn-translation/store";
 
 class FakeUtterance {
@@ -29,6 +32,7 @@ const settings: EnVnTranslationSettings = {
   popupSize: "medium",
   popupColor: "blue",
   displayMode: "both",
+  position: "top",
   tooltipBehavior: "hold",
   lineSpacing: "comfortable",
   pronunciationEnabled: true,

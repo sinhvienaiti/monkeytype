@@ -24,6 +24,7 @@ import { ProfileSearchPage } from "./pages/profile/ProfileSearchPage";
 import { SettingsPage } from "./pages/settings/SettingsPage";
 import { CapsWarning } from "./pages/test/CapsWarning";
 import { CompositionDisplay } from "./pages/test/CompositionDisplay";
+import { EverydayNavigation } from "./pages/test/EverydayNavigation";
 import { Keymap } from "./pages/test/Keymap";
 import { BarTimerProgress } from "./pages/test/live-stats/BarTimerProgress";
 import { LiveStatsMini } from "./pages/test/live-stats/LiveStatsMini";
@@ -57,6 +58,8 @@ const components: Record<string, () => JSXElement> = {
   testmodesnotice: () => <TestModesNotice />,
   capswarning: () => <CapsWarning />,
   compositiondisplay: () => <CompositionDisplay />,
+  everydaynavigation: () => <EverydayNavigation />,
+  everydayresultnavigation: () => <EverydayNavigation placement="result" />,
   friendspage: () => <FriendsPage />,
   notfoundpage: () => <NotFoundPage />,
   accountsettingspage: () => <AccountSettingsPage />,

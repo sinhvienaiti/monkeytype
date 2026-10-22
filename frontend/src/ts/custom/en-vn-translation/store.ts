@@ -17,12 +17,9 @@ const TranslationPopupColorSchema = z.enum([
   "purple",
 ]);
 const TranslationDisplayModeSchema = z.enum(["tooltip", "top", "both"]);
+const TranslationPositionSchema = z.enum(["top", "bottom"]);
 const TranslationTooltipBehaviorSchema = z.enum(["hold", "float"]);
-const TranslationLineSpacingSchema = z.enum([
-  "normal",
-  "comfortable",
-  "wide",
-]);
+const TranslationLineSpacingSchema = z.enum(["normal", "comfortable", "wide"]);
 const PronunciationAccentSchema = z.enum(["en-US", "en-GB"]);
 const PronunciationRateSchema = z.enum(["slow", "normal", "fast"]);
 const TextReaderLanguageSchema = z.enum(["auto", "en-US", "vi-VN"]);
@@ -58,6 +55,7 @@ const EnVnTranslationSettingsSchema = z.object({
   popupSize: TranslationPopupSizeSchema,
   popupColor: TranslationPopupColorSchema,
   displayMode: TranslationDisplayModeSchema,
+  position: TranslationPositionSchema,
   tooltipBehavior: TranslationTooltipBehaviorSchema,
   lineSpacing: TranslationLineSpacingSchema,
   pronunciationEnabled: z.boolean(),
@@ -71,16 +69,13 @@ const EnVnTranslationSettingsSchema = z.object({
   textReaderVolume: z.number().int().min(0).max(100),
 });
 
-export type TranslationPopupStyle = z.infer<
-  typeof TranslationPopupStyleSchema
->;
+export type TranslationPopupStyle = z.infer<typeof TranslationPopupStyleSchema>;
 export type TranslationPopupSize = z.infer<typeof TranslationPopupSizeSchema>;
-export type TranslationPopupColor = z.infer<
-  typeof TranslationPopupColorSchema
->;
+export type TranslationPopupColor = z.infer<typeof TranslationPopupColorSchema>;
 export type TranslationDisplayMode = z.infer<
   typeof TranslationDisplayModeSchema
 >;
+export type TranslationPosition = z.infer<typeof TranslationPositionSchema>;
 export type TranslationTooltipBehavior = z.infer<
   typeof TranslationTooltipBehaviorSchema
 >;
@@ -110,6 +105,7 @@ const defaultSettings: EnVnTranslationSettings = {
   popupSize: "medium",
   popupColor: "blue",
   displayMode: "both",
+  position: "top",
   tooltipBehavior: "hold",
   lineSpacing: "comfortable",
   pronunciationEnabled: true,
@@ -141,7 +137,8 @@ const settingsStorage = new LocalStorageWithSchema({
         LearningModeSchema.safeParse(oldData["learningMode"]).data ??
         (oldData["recallModeEnabled"] === true ? "recall" : "normal"),
       recallModeEnabled:
-        LearningModeSchema.safeParse(oldData["learningMode"]).data === "recall" ||
+        LearningModeSchema.safeParse(oldData["learningMode"]).data ===
+          "recall" ||
         (oldData["learningMode"] === undefined &&
           oldData["recallModeEnabled"] === true),
       dictionarySource:
@@ -182,6 +179,9 @@ const settingsStorage = new LocalStorageWithSchema({
       displayMode:
         TranslationDisplayModeSchema.safeParse(oldData["displayMode"]).data ??
         defaultSettings.displayMode,
+      position:
+        TranslationPositionSchema.safeParse(oldData["position"]).data ??
+        defaultSettings.position,
       tooltipBehavior:
         TranslationTooltipBehaviorSchema.safeParse(oldData["tooltipBehavior"])
           .data ?? defaultSettings.tooltipBehavior,
@@ -207,8 +207,8 @@ const settingsStorage = new LocalStorageWithSchema({
           ? oldData["textReaderEnabled"]
           : defaultSettings.textReaderEnabled,
       textReaderLanguage:
-        TextReaderLanguageSchema.safeParse(oldData["textReaderLanguage"]).data ??
-        defaultSettings.textReaderLanguage,
+        TextReaderLanguageSchema.safeParse(oldData["textReaderLanguage"])
+          .data ?? defaultSettings.textReaderLanguage,
       textReaderVoiceURI:
         typeof oldData["textReaderVoiceURI"] === "string"
           ? oldData["textReaderVoiceURI"]

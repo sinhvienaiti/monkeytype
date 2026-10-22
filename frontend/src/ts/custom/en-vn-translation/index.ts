@@ -6,15 +6,16 @@ import { showNoticeNotification } from "../../states/notifications";
 import { findDictionaryMatch, parseDictionary } from "./dictionary";
 import type { ParsedDictionary } from "./dictionary";
 import { speakEnglish, stopEnglishSpeech } from "./speech";
-import {
-  getActiveDictionaryRaw,
-  getCachedVocabularyEntry,
-} from "./library";
-import {
-  getTextReaderState,
-  startTextReader,
-} from "./text-reader";
+import { getActiveDictionaryRaw, getCachedVocabularyEntry } from "./library";
+import { getTextReaderState, startTextReader } from "./text-reader";
 import { getSettings } from "./store";
+import {
+  clearHeldTranslationTooltips,
+  floatingTooltipKeyframes,
+  positionTranslationPanel,
+  positionTranslationTooltip,
+  showHeldTranslationTooltip,
+} from "./tooltip-position";
 import {
   markLearningHintUsed,
   markLearningMatchPresented,
@@ -38,14 +39,12 @@ const shownTranslationMatches = new Set<string>();
 let floatingTooltip: HTMLDivElement | null = null;
 let floatingTooltipAnimation: Animation | null = null;
 let textReaderAutoStarted = false;
-let currentLearningAction:
-  | {
-      wordIndex: number;
-      speechText: string;
-      expectedText: string;
-      revealedCount: number;
-    }
-  | null = null;
+let currentLearningAction: {
+  wordIndex: number;
+  speechText: string;
+  expectedText: string;
+  revealedCount: number;
+} | null = null;
 let topActionsBound = false;
 
 const popupSizeClasses: Record<TranslationPopupSize, string> = {
@@ -57,10 +56,8 @@ const popupSizeClasses: Record<TranslationPopupSize, string> = {
 const popupStyleClasses: Record<TranslationPopupStyle, string> = {
   bubble:
     "overflow-visible rounded-xl border bg-translation-surface/75 px-3 py-1.5 shadow-xl backdrop-blur-md",
-  pill:
-    "overflow-visible rounded-full border bg-translation-surface/75 px-3.5 py-1.5 shadow-xl backdrop-blur-md",
-  soft:
-    "overflow-visible rounded-lg border bg-translation-surface/70 px-3 py-1.5 shadow-lg backdrop-blur-sm",
+  pill: "overflow-visible rounded-full border bg-translation-surface/75 px-3.5 py-1.5 shadow-xl backdrop-blur-md",
+  soft: "overflow-visible rounded-lg border bg-translation-surface/70 px-3 py-1.5 shadow-lg backdrop-blur-sm",
   minimal: "px-2 py-1 drop-shadow-lg",
 };
 
@@ -160,49 +157,6 @@ function removeFloatingTooltip(): void {
   floatingTooltip = null;
 }
 
-const heldTooltipClasses = [
-  "en-vn-held-tooltip",
-  "en-vn-tooltip-size-small",
-  "en-vn-tooltip-size-medium",
-  "en-vn-tooltip-size-large",
-  "en-vn-tooltip-style-bubble",
-  "en-vn-tooltip-style-pill",
-  "en-vn-tooltip-style-soft",
-  "en-vn-tooltip-style-minimal",
-  "en-vn-tooltip-color-auto",
-  "en-vn-tooltip-color-blue",
-  "en-vn-tooltip-color-green",
-  "en-vn-tooltip-color-amber",
-  "en-vn-tooltip-color-purple",
-];
-
-function clearHeldTooltips(): void {
-  const tooltips = document.querySelectorAll<HTMLElement>(
-    "#words .word[data-en-vn-held-tooltip='true']",
-  );
-
-  for (const word of tooltips) {
-    delete word.dataset["enVnHeldTooltip"];
-    delete word.dataset["enVnTranslation"];
-    word.classList.remove(...heldTooltipClasses);
-  }
-}
-
-function showHeldTranslationTooltip(
-  anchor: HTMLElement,
-  translation: string,
-  settings: EnVnTranslationSettings,
-): void {
-  anchor.dataset["enVnHeldTooltip"] = "true";
-  anchor.dataset["enVnTranslation"] = translation;
-  anchor.classList.add(
-    "en-vn-held-tooltip",
-    `en-vn-tooltip-size-${settings.popupSize}`,
-    `en-vn-tooltip-style-${settings.popupStyle}`,
-    `en-vn-tooltip-color-${settings.popupColor}`,
-  );
-}
-
 function createTooltipContent(
   popup: HTMLDivElement,
   translation: string,
@@ -231,8 +185,9 @@ function createTooltipContent(
 
   if (style !== "minimal") {
     const pointer = document.createElement("div");
+    pointer.dataset["translationTooltipPointer"] = "true";
     pointer.className = [
-      "absolute -bottom-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 border-r border-b bg-translation-surface/75",
+      "absolute h-3 w-3 border-r border-b bg-translation-surface/75",
       popupAccentClasses[color],
     ].join(" ");
     popup.append(pointer);
@@ -266,12 +221,11 @@ function showTranslationTooltip(
 
   removeFloatingTooltip();
 
-  const rect = anchor.getBoundingClientRect();
   const popup = document.createElement("div");
   popup.dataset["personalEnVnTranslation"] = "floating";
 
   popup.className = [
-    "pointer-events-none fixed z-50 max-w-[min(24rem,calc(100vw-2rem))] whitespace-normal font-(--font)",
+    "pointer-events-none fixed z-50 w-max wrap-anywhere max-w-[min(24rem,calc(100vw-2rem))] whitespace-normal font-(--font)",
     popupSizeClasses[settings.popupSize],
     popupStyleClasses[settings.popupStyle],
     popupAccentClasses[settings.popupColor],
@@ -285,46 +239,14 @@ function showTranslationTooltip(
   );
   document.body.append(popup);
 
-  const popupRect = popup.getBoundingClientRect();
-  const halfWidth = popupRect.width / 2;
-  const desiredCenter = rect.left + rect.width / 2;
-  const center = Math.min(
-    window.innerWidth - halfWidth - 12,
-    Math.max(halfWidth + 12, desiredCenter),
-  );
-
-  popup.style.left = `${center}px`;
-  popup.style.top = `${rect.top - 8}px`;
-  popup.style.transform = "translate(-50%, -100%)";
+  const position = positionTranslationTooltip(popup, anchor, settings.position);
 
   floatingTooltip = popup;
-  const animation = popup.animate(
-    [
-      {
-        opacity: 0,
-        transform: "translate(-50%, -100%) translateY(6px) scale(0.96)",
-      },
-      {
-        opacity: 1,
-        transform: "translate(-50%, -100%) translateY(0) scale(1)",
-        offset: 0.07,
-      },
-      {
-        opacity: 1,
-        transform: "translate(-50%, -100%) translateY(-8px) scale(1)",
-        offset: 0.72,
-      },
-      {
-        opacity: 0,
-        transform: "translate(-50%, -100%) translateY(-36px) scale(1.01)",
-      },
-    ],
-    {
-      duration: settings.durationMs,
-      easing: "cubic-bezier(0.22, 1, 0.36, 1)",
-      fill: "forwards",
-    },
-  );
+  const animation = popup.animate(floatingTooltipKeyframes(position), {
+    duration: settings.durationMs,
+    easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+    fill: "forwards",
+  });
   floatingTooltipAnimation = animation;
 
   animation.onfinish = () => {
@@ -449,10 +371,21 @@ function showTopDisplay(options: {
     return;
   }
 
+  const bottom = display.dataset["translationPosition"] === "bottom";
   display.animate(
     [
-      { opacity: 0.55, transform: "translate(-50%, 0.15rem) scale(0.99)" },
-      { opacity: 1, transform: "translate(-50%, 0) scale(1)" },
+      {
+        opacity: 0.55,
+        transform: bottom
+          ? "translateY(0.15rem) scale(0.99)"
+          : "translate(-50%, 0.15rem) scale(0.99)",
+      },
+      {
+        opacity: 1,
+        transform: bottom
+          ? "translateY(0) scale(1)"
+          : "translate(-50%, 0) scale(1)",
+      },
     ],
     { duration: 160, easing: "ease-out" },
   );
@@ -484,10 +417,25 @@ export function applyLearningAppearance(
     settings.enabled &&
     settings.learningMode !== "sentence-builder" &&
     settings.learningMode !== "context-cloze" &&
+    settings.learningMode !== "smart-review" &&
     dictionaryRaw.trim() !== "";
+
+  const display = getTopDisplay();
+  if (display !== null) {
+    positionTranslationPanel(
+      display,
+      wordsWrapper,
+      settings.position,
+      shouldApply &&
+        (settings.learningMode !== "normal" ||
+          settings.displayMode !== "tooltip"),
+    );
+  }
 
   if (!shouldApply) {
     wordsWrapper.classList.remove("en-vn-learning");
+    clearHeldTranslationTooltips();
+    removeFloatingTooltip();
     clearTopDisplay();
     return;
   }
@@ -546,8 +494,7 @@ function showLearningMatch(
       translation: match.translation,
       source: match.speechText,
       ipa,
-      hideSource:
-        learningMode === "recall" || learningMode === "listen",
+      hideSource: learningMode === "recall" || learningMode === "listen",
       hideIpa: learningMode === "listen" || learningMode === "normal",
       showListenActions: learningMode === "listen",
       wordIndex,
@@ -598,7 +545,7 @@ restartTestEvent.subscribe(() => {
   currentLearningAction = null;
   shownTranslationMatches.clear();
   removeFloatingTooltip();
-  clearHeldTooltips();
+  clearHeldTranslationTooltips();
   clearTopDisplay();
   stopEnglishSpeech();
   applyLearningAppearance();

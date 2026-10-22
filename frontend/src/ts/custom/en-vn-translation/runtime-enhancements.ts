@@ -10,6 +10,11 @@ import {
   stopTextReader,
 } from "./text-reader";
 import { getSettings } from "./store";
+import {
+  floatingTooltipKeyframes,
+  positionTranslationTooltip,
+  showHeldTranslationTooltip,
+} from "./tooltip-position";
 import type {
   EnVnTranslationSettings,
   TranslationPopupColor,
@@ -46,10 +51,8 @@ const popupSizeClasses: Record<TranslationPopupSize, string> = {
 const popupStyleClasses: Record<TranslationPopupStyle, string> = {
   bubble:
     "overflow-visible rounded-xl border bg-translation-surface/90 px-3 py-1.5 shadow-xl backdrop-blur-md",
-  pill:
-    "overflow-visible rounded-full border bg-translation-surface/90 px-3.5 py-1.5 shadow-xl backdrop-blur-md",
-  soft:
-    "overflow-visible rounded-lg border bg-translation-surface/90 px-3 py-1.5 shadow-lg backdrop-blur-sm",
+  pill: "overflow-visible rounded-full border bg-translation-surface/90 px-3.5 py-1.5 shadow-xl backdrop-blur-md",
+  soft: "overflow-visible rounded-lg border bg-translation-surface/90 px-3 py-1.5 shadow-lg backdrop-blur-sm",
   minimal: "px-2 py-1 drop-shadow-lg",
 };
 
@@ -119,21 +122,6 @@ function removeFloatingTooltip(): void {
   floatingTooltip = null;
 }
 
-function showHeldTooltip(
-  anchor: HTMLElement,
-  translation: string,
-  settings: EnVnTranslationSettings,
-): void {
-  anchor.dataset["enVnHeldTooltip"] = "true";
-  anchor.dataset["enVnTranslation"] = translation;
-  anchor.classList.add(
-    "en-vn-held-tooltip",
-    `en-vn-tooltip-size-${settings.popupSize}`,
-    `en-vn-tooltip-style-${settings.popupStyle}`,
-    `en-vn-tooltip-color-${settings.popupColor}`,
-  );
-}
-
 function showFloatingTooltip(
   anchor: HTMLElement,
   translation: string,
@@ -144,7 +132,7 @@ function showFloatingTooltip(
   const popup = document.createElement("div");
   popup.dataset["personalEnVnTranslationRuntime"] = "floating";
   popup.className = [
-    "pointer-events-none fixed z-50 max-w-[min(24rem,calc(100vw-2rem))] whitespace-normal font-(--font)",
+    "pointer-events-none fixed z-50 w-max wrap-anywhere max-w-[min(24rem,calc(100vw-2rem))] whitespace-normal font-(--font)",
     popupSizeClasses[settings.popupSize],
     popupStyleClasses[settings.popupStyle],
     popupAccentClasses[settings.popupColor],
@@ -158,55 +146,23 @@ function showFloatingTooltip(
 
   if (settings.popupStyle !== "minimal") {
     const pointer = document.createElement("div");
+    pointer.dataset["translationTooltipPointer"] = "true";
     pointer.className = [
-      "absolute -bottom-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 border-r border-b bg-translation-surface/90",
+      "absolute h-3 w-3 border-r border-b bg-translation-surface/90",
       popupAccentClasses[settings.popupColor],
     ].join(" ");
     popup.append(pointer);
   }
 
   document.body.append(popup);
-  const anchorRect = anchor.getBoundingClientRect();
-  const popupRect = popup.getBoundingClientRect();
-  const halfWidth = popupRect.width / 2;
-  const desiredCenter = anchorRect.left + anchorRect.width / 2;
-  const center = Math.min(
-    window.innerWidth - halfWidth - 12,
-    Math.max(halfWidth + 12, desiredCenter),
-  );
-
-  popup.style.left = `${center}px`;
-  popup.style.top = `${anchorRect.top - 8}px`;
-  popup.style.transform = "translate(-50%, -100%)";
+  const position = positionTranslationTooltip(popup, anchor, settings.position);
 
   floatingTooltip = popup;
-  const animation = popup.animate(
-    [
-      {
-        opacity: 0,
-        transform: "translate(-50%, -100%) translateY(6px) scale(0.96)",
-      },
-      {
-        opacity: 1,
-        transform: "translate(-50%, -100%) translateY(0) scale(1)",
-        offset: 0.08,
-      },
-      {
-        opacity: 1,
-        transform: "translate(-50%, -100%) translateY(-8px) scale(1)",
-        offset: 0.72,
-      },
-      {
-        opacity: 0,
-        transform: "translate(-50%, -100%) translateY(-36px) scale(1.01)",
-      },
-    ],
-    {
-      duration: settings.durationMs,
-      easing: "cubic-bezier(0.22, 1, 0.36, 1)",
-      fill: "forwards",
-    },
-  );
+  const animation = popup.animate(floatingTooltipKeyframes(position), {
+    duration: settings.durationMs,
+    easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+    fill: "forwards",
+  });
   floatingTooltipAnimation = animation;
   animation.onfinish = () => {
     if (floatingTooltip === popup) {
@@ -230,10 +186,7 @@ function syncLearningModeTooltip(): void {
     return;
   }
 
-  if (
-    settings.displayMode !== "tooltip" &&
-    settings.displayMode !== "both"
-  ) {
+  if (settings.displayMode !== "tooltip" && settings.displayMode !== "both") {
     removeFloatingTooltip();
     return;
   }
@@ -248,8 +201,9 @@ function syncLearningModeTooltip(): void {
   }
 
   const translation =
-    topDisplay.querySelector<HTMLElement>(".translationVietnamese")?.textContent?.trim() ??
-    "";
+    topDisplay
+      .querySelector<HTMLElement>(".translationVietnamese")
+      ?.textContent?.trim() ?? "";
   if (translation === "") return;
 
   const wordIndex = getActiveWordIndex();
@@ -262,6 +216,7 @@ function syncLearningModeTooltip(): void {
     String(wordIndex),
     translation,
     settings.tooltipBehavior,
+    settings.position,
     settings.popupStyle,
     settings.popupSize,
     settings.popupColor,
@@ -271,7 +226,7 @@ function syncLearningModeTooltip(): void {
   lastRuntimeTooltipKey = tooltipKey;
 
   if (settings.tooltipBehavior === "hold") {
-    showHeldTooltip(anchor, translation, settings);
+    showHeldTranslationTooltip(anchor, translation, settings);
   } else {
     showFloatingTooltip(anchor, translation, settings);
   }
@@ -327,14 +282,16 @@ function findSettingsSidebar(modal: HTMLElement): HTMLElement | null {
   if (form === null) return null;
 
   return (
-    Array.from(form.children).find((child) => {
+    form.querySelector<HTMLElement>("[data-custom-settings-sidebar]") ??
+    Array.from(form.children).find((child): child is HTMLElement => {
       if (!(child instanceof HTMLElement)) return false;
       const text = child.textContent?.toLowerCase() ?? "";
       return (
         text.includes("change the way words are generated") &&
         text.includes("en-vn translation")
       );
-    }) ?? null
+    }) ??
+    null
   );
 }
 
@@ -349,7 +306,10 @@ function applySettingsTab(
   tabbar: HTMLElement,
   tab: SettingsTab,
 ): void {
-  for (const child of Array.from(sidebar.children)) {
+  const content =
+    sidebar.querySelector<HTMLElement>("[data-custom-settings-scroll]") ??
+    sidebar;
+  for (const child of Array.from(content.children)) {
     if (!(child instanceof HTMLElement) || child === tabbar) continue;
     const custom = isCustomSettingsGroup(child);
     child.classList.toggle("hidden", tab === "custom" ? !custom : custom);
@@ -380,7 +340,7 @@ function enhanceSettingsTabs(modal: HTMLElement): void {
     tabbar = document.createElement("div");
     tabbar.dataset["customSettingsTabs"] = "true";
     tabbar.className =
-      "sticky top-0 z-20 mb-2 grid grid-cols-2 gap-1 rounded-lg bg-bg/95 p-1 shadow-sm ring-1 ring-sub-alt backdrop-blur";
+      "z-20 mb-2 grid grid-cols-2 gap-1 rounded-lg bg-bg p-1 shadow-sm ring-1 ring-sub-alt";
     tabbar.setAttribute("role", "tablist");
     tabbar.setAttribute("aria-label", "Custom text settings sections");
 
@@ -566,7 +526,9 @@ function enhanceSelect(select: HTMLSelectElement): void {
     const buttons = Array.from(
       menu.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"),
     );
-    const currentIndex = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    const currentIndex = buttons.indexOf(
+      document.activeElement as HTMLButtonElement,
+    );
     if (event.key === "Escape") {
       event.preventDefault();
       closeOpenDropdown();
@@ -615,7 +577,9 @@ function scheduleModalEnhancement(modal: HTMLElement): void {
 }
 
 function attachCustomTextModalEnhancer(): void {
-  const existing = document.querySelector<HTMLElement>(CUSTOM_TEXT_MODAL_SELECTOR);
+  const existing = document.querySelector<HTMLElement>(
+    CUSTOM_TEXT_MODAL_SELECTOR,
+  );
   if (existing !== null) {
     enhanceCustomTextModal(existing);
     const modalObserver = new MutationObserver(() => {
@@ -632,7 +596,9 @@ function attachCustomTextModalEnhancer(): void {
 
   const root = document.body ?? document.documentElement;
   const rootObserver = new MutationObserver(() => {
-    const modal = document.querySelector<HTMLElement>(CUSTOM_TEXT_MODAL_SELECTOR);
+    const modal = document.querySelector<HTMLElement>(
+      CUSTOM_TEXT_MODAL_SELECTOR,
+    );
     if (modal === null) return;
     rootObserver.disconnect();
     enhanceCustomTextModal(modal);

@@ -12,79 +12,12 @@ import {
   untrack,
 } from "solid-js";
 
-import type { FaSolidIcon } from "../../types/font-awesome";
-
-import { setConfig } from "../../config/setters";
-import { Config } from "../../config/store";
-import { restartTestEvent } from "../../events/test";
-import {
-  getCustomTextIndicator,
-  setCustomTextIndicator,
-} from "../../states/core";
-import { hideModalAndClearChain, showModal } from "../../states/modals";
-import {
-  showNoticeNotification,
-  showErrorNotification,
-} from "../../states/notifications";
-import { getLoadedChallenge, setLoadedChallenge } from "../../states/test";
-import * as CustomText from "../../test/custom-text";
-import * as PractiseWords from "../../test/practise-words";
-import { cn } from "../../utils/cn";
-import * as Strings from "../../utils/strings";
-import { AnimatedModal } from "../common/AnimatedModal";
-import { Button } from "../common/Button";
-import { Fa } from "../common/Fa";
-import { Separator } from "../common/Separator";
-import { SubmitButton } from "../ui/form/SubmitButton";
-import { TextareaField } from "../ui/form/TextareaField";
-import { CustomGeneratorModal } from "./CustomGeneratorModal";
-import { SaveCustomTextModal } from "./SaveCustomTextModal";
-import { SavedTextsModal } from "./SavedTextsModal";
-import { WordFilterModal } from "./WordFilterModal";
-import {
-  getSettings as getEnVnTranslationSettings,
-  setSettings as setEnVnTranslationSettings,
-} from "../../custom/en-vn-translation/store";
-import {
-  loadVocabularyGrammarIndex,
-  loadVocabularyPosIndex,
-  loadVocabularyTopicIndex,
-  prepareGrammarDictionary,
-  prepareLibraryDictionary,
-  preparePosDictionary,
-  prepareTopicDictionary,
-} from "../../custom/en-vn-translation/library";
 import type {
   VocabularyGrammarIndex,
   VocabularyPosIndex,
   VocabularyTopicIndex,
   VocabularyTopicMeta,
 } from "../../custom/en-vn-translation/library";
-import {
-  loadTypingTextIndex,
-  loadTypingTextSettings,
-  prepareLevelPassageText,
-  saveTypingTextSettings,
-} from "../../custom/typing-text-library";
-import type {
-  TypingTextIndex,
-  TypingTextSource,
-} from "../../custom/typing-text-library";
-import {
-  getLocalTextReaderVoices,
-  pauseTextReader,
-  resumeTextReader,
-  startTextReader,
-  stopTextReader,
-} from "../../custom/en-vn-translation/text-reader";
-import type { TextReaderState } from "../../custom/en-vn-translation/text-reader";
-import {
-  draftToExercise,
-  exerciseToDraft,
-  loadSentenceBuilderExercise,
-  saveSentenceBuilderExercise,
-} from "../../learning/sentence-builder-store";
-import type { SentenceBuilderDifficulty } from "../../learning/sentence-builder";
 import type {
   DictionarySource,
   LearningMode,
@@ -96,8 +29,87 @@ import type {
   TranslationPopupColor,
   TranslationPopupSize,
   TranslationPopupStyle,
+  TranslationPosition,
   TranslationTooltipBehavior,
 } from "../../custom/en-vn-translation/store";
+import type { TextReaderState } from "../../custom/en-vn-translation/text-reader";
+import type {
+  TypingTextIndex,
+  TypingTextSource,
+} from "../../custom/typing-text-library";
+import type { SentenceBuilderDifficulty } from "../../learning/sentence-builder";
+import type { FaSolidIcon } from "../../types/font-awesome";
+
+import { setConfig } from "../../config/setters";
+import { Config } from "../../config/store";
+import {
+  loadVocabularyGrammarIndex,
+  loadVocabularyPosIndex,
+  loadVocabularyTopicIndex,
+  prepareGrammarDictionary,
+  prepareLibraryDictionary,
+  preparePosDictionary,
+  prepareTopicDictionary,
+} from "../../custom/en-vn-translation/library";
+import {
+  getSettings as getEnVnTranslationSettings,
+  setSettings as setEnVnTranslationSettings,
+} from "../../custom/en-vn-translation/store";
+import {
+  getLocalTextReaderVoices,
+  pauseTextReader,
+  resumeTextReader,
+  startTextReader,
+  stopTextReader,
+} from "../../custom/en-vn-translation/text-reader";
+import { getEverydayLessonIndex } from "../../custom/everyday-lessons";
+import { activateEverydaySession } from "../../custom/everyday-runtime";
+import {
+  prepareEverydaySession,
+  type EverydaySession,
+} from "../../custom/everyday-sessions";
+import {
+  loadTypingTextIndex,
+  loadTypingTextSettings,
+  prepareLevelPassageText,
+  saveTypingTextSettings,
+} from "../../custom/typing-text-library";
+import { restartTestEvent } from "../../events/test";
+import {
+  draftToExercise,
+  exerciseToDraft,
+  loadSentenceBuilderExercise,
+  saveSentenceBuilderExercise,
+} from "../../learning/sentence-builder-store";
+import {
+  getCustomTextIndicator,
+  setCustomTextIndicator,
+} from "../../states/core";
+import { hideModalAndClearChain, showModal } from "../../states/modals";
+import {
+  showNoticeNotification,
+  showErrorNotification,
+} from "../../states/notifications";
+import {
+  getLoadedChallenge,
+  setLoadedChallenge,
+  setIsRepeated,
+} from "../../states/test";
+import * as CustomText from "../../test/custom-text";
+import * as PractiseWords from "../../test/practise-words";
+import { cn } from "../../utils/cn";
+import * as Strings from "../../utils/strings";
+import { AnimatedModal } from "../common/AnimatedModal";
+import { Button } from "../common/Button";
+import { Fa } from "../common/Fa";
+import { Separator } from "../common/Separator";
+import { SubmitButton } from "../ui/form/SubmitButton";
+import { TextareaField } from "../ui/form/TextareaField";
+import { SettingHelpLabel } from "../ui/SettingHelpLabel";
+import { CustomGeneratorModal } from "./CustomGeneratorModal";
+import { SaveCustomTextModal } from "./SaveCustomTextModal";
+import { SavedTextsModal } from "./SavedTextsModal";
+import { WordFilterModal } from "./WordFilterModal";
 
 export type CustomTextIncomingData =
   | ({ set?: boolean; long?: boolean } & (
@@ -143,8 +155,13 @@ const translationColorOptions = [
 
 const translationDisplayOptions = [
   { value: "tooltip", label: "tooltip" },
-  { value: "top", label: "top" },
+  { value: "top", label: "panel" },
   { value: "both", label: "both" },
+] as const;
+
+const translationPositionOptions = [
+  { value: "top", label: "top" },
+  { value: "bottom", label: "bottom" },
 ] as const;
 
 const translationLineSpacingOptions = [
@@ -250,6 +267,7 @@ export function CustomTextModal(): JSXElement {
       text: "",
       typingTextSource: "custom" as TypingTextSource,
       typingTextLevel: "1",
+      everydayLesson: "0",
       typingTextPassageCount: "1",
       mode: "simple" as Mode,
       limitWord: "",
@@ -277,6 +295,7 @@ export function CustomTextModal(): JSXElement {
       translationPopupSize: "medium" as TranslationPopupSize,
       translationPopupColor: "blue" as TranslationPopupColor,
       translationDisplayMode: "both" as TranslationDisplayMode,
+      translationPosition: "top" as TranslationPosition,
       translationTooltipBehavior: "hold" as TranslationTooltipBehavior,
       translationLineSpacing: "comfortable" as TranslationLineSpacing,
       pronunciationEnabled: true,
@@ -291,10 +310,39 @@ export function CustomTextModal(): JSXElement {
     },
     onSubmit: async ({ value }) => {
       let sourceText = value.text;
+      let everydaySession: EverydaySession | null = null;
       let sentenceBuilderExercise: ReturnType<typeof draftToExercise> | null =
         null;
 
-      if (value.translationLearningMode === "sentence-builder") {
+      if (value.typingTextSource === "everyday") {
+        if (
+          value.translationLearningMode === "sentence-builder" ||
+          value.translationLearningMode === "context-cloze" ||
+          value.translationLearningMode === "smart-review"
+        ) {
+          showNoticeNotification(
+            "Everyday supports Normal, Learn, Recall and Listen. Choose one of these learning modes below.",
+            { durationMs: 5000 },
+          );
+          return;
+        }
+        try {
+          everydaySession = await prepareEverydaySession(
+            Number(value.everydayLesson),
+            parseInt(value.typingTextPassageCount) || 1,
+          );
+          sourceText = everydaySession.text;
+          form.setFieldValue("text", sourceText);
+        } catch (error) {
+          showErrorNotification(
+            error instanceof Error
+              ? error.message
+              : "Failed to load the Everyday lesson.",
+            { durationMs: 5000 },
+          );
+          return;
+        }
+      } else if (value.translationLearningMode === "sentence-builder") {
         try {
           sentenceBuilderExercise = draftToExercise({
             sentenceId: value.sentenceBuilderSentenceId,
@@ -353,9 +401,9 @@ export function CustomTextModal(): JSXElement {
       }
 
       const effectiveMode: Mode =
-        value.typingTextSource === "level" ? "simple" : value.mode;
+        value.typingTextSource !== "custom" ? "simple" : value.mode;
       const effectivePipeDelimiter =
-        value.typingTextSource === "level" ? false : value.pipeDelimiter;
+        value.typingTextSource !== "custom" ? false : value.pipeDelimiter;
 
       if (value.typingTextSource === "custom") {
         const activeLimits = [
@@ -398,32 +446,6 @@ export function CustomTextModal(): JSXElement {
       if (text.length === 0) {
         showNoticeNotification("Text cannot be empty");
         return;
-      }
-
-      if (effectiveMode === "simple") {
-        CustomText.setMode("repeat");
-      } else {
-        CustomText.setMode(effectiveMode);
-      }
-
-      CustomText.setPipeDelimiter(effectivePipeDelimiter);
-      CustomText.setText(text);
-
-      if (effectiveMode === "simple" && effectivePipeDelimiter) {
-        CustomText.setLimitMode("section");
-        CustomText.setLimitValue(text.length);
-      } else if (effectiveMode === "simple") {
-        CustomText.setLimitMode("word");
-        CustomText.setLimitValue(text.length);
-      } else if (value.limitWord !== "") {
-        CustomText.setLimitMode("word");
-        CustomText.setLimitValue(parseInt(value.limitWord));
-      } else if (value.limitTime !== "") {
-        CustomText.setLimitMode("time");
-        CustomText.setLimitValue(parseInt(value.limitTime));
-      } else if (value.limitSection !== "") {
-        CustomText.setLimitMode("section");
-        CustomText.setLimitValue(parseInt(value.limitSection));
       }
 
       const translationDuration = Math.min(
@@ -481,6 +503,32 @@ export function CustomTextModal(): JSXElement {
         }
       }
 
+      if (effectiveMode === "simple") {
+        CustomText.setMode("repeat");
+      } else {
+        CustomText.setMode(effectiveMode);
+      }
+
+      CustomText.setPipeDelimiter(effectivePipeDelimiter);
+      CustomText.setText(text);
+
+      if (effectiveMode === "simple" && effectivePipeDelimiter) {
+        CustomText.setLimitMode("section");
+        CustomText.setLimitValue(text.length);
+      } else if (effectiveMode === "simple") {
+        CustomText.setLimitMode("word");
+        CustomText.setLimitValue(text.length);
+      } else if (value.limitWord !== "") {
+        CustomText.setLimitMode("word");
+        CustomText.setLimitValue(parseInt(value.limitWord));
+      } else if (value.limitTime !== "") {
+        CustomText.setLimitMode("time");
+        CustomText.setLimitValue(parseInt(value.limitTime));
+      } else if (value.limitSection !== "") {
+        CustomText.setLimitMode("section");
+        CustomText.setLimitValue(parseInt(value.limitSection));
+      }
+
       saveTypingTextSettings({
         source: value.typingTextSource,
         level: parseInt(value.typingTextLevel) || 1,
@@ -488,6 +536,7 @@ export function CustomTextModal(): JSXElement {
           15,
           Math.max(1, parseInt(value.typingTextPassageCount) || 1),
         ),
+        everydayLesson: Number(value.everydayLesson),
       });
 
       if (sentenceBuilderExercise !== null) {
@@ -508,6 +557,7 @@ export function CustomTextModal(): JSXElement {
         popupSize: value.translationPopupSize,
         popupColor: value.translationPopupColor,
         displayMode: value.translationDisplayMode,
+        position: value.translationPosition,
         tooltipBehavior: value.translationTooltipBehavior,
         lineSpacing: value.translationLineSpacing,
         pronunciationEnabled: value.pronunciationEnabled,
@@ -531,6 +581,11 @@ export function CustomTextModal(): JSXElement {
         showNoticeNotification("Challenge cleared");
         setLoadedChallenge(null);
       }
+      if (everydaySession !== null) {
+        setCustomTextIndicator(undefined);
+        setIsRepeated(false);
+        activateEverydaySession(everydaySession);
+      }
       if (Config.mode !== "custom") {
         setConfig("mode", "custom");
       }
@@ -543,7 +598,10 @@ export function CustomTextModal(): JSXElement {
   const formValues = form.useStore((s) => s.values);
 
   const isDisabled = () => longTextWarning() || challengeWarning();
-  const isLimitDisabled = () => formValues().mode === "simple" || isDisabled();
+  const isLimitDisabled = () =>
+    formValues().typingTextSource !== "custom" ||
+    formValues().mode === "simple" ||
+    isDisabled();
 
   const showWordLimit = () => !formValues().pipeDelimiter;
   const showSectionLimit = () => formValues().pipeDelimiter;
@@ -615,9 +673,7 @@ export function CustomTextModal(): JSXElement {
     text = text.replace(/ +/gm, " ");
     text = text.replace(/( *(\r\n|\r|\n) *)/g, "\n ");
 
-    return text
-      .split(pipeDelimiter ? "|" : " ")
-      .filter((word) => word !== "");
+    return text.split(pipeDelimiter ? "|" : " ").filter((word) => word !== "");
   };
 
   const applyRemoveZeroWidth = () => {
@@ -717,17 +773,15 @@ export function CustomTextModal(): JSXElement {
         form.setFieldValue("text", text);
         form.setFieldValue("typingTextSource", typingTextSettings.source);
         form.setFieldValue(
-          "typingTextLevel",
-          String(typingTextSettings.level),
+          "everydayLesson",
+          String(typingTextSettings.everydayLesson),
         );
+        form.setFieldValue("typingTextLevel", String(typingTextSettings.level));
         form.setFieldValue(
           "typingTextPassageCount",
           String(typingTextSettings.passageCount),
         );
-        form.setFieldValue(
-          "translationEnabled",
-          translationSettings.enabled,
-        );
+        form.setFieldValue("translationEnabled", translationSettings.enabled);
         form.setFieldValue(
           "translationLearningMode",
           translationSettings.learningMode,
@@ -808,6 +862,7 @@ export function CustomTextModal(): JSXElement {
           "translationDisplayMode",
           translationSettings.displayMode,
         );
+        form.setFieldValue("translationPosition", translationSettings.position);
         form.setFieldValue(
           "translationTooltipBehavior",
           translationSettings.tooltipBehavior,
@@ -979,9 +1034,7 @@ export function CustomTextModal(): JSXElement {
       const index = await loadTypingTextIndex();
       setTypingTextIndex(index);
 
-      const selectedLevel = parseInt(
-        form.getFieldValue("typingTextLevel"),
-      );
+      const selectedLevel = parseInt(form.getFieldValue("typingTextLevel"));
       if (
         index.levels.length > 0 &&
         !index.levels.some((item) => item.level === selectedLevel)
@@ -1052,7 +1105,8 @@ export function CustomTextModal(): JSXElement {
       if (selected === undefined) {
         form.setFieldValue(
           "translationDictionaryPosId",
-          index.categories.find((item) => item.entries.length > 0)?.id ?? "noun",
+          index.categories.find((item) => item.entries.length > 0)?.id ??
+            "noun",
         );
       }
     } catch (error) {
@@ -1115,10 +1169,7 @@ export function CustomTextModal(): JSXElement {
 
   const afterShow = () => {
     refreshTextReaderVoices();
-    if (
-      !isDisabled() &&
-      form.getFieldValue("typingTextSource") === "custom"
-    ) {
+    if (!isDisabled() && form.getFieldValue("typingTextSource") === "custom") {
       textareaRef?.focus();
     }
   };
@@ -1148,7 +1199,7 @@ export function CustomTextModal(): JSXElement {
     <>
       <AnimatedModal
         id="CustomText"
-        modalClass="max-w-[1200px] lg:grid-cols-[auto_20rem] grid-cols-1 h-min"
+        modalClass="max-w-[1200px] lg:grid-cols-[auto_20rem] grid-cols-1 h-min lg:h-[calc(100dvh-4rem)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden"
         beforeShow={beforeShow}
         afterShow={afterShow}
         afterHide={stopTextReader}
@@ -1162,7 +1213,7 @@ export function CustomTextModal(): JSXElement {
           }}
         >
           <Separator class="row-start-2 block lg:hidden" />
-          <div class="row-start-3 grid content-start gap-4 self-start lg:row-start-1">
+          <div class="row-start-3 grid content-start gap-4 self-start lg:row-start-1 lg:min-h-0 lg:self-stretch lg:overflow-y-auto lg:overscroll-contain lg:pr-1">
             {/* Top buttons row 1 */}
             <div class="grid grid-cols-2 gap-4">
               <Button
@@ -1184,64 +1235,98 @@ export function CustomTextModal(): JSXElement {
 
             <div class="grid gap-2">
               <div>
-                <div class="text-xs text-sub lowercase">
-                  typing text source
-                </div>
+                <div class="text-xs text-sub lowercase">typing text source</div>
                 <div class="mt-1 text-xs text-text">
-                  Type your own text, or load reviewed passages from a shared level.
+                  Type your own text, load level passages, or study an Everyday
+                  lesson.
                 </div>
               </div>
 
               <form.Field name="typingTextSource">
                 {(field) => (
-                  <div class="grid grid-cols-2 gap-2">
+                  <div class="grid grid-cols-3 gap-2">
                     <Button
                       variant="button"
                       text="custom text"
-                      active={field().state.value === "custom"}
+                      active={formValues().typingTextSource === "custom"}
                       onClick={() => field().handleChange("custom")}
                     />
                     <Button
                       variant="button"
                       text="level passages"
-                      active={field().state.value === "level"}
+                      active={formValues().typingTextSource === "level"}
                       onClick={() => {
                         field().handleChange("level");
                         void refreshTypingTextIndex();
                       }}
                     />
+                    <Button
+                      variant="button"
+                      text="Everyday"
+                      active={formValues().typingTextSource === "everyday"}
+                      onClick={() => field().handleChange("everyday")}
+                    />
                   </div>
                 )}
               </form.Field>
 
-              <Show when={formValues().typingTextSource === "level"}>
+              <Show when={formValues().typingTextSource !== "custom"}>
                 <div class="grid grid-cols-2 gap-2">
-                  <label class="grid gap-1">
-                    <span class="text-xs text-sub">level</span>
-                    <form.Field name="typingTextLevel">
-                      {(field) => (
-                        <select
-                          value={field().state.value}
-                          disabled={
-                            typingTextIndexLoading() ||
-                            (typingTextIndex()?.levels.length ?? 0) === 0
-                          }
-                          onChange={(e) =>
-                            field().handleChange(e.currentTarget.value)
-                          }
-                        >
-                          <For each={typingTextIndex()?.levels ?? []}>
-                            {(item) => (
-                              <option value={String(item.level)}>
-                                Level {String(item.level).padStart(3, "0")} ·{" "}
-                                {item.cefr}
-                              </option>
-                            )}
-                          </For>
-                        </select>
-                      )}
-                    </form.Field>
-                  </label>
+                  <Show when={formValues().typingTextSource === "level"}>
+                    <label class="grid gap-1">
+                      <span class="text-xs text-sub">level</span>
+                      <form.Field name="typingTextLevel">
+                        {(field) => (
+                          <select
+                            value={field().state.value}
+                            disabled={
+                              typingTextIndexLoading() ||
+                              (typingTextIndex()?.levels.length ?? 0) === 0
+                            }
+                            onChange={(e) =>
+                              field().handleChange(e.currentTarget.value)
+                            }
+                          >
+                            <For each={typingTextIndex()?.levels ?? []}>
+                              {(item) => (
+                                <option value={String(item.level)}>
+                                  Level {String(item.level).padStart(3, "0")} ·{" "}
+                                  {item.cefr}
+                                </option>
+                              )}
+                            </For>
+                          </select>
+                        )}
+                      </form.Field>
+                    </label>
+                  </Show>
+                  <Show when={formValues().typingTextSource === "everyday"}>
+                    <label class="grid min-w-0 gap-1">
+                      <span class="text-xs text-sub">
+                        Adobe Commerce lesson
+                      </span>
+                      <form.Field name="everydayLesson">
+                        {(field) => (
+                          <select
+                            class="w-full min-w-0"
+                            value={field().state.value}
+                            onChange={(e) =>
+                              field().handleChange(e.currentTarget.value)
+                            }
+                          >
+                            <For each={getEverydayLessonIndex()}>
+                              {(lesson) => (
+                                <option value={String(lesson.id)}>
+                                  {String(lesson.id).padStart(3, "0")} ·{" "}
+                                  {lesson.title}
+                                </option>
+                              )}
+                            </For>
+                          </select>
+                        )}
+                      </form.Field>
+                    </label>
+                  </Show>
 
                   <label class="grid gap-1">
                     <span class="text-xs text-sub">passages per session</span>
@@ -1263,11 +1348,13 @@ export function CustomTextModal(): JSXElement {
                 </div>
 
                 <div class="rounded bg-sub-alt px-3 py-2 text-xs text-sub">
-                  {typingTextIndexLoading()
-                    ? "Loading typing-text levels..."
-                    : (typingTextIndex()?.levels.length ?? 0) === 0
-                      ? "No reviewed production passage levels are available yet."
-                      : "Passages use random non-repeating cycles and keep their original sentence order."}
+                  {formValues().typingTextSource === "everyday"
+                    ? "Original paragraphs stay in order. Prev / Next moves through each session, then to the adjacent lesson. Changing passages per session keeps your current starting paragraph."
+                    : typingTextIndexLoading()
+                      ? "Loading typing-text levels..."
+                      : (typingTextIndex()?.levels.length ?? 0) === 0
+                        ? "No reviewed production passage levels are available yet."
+                        : "Passages use random non-repeating cycles and keep their original sentence order."}
                 </div>
               </Show>
             </div>
@@ -1275,52 +1362,52 @@ export function CustomTextModal(): JSXElement {
             {/* Textarea */}
             <Show when={formValues().typingTextSource === "custom"}>
               <div class="relative lg:col-start-1">
-              <Show when={longTextWarning()}>
-                <div
-                  class="absolute inset-0 z-10 grid cursor-pointer place-items-center rounded bg-sub-alt text-center"
-                  onClick={() => setLongTextWarning(false)}
-                >
-                  <div>
-                    <p class="text-em-xl">
-                      A long custom text is currently loaded.
-                      <br />
-                      Editing the text will disable progress tracking.
-                    </p>
-                    <p class="mt-4 text-em-xs text-sub">
-                      Click anywhere to start editing the text.
-                    </p>
+                <Show when={longTextWarning()}>
+                  <div
+                    class="absolute inset-0 z-10 grid cursor-pointer place-items-center rounded bg-sub-alt text-center"
+                    onClick={() => setLongTextWarning(false)}
+                  >
+                    <div>
+                      <p class="text-em-xl">
+                        A long custom text is currently loaded.
+                        <br />
+                        Editing the text will disable progress tracking.
+                      </p>
+                      <p class="mt-4 text-em-xs text-sub">
+                        Click anywhere to start editing the text.
+                      </p>
+                    </div>
                   </div>
-                </div>
-              </Show>
-              <Show when={challengeWarning()}>
-                <div
-                  class="absolute inset-0 z-10 grid cursor-pointer place-items-center rounded bg-sub-alt text-center"
-                  onClick={() => setChallengeWarning(false)}
-                >
-                  <div>
-                    <p class="text-em-xl">
-                      A challenge is currently loaded.
-                      <br />
-                      Editing the settings will clear the challenge.
-                    </p>
-                    <p class="mt-4 text-em-xs text-sub">
-                      Click anywhere to edit.
-                    </p>
+                </Show>
+                <Show when={challengeWarning()}>
+                  <div
+                    class="absolute inset-0 z-10 grid cursor-pointer place-items-center rounded bg-sub-alt text-center"
+                    onClick={() => setChallengeWarning(false)}
+                  >
+                    <div>
+                      <p class="text-em-xl">
+                        A challenge is currently loaded.
+                        <br />
+                        Editing the settings will clear the challenge.
+                      </p>
+                      <p class="mt-4 text-em-xs text-sub">
+                        Click anywhere to edit.
+                      </p>
+                    </div>
                   </div>
-                </div>
-              </Show>
-              <form.Field name="text">
-                {(field) => (
-                  <TextareaField
-                    field={field}
-                    ref={textareaRef}
-                    placeholder="type or paste your custom text"
-                    class="min-h-72 max-h-[40vh] self-start overflow-x-hidden overflow-y-auto p-4 text-base font-(--font) text-text"
-                    onKeyDown={handleTextareaKeydown}
-                    onKeyPress={handleTextareaKeypress}
-                  />
-                )}
-              </form.Field>
+                </Show>
+                <form.Field name="text">
+                  {(field) => (
+                    <TextareaField
+                      field={field}
+                      ref={textareaRef}
+                      placeholder="type or paste your custom text"
+                      class="max-h-[40vh] min-h-72 self-start overflow-x-hidden overflow-y-auto p-4 text-base font-(--font) text-text"
+                      onKeyDown={handleTextareaKeydown}
+                      onKeyPress={handleTextareaKeypress}
+                    />
+                  )}
+                </form.Field>
               </div>
             </Show>
 
@@ -1330,7 +1417,8 @@ export function CustomTextModal(): JSXElement {
                   EN-VN translation dictionary
                 </div>
                 <div class="mt-1 text-xs text-text">
-                  Use the current text, a shared topic, a word type, a practical grammar set, or your own dictionary.
+                  Use the current text, a shared topic, a word type, a practical
+                  grammar set, or your own dictionary.
                 </div>
               </div>
 
@@ -1380,10 +1468,13 @@ export function CustomTextModal(): JSXElement {
                 )}
               </form.Field>
 
-              <Show when={formValues().translationDictionarySource === "library"}>
+              <Show
+                when={formValues().translationDictionarySource === "library"}
+              >
                 <div class="rounded bg-sub-alt px-3 py-2 text-xs text-sub">
-                  Library mode uses the shared leveled vocabulary files. Monkeytype
-                  automatically loads only the levels needed by the current text.
+                  Library mode uses the shared leveled vocabulary files.
+                  Monkeytype automatically loads only the levels needed by the
+                  current text.
                 </div>
               </Show>
 
@@ -1430,7 +1521,9 @@ export function CustomTextModal(): JSXElement {
                 </div>
               </Show>
 
-              <Show when={formValues().translationDictionarySource === "word-type"}>
+              <Show
+                when={formValues().translationDictionarySource === "word-type"}
+              >
                 <div class="grid gap-2 rounded bg-sub-alt px-3 py-2">
                   <label class="grid gap-1">
                     <span class="text-xs text-sub">word type</span>
@@ -1469,7 +1562,9 @@ export function CustomTextModal(): JSXElement {
                 </div>
               </Show>
 
-              <Show when={formValues().translationDictionarySource === "grammar"}>
+              <Show
+                when={formValues().translationDictionarySource === "grammar"}
+              >
                 <div class="grid gap-2 rounded bg-sub-alt px-3 py-2">
                   <label class="grid gap-1">
                     <span class="text-xs text-sub">grammar practice</span>
@@ -1479,7 +1574,8 @@ export function CustomTextModal(): JSXElement {
                           value={field().state.value}
                           disabled={
                             vocabularyGrammarIndexLoading() ||
-                            (vocabularyGrammarIndex()?.modules.length ?? 0) === 0
+                            (vocabularyGrammarIndex()?.modules.length ?? 0) ===
+                              0
                           }
                           onChange={(e) =>
                             field().handleChange(e.currentTarget.value)
@@ -1511,13 +1607,17 @@ export function CustomTextModal(): JSXElement {
                 </div>
               </Show>
 
-              <Show when={formValues().translationDictionarySource === "custom"}>
+              <Show
+                when={formValues().translationDictionarySource === "custom"}
+              >
                 <form.Field name="translationDictionary">
                   {(field) => (
                     <TextareaField
                       field={field}
-                      placeholder={"cache = bộ nhớ đệm\nparent block = block cha"}
-                      class="min-h-32 max-h-52 self-start overflow-x-hidden overflow-y-auto p-4 text-base font-(--font) text-text"
+                      placeholder={
+                        "cache = bộ nhớ đệm\nparent block = block cha"
+                      }
+                      class="max-h-52 min-h-32 self-start overflow-x-hidden overflow-y-auto p-4 text-base font-(--font) text-text"
                     />
                   )}
                 </form.Field>
@@ -1535,12 +1635,7 @@ export function CustomTextModal(): JSXElement {
           </div>
 
           {/* Settings sidebar — on large screens spans all rows in column 2 */}
-          <div
-            class={cn(
-              "grid h-min content-start gap-2 self-start text-xs",
-              isDisabled() && "pointer-events-none opacity-50 select-none",
-            )}
-          >
+          <CustomTextSettingsSidebar disabled={isDisabled()}>
             <SettingsGroup
               title="Mode"
               icon="fa-cog"
@@ -1658,9 +1753,7 @@ export function CustomTextModal(): JSXElement {
                       variant="button"
                       text={field().state.value ? "enabled" : "disabled"}
                       active={field().state.value}
-                      onClick={() =>
-                        field().handleChange(!field().state.value)
-                      }
+                      onClick={() => field().handleChange(!field().state.value)}
                     />
                   )}
                 </form.Field>
@@ -1672,27 +1765,33 @@ export function CustomTextModal(): JSXElement {
                   />
                   <form.Field name="translationLearningMode">
                     {(field) => (
-                      <div class="grid grid-cols-2 gap-1 sm:grid-cols-6">
+                      <div
+                        data-learning-mode-options="true"
+                        class="grid grid-cols-[repeat(auto-fit,minmax(5.5rem,1fr))] gap-2"
+                      >
                         <For
-                          each={[
-                            { value: "normal", label: "normal" },
-                            { value: "learn", label: "learn" },
-                            { value: "recall", label: "recall" },
-                            { value: "listen", label: "listen" },
-                            {
-                              value: "sentence-builder",
-                              label: "sentence",
-                            },
-                            {
-                              value: "context-cloze",
-                              label: "context",
-                            },
-                          ] as const}
+                          each={
+                            [
+                              { value: "normal", label: "normal" },
+                              { value: "learn", label: "learn" },
+                              { value: "recall", label: "recall" },
+                              { value: "listen", label: "listen" },
+                              {
+                                value: "sentence-builder",
+                                label: "sentence",
+                              },
+                              {
+                                value: "context-cloze",
+                                label: "context",
+                              },
+                            ] as const
+                          }
                         >
                           {(option) => (
                             <Button
                               variant="button"
                               text={option.label}
+                              class="min-w-0 px-2 py-2"
                               active={field().state.value === option.value}
                               onClick={() => {
                                 field().handleChange(option.value);
@@ -1713,8 +1812,7 @@ export function CustomTextModal(): JSXElement {
 
                 <Show
                   when={
-                    formValues().translationLearningMode ===
-                    "context-cloze"
+                    formValues().translationLearningMode === "context-cloze"
                   }
                 >
                   <div class="rounded bg-sub-alt px-3 py-2 text-xs text-sub">
@@ -1726,8 +1824,7 @@ export function CustomTextModal(): JSXElement {
 
                 <Show
                   when={
-                    formValues().translationLearningMode ===
-                    "sentence-builder"
+                    formValues().translationLearningMode === "sentence-builder"
                   }
                 >
                   <div class="grid gap-2 rounded bg-sub-alt px-3 py-3">
@@ -1809,7 +1906,7 @@ export function CustomTextModal(): JSXElement {
                           placeholder={
                             "I have lived here since 2020.\nSince 2020, I have lived here."
                           }
-                          class="min-h-28 max-h-44 overflow-y-auto p-3 text-sm"
+                          class="max-h-44 min-h-28 overflow-y-auto p-3 text-sm"
                         />
                       )}
                     </form.Field>
@@ -1823,12 +1920,9 @@ export function CustomTextModal(): JSXElement {
                         {(field) => (
                           <div class="grid grid-cols-2 gap-1 sm:grid-cols-4">
                             <For
-                              each={[
-                                "easy",
-                                "normal",
-                                "hard",
-                                "extreme",
-                              ] as const}
+                              each={
+                                ["easy", "normal", "hard", "extreme"] as const
+                              }
                             >
                               {(difficulty) => (
                                 <Button
@@ -1888,7 +1982,7 @@ export function CustomTextModal(): JSXElement {
                           placeholder={
                             "I lived here since 2020. => wrong-tense\nHave I lived here since 2020. => word-order"
                           }
-                          class="min-h-24 max-h-40 overflow-y-auto p-3 text-sm"
+                          class="max-h-40 min-h-24 overflow-y-auto p-3 text-sm"
                         />
                       )}
                     </form.Field>
@@ -1902,7 +1996,10 @@ export function CustomTextModal(): JSXElement {
                 </Show>
 
                 <div class="grid gap-1">
-                  <SettingHelpLabel label="style" help="Choose the visual shape of translation tooltips." />
+                  <SettingHelpLabel
+                    label="style"
+                    help="Choose the visual shape of translation tooltips."
+                  />
                   <form.Field name="translationPopupStyle">
                     {(field) => (
                       <div class="grid grid-cols-2 gap-1">
@@ -1922,7 +2019,10 @@ export function CustomTextModal(): JSXElement {
                 </div>
 
                 <div class="grid gap-1">
-                  <SettingHelpLabel label="size" help="Choose translation tooltip text size." />
+                  <SettingHelpLabel
+                    label="size"
+                    help="Choose translation tooltip text size."
+                  />
                   <form.Field name="translationPopupSize">
                     {(field) => (
                       <div class="grid grid-cols-3 gap-1">
@@ -1942,7 +2042,10 @@ export function CustomTextModal(): JSXElement {
                 </div>
 
                 <div class="grid gap-1">
-                  <SettingHelpLabel label="color" help="Choose the translation tooltip accent color." />
+                  <SettingHelpLabel
+                    label="color"
+                    help="Choose the translation tooltip accent color."
+                  />
                   <form.Field name="translationPopupColor">
                     {(field) => (
                       <div class="grid grid-cols-2 gap-1">
@@ -1962,7 +2065,10 @@ export function CustomTextModal(): JSXElement {
                 </div>
 
                 <div class="grid gap-1">
-                  <SettingHelpLabel label="display" help="Show translations near the word, above the test, or both." />
+                  <SettingHelpLabel
+                    label="display"
+                    help="Show translations near each word, in a separate learning panel, or both. Position controls whether they appear above or below."
+                  />
                   <form.Field name="translationDisplayMode">
                     {(field) => (
                       <div class="grid grid-cols-3 gap-1">
@@ -1982,7 +2088,36 @@ export function CustomTextModal(): JSXElement {
                 </div>
 
                 <div class="grid gap-1">
-                  <SettingHelpLabel label="tooltip behavior" help="Hold keeps a tooltip attached to the word. Float fades it away." />
+                  <SettingHelpLabel
+                    label="position"
+                    help="Top shows word tooltips and the learning panel above the text. Bottom places tooltips below each word and the learning panel below the typing area."
+                  />
+                  <form.Field name="translationPosition">
+                    {(field) => (
+                      <div
+                        data-translation-position-options="true"
+                        class="grid grid-cols-2 gap-2"
+                      >
+                        <For each={translationPositionOptions}>
+                          {(opt) => (
+                            <Button
+                              variant="button"
+                              text={opt.label}
+                              active={field().state.value === opt.value}
+                              onClick={() => field().handleChange(opt.value)}
+                            />
+                          )}
+                        </For>
+                      </div>
+                    )}
+                  </form.Field>
+                </div>
+
+                <div class="grid gap-1">
+                  <SettingHelpLabel
+                    label="tooltip behavior"
+                    help="Hold keeps a tooltip attached to the word. Float fades it away."
+                  />
                   <form.Field name="translationTooltipBehavior">
                     {(field) => (
                       <div class="grid grid-cols-2 gap-1">
@@ -2002,7 +2137,10 @@ export function CustomTextModal(): JSXElement {
                 </div>
 
                 <div class="grid gap-1">
-                  <SettingHelpLabel label="line spacing" help="Add vertical room between typing lines so tooltips do not cover nearby text." />
+                  <SettingHelpLabel
+                    label="line spacing"
+                    help="Add vertical room between typing lines so tooltips do not cover nearby text."
+                  />
                   <form.Field name="translationLineSpacing">
                     {(field) => (
                       <div class="grid grid-cols-3 gap-1">
@@ -2022,7 +2160,10 @@ export function CustomTextModal(): JSXElement {
                 </div>
 
                 <div class="grid gap-1">
-                  <SettingHelpLabel label="float duration (ms)" help="How long floating translation tooltips remain visible." />
+                  <SettingHelpLabel
+                    label="float duration (ms)"
+                    help="How long floating translation tooltips remain visible."
+                  />
                   <form.Field name="translationDuration">
                     {(field) => (
                       <input
@@ -2043,7 +2184,10 @@ export function CustomTextModal(): JSXElement {
                 <Separator />
 
                 <div class="grid gap-2">
-                  <SettingHelpLabel label="English pronunciation" help="Pronounce a matching English word or phrase when typing starts." />
+                  <SettingHelpLabel
+                    label="English pronunciation"
+                    help="Pronounce a matching English word or phrase when typing starts."
+                  />
                   <form.Field name="pronunciationEnabled">
                     {(field) => (
                       <Button
@@ -2058,7 +2202,10 @@ export function CustomTextModal(): JSXElement {
                   </form.Field>
 
                   <div class="grid gap-1">
-                    <SettingHelpLabel label="accent" help="Choose the preferred English system voice accent." />
+                    <SettingHelpLabel
+                      label="accent"
+                      help="Choose the preferred English system voice accent."
+                    />
                     <form.Field name="pronunciationAccent">
                       {(field) => (
                         <div class="grid grid-cols-2 gap-1">
@@ -2078,7 +2225,10 @@ export function CustomTextModal(): JSXElement {
                   </div>
 
                   <div class="grid gap-1">
-                    <SettingHelpLabel label="speed" help="Choose how fast matching English words are pronounced." />
+                    <SettingHelpLabel
+                      label="speed"
+                      help="Choose how fast matching English words are pronounced."
+                    />
                     <form.Field name="pronunciationRate">
                       {(field) => (
                         <div class="grid grid-cols-3 gap-1">
@@ -2098,7 +2248,10 @@ export function CustomTextModal(): JSXElement {
                   </div>
 
                   <div class="grid gap-1">
-                    <SettingHelpLabel label="volume (%)" help="Set pronunciation volume from 0 to 100 percent." />
+                    <SettingHelpLabel
+                      label="volume (%)"
+                      help="Set pronunciation volume from 0 to 100 percent."
+                    />
                     <form.Field name="pronunciationVolume">
                       {(field) => (
                         <input
@@ -2213,7 +2366,9 @@ export function CustomTextModal(): JSXElement {
                             value={field().state.value}
                             disabled={!formValues().textReaderEnabled}
                             onInput={(e) =>
-                              field().handleChange(e.currentTarget.valueAsNumber)
+                              field().handleChange(
+                                e.currentTarget.valueAsNumber,
+                              )
                             }
                           />
                           <span class="min-w-10 text-right text-sub">
@@ -2240,7 +2395,9 @@ export function CustomTextModal(): JSXElement {
                             value={field().state.value}
                             disabled={!formValues().textReaderEnabled}
                             onInput={(e) =>
-                              field().handleChange(e.currentTarget.valueAsNumber)
+                              field().handleChange(
+                                e.currentTarget.valueAsNumber,
+                              )
                             }
                           />
                           <span class="min-w-8 text-right text-sub">
@@ -2254,7 +2411,9 @@ export function CustomTextModal(): JSXElement {
                   <div class="grid grid-cols-3 gap-1">
                     <Button
                       variant="button"
-                      text={textReaderState() === "idle" ? "preview" : "restart"}
+                      text={
+                        textReaderState() === "idle" ? "preview" : "restart"
+                      }
                       disabled={!formValues().textReaderEnabled}
                       onClick={handleTextReaderPlay}
                     />
@@ -2372,7 +2531,7 @@ export function CustomTextModal(): JSXElement {
                 />
               </div>
             </SettingsGroup>
-          </div>
+          </CustomTextSettingsSidebar>
         </form>
       </AnimatedModal>
       <SaveCustomTextModal textToSave={textToSave} />
@@ -2383,25 +2542,24 @@ export function CustomTextModal(): JSXElement {
   );
 }
 
-function SettingHelpLabel(props: {
-  label: string;
-  help: string;
+function CustomTextSettingsSidebar(props: {
+  disabled: boolean;
+  children: JSXElement;
 }): JSXElement {
   return (
-    <div class="flex items-center gap-1 text-sub">
-      <span>{props.label}</span>
-      <span class="group relative inline-flex">
-        <span
-          class="grid size-4 cursor-help place-items-center rounded-full border border-sub/30 text-[0.65rem] leading-none text-sub"
-          tabIndex={0}
-          aria-label={props.help}
-        >
-          ?
-        </span>
-        <span class="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1.5 w-56 -translate-x-1/2 rounded bg-sub-alt px-2 py-1.5 text-left text-[0.68rem] leading-snug text-text opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-          {props.help}
-        </span>
-      </span>
+    <div
+      data-custom-settings-sidebar="true"
+      class={cn(
+        "grid min-h-0 grid-rows-[auto_minmax(0,1fr)] self-start text-xs lg:h-full lg:self-stretch",
+        props.disabled && "pointer-events-none opacity-50 select-none",
+      )}
+    >
+      <div
+        data-custom-settings-scroll="true"
+        class="grid max-h-[50dvh] min-h-0 content-start gap-2 overflow-y-auto overscroll-contain pr-1 lg:max-h-none"
+      >
+        {props.children}
+      </div>
     </div>
   );
 }

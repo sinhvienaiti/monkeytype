@@ -20,11 +20,7 @@
     <div id="layoutfluidTimer">Time left to memorise all words: 0s</div>
     <mount data-component="testmodesnotice"></mount>
 
-    <div
-      id="enVnTranslationTopDisplay"
-      class="hidden"
-      aria-hidden="true"
-    >
+    <div id="enVnTranslationTopDisplay" class="hidden" aria-hidden="true">
       <div class="translationVietnamese"></div>
       <div class="translationEnglish"></div>
       <div class="translationIpa"></div>
@@ -52,7 +48,10 @@
           <div id="sentenceBuilderPrompt" class="sentenceBuilderPrompt"></div>
           <div id="sentenceBuilderMeaning" class="sentenceBuilderMeaning"></div>
         </div>
-        <div id="sentenceBuilderFixedStart" class="sentenceBuilderFixedStart"></div>
+        <div
+          id="sentenceBuilderFixedStart"
+          class="sentenceBuilderFixedStart"
+        ></div>
       </div>
 
       <div id="sentenceBuilderUnits" class="sentenceBuilderUnits"></div>
@@ -79,20 +78,14 @@
         <button id="sentenceBuilderStructureHint" type="button">
           structure hint
         </button>
-        <button id="sentenceBuilderReset" type="button">
-          reset
-        </button>
+        <button id="sentenceBuilderReset" type="button">reset</button>
         <button id="sentenceBuilderSubmit" type="button" class="primary">
           check answer
         </button>
       </div>
     </section>
 
-    <section
-      id="contextClozePanel"
-      class="hidden"
-      aria-label="Context Cloze"
-    >
+    <section id="contextClozePanel" class="hidden" aria-label="Context Cloze">
       <div class="contextClozeHeader">
         <div>
           <div class="contextClozeEyebrow">context / cloze</div>
@@ -117,23 +110,15 @@
       <div id="contextClozeFeedback" class="contextClozeFeedback"></div>
 
       <div class="contextClozeActions">
-        <button id="contextClozeReveal" type="button">
-          reveal letter
-        </button>
+        <button id="contextClozeReveal" type="button">reveal letter</button>
         <button id="contextClozeSubmit" type="button" class="primary">
           check answer
         </button>
-        <button id="contextClozeNext" type="button" disabled>
-          next
-        </button>
+        <button id="contextClozeNext" type="button" disabled>next</button>
       </div>
     </section>
 
-    <section
-      id="smartReviewPanel"
-      class="hidden"
-      aria-label="Smart Review"
-    >
+    <section id="smartReviewPanel" class="hidden" aria-label="Smart Review">
       <div class="smartReviewHeader">
         <div>
           <div class="smartReviewEyebrow">smart review</div>
@@ -161,18 +146,12 @@
       <div id="smartReviewFeedback" class="smartReviewFeedback"></div>
 
       <div class="smartReviewActions">
-        <button id="smartReviewReplay" type="button" hidden>
-          replay
-        </button>
-        <button id="smartReviewReveal" type="button">
-          reveal hint
-        </button>
+        <button id="smartReviewReplay" type="button" hidden>replay</button>
+        <button id="smartReviewReveal" type="button">reveal hint</button>
         <button id="smartReviewSubmit" type="button" class="primary">
           check answer
         </button>
-        <button id="smartReviewNext" type="button" disabled>
-          next
-        </button>
+        <button id="smartReviewNext" type="button" disabled>next</button>
       </div>
     </section>
 
@@ -220,5 +199,6 @@
   <div class="loading hidden">
     <i class="fas fa-circle-notch fa-spin"></i>
   </div>
+  <mount data-component="everydaynavigation" class="self-end"></mount>
   <load src="./test-result.html" />
 </div>

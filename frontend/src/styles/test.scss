@@ -159,8 +159,7 @@
       button {
         margin: 0;
         padding: 0.5rem 0.7rem;
-        border: 1px solid
-          color-mix(in srgb, var(--sub-color) 34%, transparent);
+        border: 1px solid color-mix(in srgb, var(--sub-color) 34%, transparent);
         border-radius: 0.65rem;
         background: var(--bg-color);
         color: var(--text-color);
@@ -180,8 +179,7 @@
     #smartReviewAnswer {
       width: 100%;
       padding: 0.8rem 0.9rem;
-      border: 1px solid
-        color-mix(in srgb, var(--sub-color) 42%, transparent);
+      border: 1px solid color-mix(in srgb, var(--sub-color) 42%, transparent);
       border-radius: 0.7rem;
       background: var(--bg-color);
       color: var(--text-color);
@@ -314,8 +312,7 @@
     #contextClozeAnswer {
       width: 100%;
       padding: 0.8rem 0.9rem;
-      border: 1px solid
-        color-mix(in srgb, var(--sub-color) 42%, transparent);
+      border: 1px solid color-mix(in srgb, var(--sub-color) 42%, transparent);
       border-radius: 0.7rem;
       background: var(--bg-color);
       color: var(--text-color);
@@ -433,8 +430,7 @@
       button {
         margin: 0;
         padding: 0.5rem 0.7rem;
-        border: 1px solid
-          color-mix(in srgb, var(--sub-color) 34%, transparent);
+        border: 1px solid color-mix(in srgb, var(--sub-color) 34%, transparent);
         border-radius: 0.65rem;
         background: var(--bg-color);
         color: var(--text-color);
@@ -454,8 +450,7 @@
     #sentenceBuilderAnswer {
       width: 100%;
       padding: 0.8rem 0.9rem;
-      border: 1px solid
-        color-mix(in srgb, var(--sub-color) 42%, transparent);
+      border: 1px solid color-mix(in srgb, var(--sub-color) 42%, transparent);
       border-radius: 0.7rem;
       background: var(--bg-color);
       color: var(--text-color);
@@ -519,7 +514,8 @@
 
   #enVnTranslationTopDisplay {
     position: absolute;
-    top: -6.2rem;
+    top: auto;
+    bottom: calc(100% + 0.75rem);
     left: 50%;
     z-index: 4;
     display: grid;
@@ -528,8 +524,7 @@
     justify-items: center;
     gap: 0.15rem;
     padding: 0.65rem 1.15rem;
-    border: 1px solid
-      color-mix(in srgb, var(--sub-color) 38%, transparent);
+    border: 1px solid color-mix(in srgb, var(--sub-color) 38%, transparent);
     border-radius: 1rem;
     background: color-mix(in srgb, var(--bg-color) 72%, transparent);
     box-shadow:
@@ -549,28 +544,52 @@
       transform: translate(-50%, 0) scale(1);
     }
 
+    &[data-translation-position="bottom"] {
+      position: relative;
+      top: auto;
+      bottom: auto;
+      left: auto;
+      width: min(34rem, 100%);
+      min-width: 0;
+      justify-self: center;
+      margin: 0.75rem auto 1rem;
+      transform: translateY(0.3rem) scale(0.98);
+
+      &.visible {
+        transform: translateY(0) scale(1);
+      }
+
+      &[data-translation-reserved="true"] {
+        min-height: 6rem;
+        align-content: center;
+
+        &.hidden {
+          display: grid !important;
+          visibility: hidden;
+        }
+      }
+    }
+
     .translationVietnamese {
-      overflow: hidden;
       max-width: 100%;
       color: var(--text-color);
       font-size: 1.35rem;
       font-weight: 700;
       line-height: 1.15;
       text-align: center;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      overflow-wrap: anywhere;
+      white-space: normal;
     }
 
     .translationEnglish {
-      overflow: hidden;
       max-width: 100%;
       color: var(--sub-color);
       font-size: 0.78rem;
       font-weight: 600;
       line-height: 1.15;
       text-align: center;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      overflow-wrap: anywhere;
+      white-space: normal;
     }
 
     .translationIpa,
@@ -594,6 +613,8 @@
 
     .translationActions {
       display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
       gap: 0.45rem;
       margin-top: 0.25rem;
       pointer-events: auto;
@@ -605,8 +626,7 @@
       button {
         margin: 0;
         padding: 0.35rem 0.55rem;
-        border: 1px solid
-          color-mix(in srgb, var(--sub-color) 32%, transparent);
+        border: 1px solid color-mix(in srgb, var(--sub-color) 32%, transparent);
         border-radius: 0.55rem;
         background: color-mix(in srgb, var(--sub-alt-color) 82%, transparent);
         color: var(--text-color);
@@ -1927,6 +1947,11 @@
       // to extend above and slightly outside the sides of the typing area.
       overflow: visible;
       clip-path: inset(-8rem -8rem 0 -8rem);
+
+      &[data-translation-position="bottom"] {
+        margin-top: 0;
+        margin-bottom: 2.15rem;
+      }
     }
 
     &.tape {
@@ -1995,6 +2020,16 @@ body.fb-arrows {
       margin: 0 0.25em;
     }
   }
+}
+
+[data-translation-position="top"] > [data-translation-tooltip-pointer] {
+  bottom: -0.375rem;
+  transform: translateX(-50%) rotate(45deg);
+}
+
+[data-translation-position="bottom"] > [data-translation-tooltip-pointer] {
+  top: -0.375rem;
+  transform: translateX(-50%) rotate(225deg);
 }
 
 @keyframes en-vn-tooltip-in {
