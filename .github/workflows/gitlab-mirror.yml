@@ -1,0 +1,49 @@
+name: Mirror to GitLab
+
+on:
+  push:
+  delete:
+  workflow_dispatch:
+  # Hourly fallback keeps branches mirrored even when an older feature branch
+  # does not contain this workflow file and therefore cannot trigger on push.
+  schedule:
+    - cron: "23 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gitlab-mirror-${{ github.repository }}
+  cancel-in-progress: true
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mirror GitHub branches and tags to GitLab
+        shell: bash
+        env:
+          GITLAB_MIRROR_TOKEN: ${{ secrets.TOANDX }}
+          TARGET_REPO: ${{ github.event.repository.name }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${GITLAB_MIRROR_TOKEN:-}" ]]; then
+            echo "GitHub repository secret TOANDX is not configured"
+            exit 1
+          fi
+
+          mkdir repo.git
+          cd repo.git
+          git init --bare
+          git remote add origin \
+            "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git"
+          git fetch --prune origin \
+            '+refs/heads/*:refs/heads/*' \
+            '+refs/tags/*:refs/tags/*'
+
+          git remote add gitlab \
+            "https://oauth2:${GITLAB_MIRROR_TOKEN}@gitlab.com/sinhvienaiti/${TARGET_REPO}.git"
+
+          git push --force --prune gitlab 'refs/heads/*:refs/heads/*'
+          git push --force --prune gitlab 'refs/tags/*:refs/tags/*'
