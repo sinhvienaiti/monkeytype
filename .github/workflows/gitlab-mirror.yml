@@ -4,8 +4,10 @@ on:
   push:
   delete:
   workflow_dispatch:
+  # Hourly fallback keeps branches mirrored even when an older feature branch
+  # does not contain this workflow file and therefore cannot trigger on push.
   schedule:
-    - cron: "17 * * * *"
+    - cron: "23 * * * *"
 
 permissions:
   contents: read
