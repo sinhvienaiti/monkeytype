@@ -1,5 +1,12 @@
 {
-  "ignorePatterns": ["node_modules", "dist", "coverage", ".firebase", ".turbo"],
+  "ignorePatterns": [
+    "node_modules",
+    "dist",
+    "coverage",
+    ".firebase",
+    ".turbo",
+    "src/ts/custom/typing-feel/kit"
+  ],
   "extends": [
     "../packages/oxlint-config/index.jsonc",
     "../packages/oxlint-config/plugin.jsonc"
