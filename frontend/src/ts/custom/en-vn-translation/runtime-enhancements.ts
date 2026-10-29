@@ -296,6 +296,12 @@ function findSettingsSidebar(modal: HTMLElement): HTMLElement | null {
 }
 
 function isCustomSettingsGroup(element: Element): boolean {
+  if (
+    element instanceof HTMLElement &&
+    element.dataset["customSettingsGroup"] === "true"
+  ) {
+    return true;
+  }
   return (element.textContent?.toLowerCase() ?? "").includes(
     "en-vn translation",
   );

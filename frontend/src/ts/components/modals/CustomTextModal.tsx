@@ -68,6 +68,7 @@ import {
   prepareEverydaySession,
   type EverydaySession,
 } from "../../custom/everyday-sessions";
+import { TypingFeelSettings } from "../../custom/typing-feel/TypingFeelSettings";
 import {
   loadTypingTextIndex,
   loadTypingTextSettings,
@@ -1742,6 +1743,7 @@ export function CustomTextModal(): JSXElement {
             </SettingsGroup>
 
             <SettingsGroup
+              custom
               title="EN-VN translation"
               icon="fa-language"
               sub="Show the Vietnamese meaning and pronounce the English text when you start typing a matching word or phrase."
@@ -2440,6 +2442,15 @@ export function CustomTextModal(): JSXElement {
               </div>
             </SettingsGroup>
 
+            <SettingsGroup
+              custom
+              title="typing feel"
+              icon="fa-keyboard"
+              sub="Key sounds and letter effects in every test mode. Saved as you change them."
+            >
+              <TypingFeelSettings />
+            </SettingsGroup>
+
             <Separator />
             <div class="grid gap-2">
               <input
@@ -2569,10 +2580,15 @@ function SettingsGroup(props: {
   icon: FaSolidIcon;
   iconClass?: string;
   sub: string;
+  /** Shown under the owner's "custom" sidebar tab. */
+  custom?: boolean;
   children: JSXElement;
 }): JSXElement {
   return (
-    <div class="grid w-full">
+    <div
+      class="grid w-full"
+      data-custom-settings-group={props.custom ? "true" : undefined}
+    >
       <div class="flex items-center gap-2 text-sub lowercase">
         <Fa icon={props.icon} fixedWidth class={props.iconClass} />
         {props.title}
