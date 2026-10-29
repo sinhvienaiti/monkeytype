@@ -14,7 +14,9 @@ import { getTypingFeel, setTypingFeel, type TypingFeelSettings } from "./store";
 
 let sounds: TypingSounds | null = null;
 /** Sets the gameplay player holds: "failed" brings Monkeytype's own click back. */
-const packs = new Map<string, "ready" | "failed">();
+/** "missing": the catalogue did not list it (files not synced, offline); retried on the next sync. */
+export type PackState = "ready" | "failed" | "missing";
+const packs = new Map<string, PackState>();
 const inflight = new Map<string, Promise<void>>();
 
 /** One player for typing and the settings preview; its own AudioContext, made on the first resume(). */
@@ -23,7 +25,7 @@ export function gameplaySounds(): TypingSounds {
   return sounds;
 }
 
-export function packState(id: string): "ready" | "failed" | undefined {
+export function packState(id: string): PackState | undefined {
   return packs.get(id);
 }
 
@@ -62,7 +64,11 @@ export async function loadSavedKeyboard(
 ): Promise<void> {
   const id = current();
   const choice = findChoice(catalog, id);
-  if (choice?.manifest === undefined) return;
+  if (choice?.manifest === undefined) {
+    // Marked so keys do not refetch the catalogue; the modal and init retry.
+    if (id !== "off") packs.set(id, "missing");
+    return;
+  }
   const player = gameplaySounds();
   if (packs.get(id) === "ready") {
     player.use(id);

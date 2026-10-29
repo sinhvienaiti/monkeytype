@@ -6,8 +6,10 @@ import {
   gameplaySounds,
   keyboardGain,
   KeySoundRouter,
+  loadSavedKeyboard,
   markPack,
   ownsKeySoundFor,
+  packState,
   type KeydownLike,
   type KeySoundSink,
 } from "../../../src/ts/custom/typing-feel/sounds";
@@ -200,6 +202,12 @@ describe("keyboard levels and ownership", () => {
     expect(player.muted).toBe(true);
     applyKeyboardLevels(settings());
     expect(player.muted).toBe(false);
+  });
+
+  it("marks a set the catalogue does not list, so keys stop asking for it", async () => {
+    await loadSavedKeyboard({ options: [], state: "missing" }, () => "deep");
+    expect(packState("deep")).toBe("missing");
+    expect(ownsKeySoundFor(settings({ keyboardSound: "deep" }))).toBe(false);
   });
 
   it("owns key sounds only for a selected, loaded set", () => {
