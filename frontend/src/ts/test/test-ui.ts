@@ -36,6 +36,7 @@ import {
   requestDebouncedAnimationFrame,
 } from "../utils/debounced-animation-frame";
 import * as SoundController from "../controllers/sound-controller";
+import * as TypingFeel from "../custom/typing-feel/runtime";
 import * as Numbers from "@monkeytype/util/numbers";
 import { highlight } from "../events/keymap";
 import * as Focus from "../test/focus";
@@ -1749,18 +1750,21 @@ function afterAnyTestInput(
   type: "textInput" | "delete" | "compositionUpdate",
   correctInput: boolean | null,
 ): void {
+  // A selected typing feel set replaces the click (never the error sound).
+  const ownClick = !TypingFeel.ownsKeySound();
   if (type === "textInput" || type === "compositionUpdate") {
     if (
       correctInput === true ||
       Config.playSoundOnError === "off" ||
       Config.blindMode
     ) {
-      void SoundController.playClick();
+      if (ownClick) void SoundController.playClick();
     } else {
       void SoundController.playError();
     }
   } else if (type === "delete") {
-    void SoundController.playClick();
+    TypingFeel.onDelete();
+    if (ownClick) void SoundController.playClick();
   }
 
   const acc = Numbers.roundTo2(getLiveCachedAccuracy());
@@ -1899,6 +1903,7 @@ export async function afterTestWordChange(
 
 export function onTestStart(): void {
   Focus.set(true);
+  TypingFeel.start();
   setCurrentLiveStats({
     wpm: 0,
     acc: 100,
@@ -1950,6 +1955,7 @@ export function onTestRestart(source: "testPage" | "resultPage"): void {
   focusWords(true);
   ResultWordHighlight.destroy();
   MonkeyPower.reset();
+  TypingFeel.reset();
   MemoryFunboxTimer.reset();
   Caret.resetPosition();
   TestInitFailed.hide();
@@ -1980,6 +1986,7 @@ export function onTestRestart(source: "testPage" | "resultPage"): void {
 
 export function onTestFinish(): void {
   Caret.hide();
+  TypingFeel.finish();
   setTestFocusState("focused");
   if (Config.playSoundOnClick === "16") {
     void SoundController.playFartReverb();

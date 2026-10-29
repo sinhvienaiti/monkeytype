@@ -55,6 +55,7 @@ import {
 } from "../../states/test";
 import { DeleteInputType } from "../helpers/input-type";
 import { handleStartedWord as handleEnVnTranslationStart } from "../../custom/en-vn-translation";
+import * as TypingFeel from "../../custom/typing-feel/runtime";
 import { getAsciiTargetRestore } from "../vietnamese-ime/ascii-guard";
 import { createVietnameseCommitTransaction } from "../vietnamese-ime/transaction";
 import {
@@ -195,9 +196,7 @@ function canBufferVietnameseDirectPreview(options: {
   // stop-on-error rules must own every following key/boundary.
   if (!options.targetWord.startsWith(options.scorerInput)) return false;
   if (domChars.length <= scorerChars.length) return false;
-  if (
-    scorerChars.some((char, index) => domChars[index] !== char)
-  ) {
+  if (scorerChars.some((char, index) => domChars[index] !== char)) {
     return false;
   }
 
@@ -319,7 +318,9 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
   // input and target word
   const testInput = normalizeCommittedText(getCurrentInput());
   const currentTestWord = TestWords.words.getCurrent();
-  const currentWord = normalizeTargetText(currentTestWord?.textWithCommit ?? "");
+  const currentWord = normalizeTargetText(
+    currentTestWord?.textWithCommit ?? "",
+  );
   const currentWordText = normalizeTargetText(currentTestWord?.text ?? "");
 
   // Native Vietnamese mode trusts the browser/OS IME DOM result. Do not
@@ -481,7 +482,10 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
         return;
       }
 
-      if (transaction.start === scorerChars.length && insertedChars.length > 0) {
+      if (
+        transaction.start === scorerChars.length &&
+        insertedChars.length > 0
+      ) {
         options = {
           ...options,
           data: transaction.insertText,
@@ -678,17 +682,26 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
     lastWord: wordIndex === TestWords.words.length - 1 ? true : undefined,
   });
 
+  // Typing feel only observes the logged event (sound and letter effects).
+  TypingFeel.onScorerInput({
+    wordIndex,
+    charIndex,
+    data,
+    correct: acceptedInput || Config.blindMode,
+    commit: goingToNextWord,
+    perfect: goingToNextWord && !hasCountedAccuracyErrorInWord(wordIndex),
+    replaced: replacementCharIndex !== undefined,
+    stopped: removeLastChar,
+    automatic: automatic === true,
+  });
+
   // this needs to be called after event logging
   WeakSpot.updateScore(data, correct);
 
   // delete on error
   // skipped when the input was stopped - nothing was inserted to delete
   // before the UI update so it renders the input after the deletion, in one go
-  if (
-    Config.deleteOnError !== "off" &&
-    !acceptedInput &&
-    !removeLastChar
-  ) {
+  if (Config.deleteOnError !== "off" && !acceptedInput && !removeLastChar) {
     handleDeleteOnError(now);
   }
 
@@ -735,7 +748,9 @@ export async function onInsertText(options: OnInsertTextParams): Promise<void> {
   }
 
   const testInputAfterEvent =
-    replacementCharIndex !== undefined ? inputValueAfterEvent : testInput + data;
+    replacementCharIndex !== undefined
+      ? inputValueAfterEvent
+      : testInput + data;
 
   if (!CompositionState.getComposing()) {
     const shouldCheckDifficulty =

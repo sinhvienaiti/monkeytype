@@ -129,6 +129,9 @@ vi.mock("../../../src/ts/test/test-logic", () => ({
   addWord: vi.fn(),
 }));
 vi.mock("../../../src/ts/test/weak-spot", () => ({ updateScore: vi.fn() }));
+vi.mock("../../../src/ts/custom/typing-feel/runtime", () => ({
+  onScorerInput: vi.fn(),
+}));
 vi.mock("../../../src/ts/events/keymap", () => ({ flash: vi.fn() }));
 vi.mock("../../../src/ts/states/notifications", () => ({
   showNoticeNotification: vi.fn(),
@@ -162,6 +165,7 @@ vi.mock("../../../src/ts/input/helpers/fail-or-finish", () => ({
 }));
 
 import { onInsertText } from "../../../src/ts/input/handlers/insert-text";
+import * as TypingFeel from "../../../src/ts/custom/typing-feel/runtime";
 import { onDelete } from "../../../src/ts/input/handlers/delete";
 import {
   buildEventLog,
@@ -510,7 +514,6 @@ describe("onInsertText - delete on error", () => {
     expect(incorrect).toHaveLength(1);
   });
 });
-
 
 describe("onInsertText - forgive corrected errors", () => {
   beforeEach(() => {
@@ -1093,7 +1096,15 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     ["từ", "t", "u", "tư", "7", "từ", "2"],
   ])(
     "keeps VNI digit modifiers inside the IME transaction for %s",
-    async (target, prefix, plain, shapedDom, shapeDigit, finalDom, toneDigit) => {
+    async (
+      target,
+      prefix,
+      plain,
+      shapedDom,
+      shapeDigit,
+      finalDom,
+      toneDigit,
+    ) => {
       replaceConfig({
         ...__testing.getConfig(),
         language: "vietnamese_5k",
@@ -1305,7 +1316,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
         stopOnError: "letter",
         stopOnErrorKeepFirstError: true,
         inputLanguage: "vietnamese",
-      vietnameseImeMode: "native",
+        vietnameseImeMode: "native",
       });
       pushWords(word, "next");
 
@@ -1397,7 +1408,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
         ...__testing.getConfig(),
         language: "vietnamese_5k",
         inputLanguage: "vietnamese",
-      vietnameseImeMode: "native",
+        vietnameseImeMode: "native",
         stopOnError: "letter",
         stopOnErrorKeepFirstError: true,
       });
@@ -1424,7 +1435,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
         ...__testing.getConfig(),
         language: "vietnamese_5k",
         inputLanguage: "vietnamese",
-      vietnameseImeMode: "native",
+        vietnameseImeMode: "native",
         stopOnError,
         stopOnErrorKeepFirstError: true,
       });
@@ -1847,7 +1858,6 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     });
   });
 
-
   it("allows phé to be rebuilt after deleting the composed vowel", async () => {
     replaceConfig({
       ...__testing.getConfig(),
@@ -1933,16 +1943,13 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     await onInsertText({ data: "x", now: 1710 });
 
     expect(getInput()).toBe("mụ");
-    expect(insertEventsForWord(0)).toHaveLength(
-      eventCountBeforeStaleMutation,
-    );
+    expect(insertEventsForWord(0)).toHaveLength(eventCountBeforeStaleMutation);
 
     // Normal input can continue afterwards without inheriting the stale DOM.
     setInput("mụx");
     await onInsertText({ data: "x", now: 1720 });
     expect(getInput()).toBe("mụx");
   });
-
 
   it("blocks a wrong native replacement without truncating the word suffix", async () => {
     replaceConfig({
@@ -1967,7 +1974,6 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     expect(getAccuracy(buildEventLog()).incorrect).toBe(1);
     expect(findInputValueMismatches(inputEventsForWord(0))).toEqual([]);
   });
-
 
   it("aborts a multi-step native DOM transaction when its first rewrite is blocked", async () => {
     replaceConfig({
@@ -1997,9 +2003,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
   });
 
   it("aborts composition replay when a replacement is rejected", async () => {
-    const performanceNow = vi
-      .spyOn(performance, "now")
-      .mockReturnValue(2010);
+    const performanceNow = vi.spyOn(performance, "now").mockReturnValue(2010);
 
     replaceConfig({
       ...__testing.getConfig(),
@@ -2029,11 +2033,8 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     performanceNow.mockRestore();
   });
 
-
   it("applies a queued Space only after the native composition commit", async () => {
-    const performanceNow = vi
-      .spyOn(performance, "now")
-      .mockReturnValue(2110);
+    const performanceNow = vi.spyOn(performance, "now").mockReturnValue(2110);
 
     replaceConfig({
       ...__testing.getConfig(),
@@ -2066,9 +2067,7 @@ describe("onInsertText - Vietnamese IME committed text", () => {
   });
 
   it("rejects a composition result that shrinks committed scorer text", async () => {
-    const performanceNow = vi
-      .spyOn(performance, "now")
-      .mockReturnValue(2210);
+    const performanceNow = vi.spyOn(performance, "now").mockReturnValue(2210);
 
     replaceConfig({
       ...__testing.getConfig(),
@@ -2097,7 +2096,6 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     performanceNow.mockRestore();
   });
 
-
   it("ignores a native physical-key event when the DOM committed no text", async () => {
     replaceConfig({
       ...__testing.getConfig(),
@@ -2120,5 +2118,82 @@ describe("onInsertText - Vietnamese IME committed text", () => {
     expect(insertEventsForWord(0)).toHaveLength(eventsBefore);
     expect(getAccuracy(buildEventLog()).incorrect).toBe(0);
   });
+});
 
+describe("onInsertText - typing feel observes the scorer", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockImeState.composing = false;
+    mockImeState.data = "";
+    mockImeState.compositionText = "";
+    mockImeState.lastInsertCompositionTextData = "";
+    mockImeState.revision = 0;
+    invalidateVietnameseImeSession();
+    resetTestEvents();
+    TestWords.reset();
+    mockState.activeWordIndex = 0;
+    mockState.correctShiftUsed = true;
+    mockState.wordsScrolledOff.clear();
+    setInput("");
+    replaceConfig({
+      mode: "words",
+      language: "vietnamese_5k",
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+      deleteOnError: "off",
+      stopOnError: "off",
+      forgiveCorrectedErrors: false,
+      difficulty: "normal",
+      strictSpace: false,
+      oppositeShiftMode: "off",
+      keymapMode: "off",
+      blindMode: false,
+    });
+  });
+
+  it("passes every logged insert, with commit and perfect for a clean word", async () => {
+    replaceConfig({
+      ...__testing.getConfig(),
+      language: "english",
+      inputLanguage: "auto",
+    });
+    pushWords("ab", "next");
+    await type("a", 1000);
+    await type("b", 1001);
+    await type(" ", 1002);
+
+    const calls = vi
+      .mocked(TypingFeel.onScorerInput)
+      .mock.calls.map(([input]) => input);
+    expect(calls).toHaveLength(insertEventsForWord(0).length);
+    expect(calls[0]).toMatchObject({
+      wordIndex: 0,
+      charIndex: 0,
+      data: "a",
+      correct: true,
+      commit: false,
+      replaced: false,
+    });
+    expect(calls[2]).toMatchObject({ commit: true, perfect: true });
+  });
+
+  it("marks a Telex tone rewrite of an earlier letter as replaced", async () => {
+    pushWords("ba", "next");
+    await type("b", 1000);
+    await type("a", 1001);
+    // The IME rewrites the scored "a" into "á" (Telex s).
+    setInput("bá");
+    await onInsertText({ data: "s", now: 1002 });
+
+    const events = insertEventsForWord(0);
+    const calls = vi
+      .mocked(TypingFeel.onScorerInput)
+      .mock.calls.map(([input]) => input);
+    expect(calls).toHaveLength(events.length);
+    expect(calls.some((input) => input.replaced)).toBe(true);
+    calls.forEach((input, i) => {
+      expect(input.replaced).toBe(events[i]?.data.replacesChar === true);
+    });
+    expect(getInput()).toBe("bá");
+  });
 });

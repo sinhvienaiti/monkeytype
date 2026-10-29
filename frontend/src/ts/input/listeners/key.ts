@@ -2,6 +2,7 @@ import { getInputElement } from "../input-element";
 import { onKeyup } from "../handlers/keyup";
 import { onKeydown } from "../handlers/keydown";
 import { recordImeDebugEvent } from "../ime-debug";
+import * as TypingFeel from "../../custom/typing-feel/runtime";
 import {
   clearActivePhysicalKeyCode,
   markBackspaceIntent,
@@ -24,6 +25,8 @@ inputEl.addEventListener("keyup", async (event) => {
 });
 
 inputEl.addEventListener("keydown", async (event) => {
+  // Observes only: one key sound per physical key (see typing-feel/sounds.ts).
+  TypingFeel.noteKeydown(event);
   if (event.code === "Backspace") {
     markBackspaceIntent(event.timeStamp);
   }
