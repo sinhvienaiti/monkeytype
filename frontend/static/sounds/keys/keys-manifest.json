@@ -1,0 +1,62 @@
+{
+  "profiles": [
+    {
+      "id": "deep",
+      "name": "Deep",
+      "manifest": "deep/keys-manifest.json",
+      "preview": "deep/preview.ogg",
+      "order": 0,
+      "centroid_hz": 533.690726022024
+    },
+    {
+      "id": "warm",
+      "name": "Warm",
+      "manifest": "warm/keys-manifest.json",
+      "preview": "warm/preview.ogg",
+      "order": 1,
+      "centroid_hz": 589.8062422324109
+    },
+    {
+      "id": "rounded",
+      "name": "Rounded",
+      "manifest": "rounded/keys-manifest.json",
+      "preview": "rounded/preview.ogg",
+      "order": 2,
+      "centroid_hz": 654.4293738346705
+    },
+    {
+      "id": "solid",
+      "name": "Solid",
+      "manifest": "solid/keys-manifest.json",
+      "preview": "solid/preview.ogg",
+      "order": 3,
+      "centroid_hz": 757.518913277663
+    },
+    {
+      "id": "crisp",
+      "name": "Crisp",
+      "manifest": "crisp/keys-manifest.json",
+      "preview": "crisp/preview.ogg",
+      "order": 4,
+      "centroid_hz": 759.7397528736738
+    },
+    {
+      "id": "clear",
+      "name": "Clear",
+      "manifest": "clear/keys-manifest.json",
+      "preview": "clear/preview.ogg",
+      "order": 5,
+      "centroid_hz": 798.4941192022998
+    },
+    {
+      "id": "bright-clack",
+      "name": "Bright Clack",
+      "manifest": "bright-clack/keys-manifest.json",
+      "preview": "bright-clack/preview.ogg",
+      "order": 6,
+      "centroid_hz": 877.4844720013655
+    }
+  ],
+  "status": "owner-approved-source",
+  "builder": "keys-firefly/189"
+}
