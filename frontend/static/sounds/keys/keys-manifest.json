@@ -110,13 +110,24 @@
       "order": 11
     },
     {
+      "id": "hail-stone",
+      "name": "Hail Stone",
+      "family": "Solid",
+      "score": null,
+      "ownerPick": true,
+      "manifest": "hail-stone/keys-manifest.json",
+      "preview": "hail-stone/preview.ogg",
+      "order": 12,
+      "note": "Owner picked 30/10/2026 (Firefly hailstones on thick stone, take v4, natural processing). Not scored with the 218 metric."
+    },
+    {
       "id": "crisp",
       "name": "Crisp Velvet",
       "family": "Crisp",
       "score": 6.5395,
       "manifest": "crisp/keys-manifest.json",
       "preview": "crisp/preview.ogg",
-      "order": 12
+      "order": 13
     },
     {
       "id": "crisp-amber",
@@ -125,7 +136,7 @@
       "score": 6.5043,
       "manifest": "crisp-amber/keys-manifest.json",
       "preview": "crisp-amber/preview.ogg",
-      "order": 13
+      "order": 14
     },
     {
       "id": "crisp-cedar",
@@ -134,7 +145,7 @@
       "score": 6.321,
       "manifest": "crisp-cedar/keys-manifest.json",
       "preview": "crisp-cedar/preview.ogg",
-      "order": 14
+      "order": 15
     },
     {
       "id": "crisp-pebble",
@@ -143,7 +154,7 @@
       "score": 6.2789,
       "manifest": "crisp-pebble/keys-manifest.json",
       "preview": "crisp-pebble/preview.ogg",
-      "order": 15
+      "order": 16
     },
     {
       "id": "crisp-slate",
@@ -152,7 +163,7 @@
       "score": 6.0655,
       "manifest": "crisp-slate/keys-manifest.json",
       "preview": "crisp-slate/preview.ogg",
-      "order": 16
+      "order": 17
     },
     {
       "id": "crisp-silk",
@@ -161,7 +172,7 @@
       "score": 6.0566,
       "manifest": "crisp-silk/keys-manifest.json",
       "preview": "crisp-silk/preview.ogg",
-      "order": 17
+      "order": 18
     },
     {
       "id": "raindrop-tile",
@@ -171,7 +182,7 @@
       "ownerPick": true,
       "manifest": "raindrop-tile/keys-manifest.json",
       "preview": "raindrop-tile/preview.ogg",
-      "order": 18,
+      "order": 19,
       "note": "Owner picked 30/10/2026 (version A, natural processing). Not scored with the 218 metric: its tail term penalises the long tails the owner wants."
     },
     {
@@ -181,7 +192,7 @@
       "score": 6.7535,
       "manifest": "clear/keys-manifest.json",
       "preview": "clear/preview.ogg",
-      "order": 19
+      "order": 20
     },
     {
       "id": "clear-amber",
@@ -190,7 +201,7 @@
       "score": 6.4944,
       "manifest": "clear-amber/keys-manifest.json",
       "preview": "clear-amber/preview.ogg",
-      "order": 20
+      "order": 21
     },
     {
       "id": "clear-cedar",
@@ -199,7 +210,7 @@
       "score": 6.2836,
       "manifest": "clear-cedar/keys-manifest.json",
       "preview": "clear-cedar/preview.ogg",
-      "order": 21
+      "order": 22
     },
     {
       "id": "clear-pebble",
@@ -208,7 +219,7 @@
       "score": 6.093,
       "manifest": "clear-pebble/keys-manifest.json",
       "preview": "clear-pebble/preview.ogg",
-      "order": 22
+      "order": 23
     },
     {
       "id": "bright-clack",
@@ -217,7 +228,7 @@
       "score": 6.3979,
       "manifest": "bright-clack/keys-manifest.json",
       "preview": "bright-clack/preview.ogg",
-      "order": 23
+      "order": 24
     },
     {
       "id": "bright-clack-amber",
@@ -226,7 +237,7 @@
       "score": 6.3863,
       "manifest": "bright-clack-amber/keys-manifest.json",
       "preview": "bright-clack-amber/preview.ogg",
-      "order": 24
+      "order": 25
     },
     {
       "id": "bright-clack-cedar",
@@ -235,7 +246,7 @@
       "score": 6.2242,
       "manifest": "bright-clack-cedar/keys-manifest.json",
       "preview": "bright-clack-cedar/preview.ogg",
-      "order": 25
+      "order": 26
     },
     {
       "id": "bright-clack-pebble",
@@ -244,7 +255,7 @@
       "score": 6.1822,
       "manifest": "bright-clack-pebble/keys-manifest.json",
       "preview": "bright-clack-pebble/preview.ogg",
-      "order": 26
+      "order": 27
     },
     {
       "id": "bright-clack-slate",
@@ -253,7 +264,7 @@
       "score": 6.1392,
       "manifest": "bright-clack-slate/keys-manifest.json",
       "preview": "bright-clack-slate/preview.ogg",
-      "order": 27
+      "order": 28
     },
     {
       "id": "bright-clack-silk",
@@ -262,7 +273,7 @@
       "score": 6.122,
       "manifest": "bright-clack-silk/keys-manifest.json",
       "preview": "bright-clack-silk/preview.ogg",
-      "order": 28
+      "order": 29
     },
     {
       "id": "bright-clack-copper",
@@ -271,7 +282,7 @@
       "score": 6.075,
       "manifest": "bright-clack-copper/keys-manifest.json",
       "preview": "bright-clack-copper/preview.ogg",
-      "order": 29
+      "order": 30
     },
     {
       "id": "bright-clack-walnut",
@@ -280,7 +291,7 @@
       "score": 6.0586,
       "manifest": "bright-clack-walnut/keys-manifest.json",
       "preview": "bright-clack-walnut/preview.ogg",
-      "order": 30
+      "order": 31
     },
     {
       "id": "bright-clack-moss",
@@ -289,7 +300,7 @@
       "score": 6.0403,
       "manifest": "bright-clack-moss/keys-manifest.json",
       "preview": "bright-clack-moss/preview.ogg",
-      "order": 31
+      "order": 32
     },
     {
       "id": "bright-clack-ember",
@@ -298,7 +309,7 @@
       "score": 6.0216,
       "manifest": "bright-clack-ember/keys-manifest.json",
       "preview": "bright-clack-ember/preview.ogg",
-      "order": 32
+      "order": 33
     }
   ],
   "status": "owner-approved-source",

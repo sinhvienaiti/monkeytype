@@ -73,7 +73,7 @@ describe("typing feel settings", () => {
   it("lists the synced sets, disables one not copied, and saves a pick", async () => {
     serve(["deep", "warm", "bright-clack"]);
     const view = await mount();
-    await waitFor(() => expect(view.getAllByRole("option")).toHaveLength(34));
+    await waitFor(() => expect(view.getAllByRole("option")).toHaveLength(35));
     // Per-set notes only: the whole-list note is for nothing synced.
     const notes = view.queryAllByText("sound files not installed");
     expect(notes.every((n) => n.closest("[role=option]") !== null)).toBe(true);
@@ -99,7 +99,7 @@ describe("typing feel settings", () => {
   it("keeps a set that failed to load selectable, with a retry note", async () => {
     serve(["deep", "warm"], "warm");
     const view = await mount();
-    await waitFor(() => expect(view.getAllByRole("option")).toHaveLength(34));
+    await waitFor(() => expect(view.getAllByRole("option")).toHaveLength(35));
     const warm = (): HTMLButtonElement =>
       view.getByRole<HTMLButtonElement>("option", { name: /^Warm Velvet/ });
     fireEvent.click(warm());
@@ -110,23 +110,28 @@ describe("typing feel settings", () => {
     expect(warm().textContent).not.toContain("not installed");
   });
 
-  it("groups the 33 sets under seven family headings in a bounded list", async () => {
+  it("groups the 34 sets under seven family headings in a bounded list", async () => {
     serve(ALL_SYNCED);
     const view = await mount();
-    await waitFor(() => expect(view.getAllByRole("option")).toHaveLength(34));
+    await waitFor(() => expect(view.getAllByRole("option")).toHaveLength(35));
     const groups = view.getAllByRole("group");
     expect(groups).toHaveLength(7);
     expect(
       groups.map((g) => g.querySelectorAll("[role=option]").length),
-    ).toEqual([3, 6, 1, 2, 7, 4, 10]);
+    ).toEqual([3, 6, 1, 3, 7, 4, 10]);
     expect(view.getByRole("group", { name: "Bright Clack" })).toBeTruthy();
-    // The owner's pick closes Crisp, under its own name.
-    const crisp = view.getByRole("group", { name: "Crisp" });
-    expect(
-      [...crisp.querySelectorAll("[role=option]")]
-        .at(-1)
-        ?.textContent?.startsWith("Raindrop Tile"),
-    ).toBe(true);
+    // The owner's picks close their family, under their own name.
+    for (const [family, pick] of [
+      ["Solid", "Hail Stone"],
+      ["Crisp", "Raindrop Tile"],
+    ] as const) {
+      const group = view.getByRole("group", { name: family });
+      expect(
+        [...group.querySelectorAll("[role=option]")]
+          .at(-1)
+          ?.textContent?.startsWith(pick),
+      ).toBe(true);
+    }
     // Off sits above the families, in no group.
     expect(
       view.getByRole("option", { name: /^Off/ }).closest("[role=group]"),
@@ -141,7 +146,7 @@ describe("typing feel settings", () => {
   it("disables the volume with the sound off and letter effects with strength off", async () => {
     serve(["deep"]);
     const view = await mount();
-    await waitFor(() => expect(view.getAllByRole("option")).toHaveLength(34));
+    await waitFor(() => expect(view.getAllByRole("option")).toHaveLength(35));
     const volume = view.getByLabelText<HTMLInputElement>("keyboard volume");
     expect(volume.disabled).toBe(false);
     fireEvent.click(view.getByRole("option", { name: /^Off/ }));
