@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { KeyboardSoundList } from "../../../src/ts/custom/typing-feel/KeyboardSoundList";
@@ -279,6 +280,66 @@ describe("keyboard sound list grouped by family", () => {
     expect(document.activeElement).toBe(option("Deep Amber"));
   });
 
+  describe("when the options change", () => {
+    function mountLive(): {
+      setOptions: (options: readonly KeyboardSoundChoice[]) => void;
+      option: (label: string) => HTMLButtonElement;
+      view: ReturnType<typeof render>;
+    } {
+      const [options, setOptions] =
+        createSignal<readonly KeyboardSoundChoice[]>(grouped);
+      const view = render(() => (
+        <KeyboardSoundList
+          options={options()}
+          value="bright-clack"
+          onSelect={vi.fn()}
+          onPreview={vi.fn()}
+          onStop={vi.fn()}
+        />
+      ));
+      const option = (label: string): HTMLButtonElement =>
+        view.getByRole<HTMLButtonElement>("option", {
+          name: new RegExp(`^${label}`),
+        });
+      return { setOptions, option, view };
+    }
+
+    it("keeps every row's node, and focus, when the same sets come in a new array", () => {
+      // The settings map the catalogue again after each finished set load.
+      const { setOptions, option, view } = mountLive();
+      const rows = view.getAllByRole("option");
+      const listens = view.getAllByRole("button", { name: /^Listen to / });
+      option("Deep Amber").focus();
+      setOptions([...grouped]);
+      const same = (now: HTMLElement[], before: HTMLElement[]): boolean =>
+        now.length === before.length && now.every((n, i) => n === before[i]);
+      expect(same(view.getAllByRole("option"), rows)).toBe(true);
+      expect(rows.every((row) => row.isConnected)).toBe(true);
+      expect(
+        same(view.getAllByRole("button", { name: /^Listen to / }), listens),
+      ).toBe(true);
+      expect(document.activeElement).toBe(rows[2]);
+      expect(rows[2]).toHaveTextContent("Deep Amber");
+    });
+
+    it("keeps the focused row when its set gains a load-failure note", () => {
+      const { setOptions, option, view } = mountLive();
+      const row = option("Deep Amber");
+      row.focus();
+      setOptions(
+        grouped.map((c) =>
+          c.value === "deep-amber"
+            ? { ...c, note: "could not load, select to retry" }
+            : c,
+        ),
+      );
+      expect(row.isConnected).toBe(true);
+      expect(document.activeElement).toBe(row);
+      expect(row).toHaveTextContent("could not load, select to retry");
+      expect(view.getAllByRole("option")).toHaveLength(8);
+    });
+  });
+
   describe("scrolling", () => {
     const ROW = 36;
     const VIEW_TOP = 100;
@@ -396,6 +457,60 @@ describe("keyboard sound list grouped by family", () => {
       fireEvent.keyDown(option("Bright Clack Amber"), { key: "Home" });
       expect(box(view).scrollTop).toBe(0);
       expect(scrollIntoView).not.toHaveBeenCalled();
+    });
+
+    function mountPicking(start: string): {
+      value: () => string;
+      setValue: (id: string) => void;
+      option: (label: string) => HTMLButtonElement;
+      view: ReturnType<typeof render>;
+    } {
+      const [value, setValue] = createSignal(start);
+      const view = render(() => (
+        <KeyboardSoundList
+          options={grouped}
+          value={value()}
+          onSelect={(choice) => setValue(choice.value)}
+          onPreview={vi.fn()}
+          onStop={vi.fn()}
+        />
+      ));
+      const option = (label: string): HTMLButtonElement =>
+        view.getByRole<HTMLButtonElement>("option", {
+          name: new RegExp(`^${label}`),
+        });
+      return { value, setValue, option, view };
+    }
+
+    // Rows 9 and 10 are the Bright Clack heading and Bright Clack Velvet.
+    const HEADING_HIDDEN = 10 * ROW;
+
+    it("leaves the box still under the pointer after a click, even on a family's first set", () => {
+      const { value, option, view } = mountPicking("off");
+      // The wheel left Bright Clack Velvet at the top, its heading just above.
+      box(view).scrollTop = HEADING_HIDDEN;
+      fireEvent.pointerDown(option("Bright Clack Velvet"));
+      fireEvent.click(option("Bright Clack Velvet"));
+      expect(value()).toBe("bright-clack");
+      expect(box(view).scrollTop).toBe(HEADING_HIDDEN);
+    });
+
+    it("leaves the box still after Enter picks the set the keyboard is on", () => {
+      const { value, option, view } = mountPicking("off");
+      box(view).scrollTop = HEADING_HIDDEN;
+      option("Bright Clack Velvet").focus();
+      fireEvent.keyDown(option("Bright Clack Velvet"), { key: "Enter" });
+      expect(value()).toBe("bright-clack");
+      expect(box(view).scrollTop).toBe(HEADING_HIDDEN);
+    });
+
+    it("still brings in a set chosen from outside the list (a repaired id)", () => {
+      const { setValue, option, view } = mountPicking("off");
+      setValue("bright-clack-amber");
+      expect(box(view).scrollTop).toBeGreaterThan(0);
+      expect(
+        option("Bright Clack Amber").getBoundingClientRect().bottom,
+      ).toBeLessThanOrEqual(VIEW_TOP + VIEW_HEIGHT);
     });
   });
 });

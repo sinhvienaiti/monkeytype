@@ -1,5 +1,6 @@
 import {
-  For,
+  Accessor,
+  Index,
   JSXElement,
   Show,
   createEffect,
@@ -43,10 +44,15 @@ function reveal(box: HTMLElement, top: HTMLElement, bottom: HTMLElement): void {
  * The keyboard-sound listbox (port of the kit's KeyboardSoundChoices): sets
  * grouped under their family heading (ARIA groups, the heading is never an
  * option), a bounded height with its own scroll that brings the chosen set
- * into view, PageUp/PageDown between families. A mouse hover or keyboard
- * focus previews after the kit's 150 ms dwell, leaving stops it with a
- * 30 ms fade, touch uses the Listen buttons beside the list (never inside an
- * option). Timing lives in KeyboardSoundPreview.
+ * into view on open and follows keyboard moves, PageUp/PageDown between
+ * families. A mouse hover or keyboard focus previews after the kit's 150 ms
+ * dwell, leaving stops it with a 30 ms fade, touch uses the Listen buttons
+ * beside the list (never inside an option). Timing lives in
+ * KeyboardSoundPreview.
+ *
+ * Rows are kept by place (Index), not by object: the settings map the
+ * catalogue again after every set load or failure, and a rebuilt row would
+ * drop keyboard focus and replay the hover preview under a still mouse.
  */
 export function KeyboardSoundList(props: {
   options: readonly KeyboardSoundChoice[];
@@ -56,6 +62,8 @@ export function KeyboardSoundList(props: {
   onStop: () => void;
 }): JSXElement {
   let pointerFocus = false;
+  /** A set picked in the list: already where the user looks, so its pick does not scroll. */
+  let picked: string | undefined;
   let box: HTMLDivElement | undefined;
   let listbox: HTMLDivElement | undefined;
   const uid = createUniqueId();
@@ -97,11 +105,25 @@ export function KeyboardSoundList(props: {
     if (index >= 0) show(index);
   };
 
-  // The saved set in view when the list fills (the catalogue loads) or the pick changes.
+  // The saved set in view when the list fills (the catalogue loads) or the
+  // value changes from outside (a repaired id). A click or Enter in the list
+  // leaves the box still: scrolling under the pointer would end its preview.
   const chosen = createMemo(
     () => `${props.value}\n${props.options.map((c) => c.value).join(",")}`,
   );
-  createEffect(on(chosen, showChosen));
+  createEffect(
+    on(chosen, () => {
+      const own = picked === props.value;
+      picked = undefined;
+      if (!own) showChosen();
+    }),
+  );
+
+  const pick = (choice: KeyboardSoundChoice): void => {
+    if (choice.disabled === true) return;
+    if (choice.value !== props.value) picked = choice.value;
+    props.onSelect(choice);
+  };
 
   onMount(() => {
     // The custom tab hides the group (display none): scroll once it shows.
@@ -162,39 +184,39 @@ export function KeyboardSoundList(props: {
     show(target);
   };
 
-  const option = (item: Item): JSXElement => {
-    const choice = item.choice;
+  const option = (item: Accessor<Item>): JSXElement => {
+    const choice = (): KeyboardSoundChoice => item().choice;
     return (
       <button
         type="button"
         role="option"
-        aria-selected={choice.value === props.value}
-        tabIndex={roving() === item.index ? 0 : -1}
-        data-value={choice.value}
-        disabled={choice.disabled === true}
-        title={choice.label}
+        aria-selected={choice().value === props.value}
+        tabIndex={roving() === item().index ? 0 : -1}
+        data-value={choice().value}
+        disabled={choice().disabled === true}
+        title={choice().label}
         class={cn(
           "min-w-0 cursor-pointer truncate rounded px-3 text-left lowercase transition-colors",
           rowHeight,
           focusRing,
-          choice.value === props.value
+          choice().value === props.value
             ? "bg-main text-bg"
             : "bg-sub-alt text-text hover:bg-text hover:text-bg",
-          choice.disabled === true &&
+          choice().disabled === true &&
             "cursor-not-allowed opacity-[0.33] hover:bg-sub-alt hover:text-text",
         )}
         onPointerDown={() => {
           pointerFocus = true;
         }}
         onPointerEnter={(event) => {
-          if (event.pointerType === "mouse") preview(choice);
+          if (event.pointerType === "mouse") preview(choice());
         }}
         onPointerLeave={(event) => {
           if (event.pointerType === "mouse") props.onStop();
         }}
         onFocus={() => {
-          setFocused(item.index);
-          if (!pointerFocus) preview(choice);
+          setFocused(item().index);
+          if (!pointerFocus) preview(choice());
         }}
         onBlur={() => {
           pointerFocus = false;
@@ -207,55 +229,58 @@ export function KeyboardSoundList(props: {
         }}
         onClick={() => {
           pointerFocus = false;
-          if (choice.disabled !== true) props.onSelect(choice);
+          pick(choice());
         }}
         onKeyDown={(event) => {
           pointerFocus = false;
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
-            if (!event.repeat && choice.disabled !== true) {
-              props.onSelect(choice);
-            }
+            if (!event.repeat) pick(choice());
             return;
           }
-          move(event, item.index);
+          move(event, item().index);
         }}
       >
-        {choice.label}
-        <Show when={choice.note !== undefined}>
-          <span class="ml-2 text-[0.68rem] opacity-75">{choice.note}</span>
+        {choice().label}
+        <Show when={choice().note}>
+          {(note) => (
+            <span class="ml-2 text-[0.68rem] opacity-75">{note()}</span>
+          )}
         </Show>
       </button>
     );
   };
 
-  const listen = (choice: KeyboardSoundChoice): JSXElement => (
-    <Show
-      when={choice.preview !== undefined && choice.disabled !== true}
-      fallback={
-        <span
-          aria-hidden="true"
-          class={cn("w-8 pointer-coarse:w-11", rowHeight)}
-        ></span>
-      }
-    >
-      <button
-        type="button"
-        aria-label={`Listen to ${choice.label}`}
-        title={`Listen to ${choice.label}`}
-        data-listen={choice.value}
-        class={cn(
-          "grid w-8 cursor-pointer place-items-center rounded bg-sub-alt text-sub transition-colors hover:bg-text hover:text-bg pointer-coarse:w-11",
-          rowHeight,
-          focusRing,
-        )}
-        onClick={() => props.onPreview(choice, 0)}
-        onBlur={() => props.onStop()}
+  const listen = (item: Accessor<Item>): JSXElement => {
+    const choice = (): KeyboardSoundChoice => item().choice;
+    return (
+      <Show
+        when={choice().preview !== undefined && choice().disabled !== true}
+        fallback={
+          <span
+            aria-hidden="true"
+            class={cn("w-8 pointer-coarse:w-11", rowHeight)}
+          ></span>
+        }
       >
-        <Fa icon="fa-play" />
-      </button>
-    </Show>
-  );
+        <button
+          type="button"
+          aria-label={`Listen to ${choice().label}`}
+          title={`Listen to ${choice().label}`}
+          data-listen={choice().value}
+          class={cn(
+            "grid w-8 cursor-pointer place-items-center rounded bg-sub-alt text-sub transition-colors hover:bg-text hover:text-bg pointer-coarse:w-11",
+            rowHeight,
+            focusRing,
+          )}
+          onClick={() => props.onPreview(choice(), 0)}
+          onBlur={() => props.onStop()}
+        >
+          <Fa icon="fa-play" />
+        </button>
+      </Show>
+    );
+  };
 
   return (
     <div
@@ -274,20 +299,20 @@ export function KeyboardSoundList(props: {
           aria-label="keyboard sound"
           class="grid content-start gap-1"
         >
-          <For each={sections()}>
+          <Index each={sections()}>
             {(section, at) => (
               <Show
-                when={section.family}
-                fallback={<For each={section.items}>{option}</For>}
+                when={section().family}
+                fallback={<Index each={section().items}>{option}</Index>}
               >
                 {(family) => (
                   <div
                     role="group"
-                    aria-labelledby={`${uid}-family-${at()}`}
+                    aria-labelledby={`${uid}-family-${at}`}
                     class="grid gap-1"
                   >
                     <div
-                      id={`${uid}-family-${at()}`}
+                      id={`${uid}-family-${at}`}
                       class={cn(
                         "flex items-end px-3 text-[0.68rem] text-sub lowercase",
                         headingHeight,
@@ -295,24 +320,24 @@ export function KeyboardSoundList(props: {
                     >
                       {family()}
                     </div>
-                    <For each={section.items}>{option}</For>
+                    <Index each={section().items}>{option}</Index>
                   </div>
                 )}
               </Show>
             )}
-          </For>
+          </Index>
         </div>
         <div class="grid content-start gap-1">
-          <For each={sections()}>
+          <Index each={sections()}>
             {(section) => (
               <>
-                <Show when={section.family !== undefined}>
+                <Show when={section().family !== undefined}>
                   <span aria-hidden="true" class={headingHeight}></span>
                 </Show>
-                <For each={section.items}>{(item) => listen(item.choice)}</For>
+                <Index each={section().items}>{listen}</Index>
               </>
             )}
-          </For>
+          </Index>
         </div>
       </div>
     </div>
