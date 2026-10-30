@@ -133,7 +133,7 @@ export function TypingFeelSettings(): JSXElement {
       <div class="grid gap-1">
         <SettingHelpLabel
           label="keyboard sound"
-          help="Recorded key sounds for each letter you type. Hover or focus a set to hear one second of it; on touch screens use Listen."
+          help="Recorded key sounds for each letter you type, grouped by family. Hover or focus a set to hear one second of it; on touch screens use Listen. Page Up and Page Down jump between families."
         />
         <KeyboardSoundList
           options={options()}

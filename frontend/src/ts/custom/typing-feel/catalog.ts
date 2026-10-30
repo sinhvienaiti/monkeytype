@@ -124,6 +124,43 @@ export function restoreKeyboardChoice(
   return defaultKeyboard(catalog.options);
 }
 
+/** A run of catalogue rows of one family; Off and rows without a family have none. */
+export type KeyboardSection = {
+  readonly family: string | undefined;
+  readonly items: readonly {
+    readonly choice: KeyboardSoundChoice;
+    readonly index: number;
+  }[];
+};
+
+/**
+ * The list's sections in catalogue order (the kit's grouping): neighbouring
+ * rows of one family share a heading, a family that recurs later starts a
+ * new section, and `index` is the row's place in `options`.
+ */
+export function groupByFamily(
+  options: readonly KeyboardSoundChoice[],
+): KeyboardSection[] {
+  const sections: {
+    family: string | undefined;
+    items: { choice: KeyboardSoundChoice; index: number }[];
+  }[] = [];
+  options.forEach((choice, index) => {
+    const name = choice.family?.trim();
+    const family =
+      choice.value === "off" || name === undefined || name === ""
+        ? undefined
+        : name;
+    const last = sections.at(-1);
+    if (last !== undefined && last.family === family) {
+      last.items.push({ choice, index });
+    } else {
+      sections.push({ family, items: [{ choice, index }] });
+    }
+  });
+  return sections;
+}
+
 export function findChoice(
   catalog: KeyboardCatalog | undefined,
   id: string,
