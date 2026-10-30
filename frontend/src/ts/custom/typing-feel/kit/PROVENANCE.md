@@ -74,6 +74,11 @@ missing or not the version `keys.sha256` records, and, when the Audio Lab is
 on the machine, when its takes or JSON differ from what Git holds. Without
 the Audio Lab it checks the local audio against `keys.sha256` only.
 
+Another machine: a pull brings effects but no key sounds. Copy the cut sets
+(owner's zip or the Drive folder) to `~/AudioLab/review/staging/keys-firefly`,
+then in `frontend` run `pnpm sync-keys` and `pnpm sync-keys --check` (expect
+2684 OGG matching `keys.sha256`).
+
 ### Making more sets later
 
 The full guide is the parent repo's
