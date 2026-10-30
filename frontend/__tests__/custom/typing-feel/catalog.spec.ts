@@ -17,7 +17,10 @@ import {
 } from "../../../src/ts/custom/typing-feel/kit/audio";
 
 const staticDir = resolve(__dirname, "../../../static");
-/** Owner 30/10/2026: 32 Firefly sets in seven families, in the catalogue's order. */
+/**
+ * Owner 30/10/2026: 33 Firefly sets in seven families, in the catalogue's
+ * order; Raindrop Tile (the owner's pick) closes Crisp.
+ */
 const FAMILIES: readonly (readonly [string, readonly string[]])[] = [
   ["Deep", ["deep", "deep-amber", "deep-cedar"]],
   [
@@ -42,6 +45,7 @@ const FAMILIES: readonly (readonly [string, readonly string[]])[] = [
       "crisp-pebble",
       "crisp-slate",
       "crisp-silk",
+      "raindrop-tile",
     ],
   ],
   ["Clear", ["clear", "clear-amber", "clear-cedar", "clear-pebble"]],
@@ -62,7 +66,16 @@ const FAMILIES: readonly (readonly [string, readonly string[]])[] = [
   ],
 ];
 const ALL = FAMILIES.flatMap(([, ids]) => ids);
-/** The first seven ids, kept by the 32-set catalogue so saved picks survive. */
+/**
+ * Sets the owner picked by ear: listed with `score: null` and `ownerPick:
+ * true` (the 218 metric penalises the long tails he wants), their own name
+ * and sample count instead of the scored sets' family-prefixed names and
+ * 70-80 keys.
+ */
+const OWNER_PICKS: Readonly<Record<string, { name: string; keys: number }>> = {
+  "raindrop-tile": { name: "Raindrop Tile", keys: 17 },
+};
+/** The first seven ids, kept by the 32- and 33-set catalogues so saved picks survive. */
 const FIRST_SEVEN = [
   "deep",
   "warm",
@@ -87,10 +100,10 @@ const fetchSynced =
     url === INSTALLED_URL ? { sets } : fetchTracked(url);
 
 describe("keyboard catalogue", () => {
-  it("lists Off then the 32 Firefly sets in the owner's order once synced", async () => {
+  it("lists Off then the 33 Firefly sets in the owner's order once synced", async () => {
     const catalog = await loadKeyboardChoices(fetchSynced());
     expect(catalog.state).toBe("ready");
-    expect(catalog.options).toHaveLength(33);
+    expect(catalog.options).toHaveLength(34);
     expect(catalog.options.map((c) => c.value)).toEqual(["off", ...ALL]);
     expect(catalog.options.some((c) => c.disabled === true)).toBe(false);
     for (const id of FIRST_SEVEN) {
@@ -106,20 +119,58 @@ describe("keyboard catalogue", () => {
     expect(defaultKeyboard(catalog.options)).toBe("bright-clack");
   });
 
-  it("gives every set a family, an English name and a score", async () => {
+  it("gives every set a family and an English name, every scored set its family's prefix and a score", async () => {
     const catalog = await loadKeyboardChoices(fetchSynced());
     for (const [family, ids] of FAMILIES) {
       for (const id of ids) {
         const choice = catalog.options.find((c) => c.value === id);
         expect(choice?.family).toBe(family);
-        expect(choice?.label.startsWith(family)).toBe(true);
         expect(choice?.label).toMatch(/^[A-Za-z ]+$/);
-        expect(choice?.score).toBeGreaterThan(6);
+        const pick = OWNER_PICKS[id];
+        if (pick === undefined) {
+          expect(choice?.label.startsWith(family)).toBe(true);
+          expect(choice?.score).toBeGreaterThan(6);
+        } else {
+          expect(choice?.label).toBe(pick.name);
+          expect(choice?.score).toBeUndefined();
+        }
       }
     }
   });
 
-  it("names 70 to 80 keys and 8 spaces, OGG only, in every tracked set manifest", async () => {
+  it("accepts the owner-picked set without a score: listed, playable, default unchanged", async () => {
+    const root = (await fetchTracked("/sounds/keys/keys-manifest.json")) as {
+      profiles: Record<string, unknown>[];
+    };
+    const row = root.profiles.find((p) => p["id"] === "raindrop-tile");
+    // No invented score: the catalogue says null and marks the owner's pick.
+    expect(row).toMatchObject({
+      name: "Raindrop Tile",
+      family: "Crisp",
+      score: null,
+      ownerPick: true,
+    });
+    // Every other set keeps a numeric score and is no owner pick.
+    for (const other of root.profiles.filter((p) => p !== row)) {
+      expect(typeof other["score"]).toBe("number");
+      expect(other["ownerPick"]).toBeUndefined();
+    }
+    const catalog = await loadKeyboardChoices(fetchSynced());
+    const choice = catalog.options.find((c) => c.value === "raindrop-tile");
+    expect(choice).toEqual({
+      value: "raindrop-tile",
+      label: "Raindrop Tile",
+      family: "Crisp",
+      manifest: "/sounds/keys/raindrop-tile/keys-manifest.json",
+      preview: "/sounds/keys/raindrop-tile/preview.ogg",
+    });
+    expect(restoreKeyboardChoice("raindrop-tile", catalog)).toBe(
+      "raindrop-tile",
+    );
+    expect(defaultKeyboard(catalog.options)).toBe("bright-clack");
+  });
+
+  it("names 70 to 80 keys (an owner pick its own count) and 8 spaces, OGG only, in every tracked set manifest", async () => {
     const catalog = await loadKeyboardChoices(fetchSynced());
     for (const choice of catalog.options.slice(1)) {
       const manifest = (await fetchTracked(choice.manifest ?? "")) as {
@@ -134,8 +185,13 @@ describe("keyboard catalogue", () => {
       expect(manifest.family).toBe(choice.family);
       const keys = manifest.files.filter((f) => f.startsWith("key-"));
       const spaces = manifest.files.filter((f) => f.startsWith("space-"));
-      expect(keys.length).toBeGreaterThanOrEqual(70);
-      expect(keys.length).toBeLessThanOrEqual(80);
+      const pick = OWNER_PICKS[choice.value];
+      if (pick === undefined) {
+        expect(keys.length).toBeGreaterThanOrEqual(70);
+        expect(keys.length).toBeLessThanOrEqual(80);
+      } else {
+        expect(keys).toHaveLength(pick.keys);
+      }
       expect(spaces).toHaveLength(8);
       expect(keys.length + spaces.length).toBe(manifest.files.length);
       expect(new Set(manifest.files).size).toBe(manifest.files.length);
@@ -152,13 +208,16 @@ describe("keyboard catalogue", () => {
     }
   });
 
-  it("groups the 32 sets under seven family headings, Off on its own", async () => {
+  it("groups the 33 sets under seven family headings, each family in one run, Off on its own", async () => {
     const catalog = await loadKeyboardChoices(fetchSynced());
     const sections = groupByFamily(catalog.options);
     expect(sections.map((s) => s.family)).toEqual([
       undefined,
       ...FAMILIES.map(([family]) => family),
     ]);
+    // Contiguous: no family comes back after another one (it would get a second heading).
+    const families = sections.slice(1).map((s) => s.family);
+    expect(new Set(families).size).toBe(families.length);
     expect(sections[0]?.items.map((i) => i.choice.value)).toEqual(["off"]);
     expect(
       sections.slice(1).map((s) => s.items.map((i) => i.choice.value)),

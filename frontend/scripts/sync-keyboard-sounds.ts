@@ -9,6 +9,11 @@
  * 30/10: 70-80 keys and 8 spaces per set); a set without one falls back to
  * the first layout, key-01..10 and space-01..03.
  *
+ * The root catalogue is written as 2-space JSON (the repo's oxfmt layout),
+ * whatever indent the Audio Lab uses: same fields and values, so a null
+ * score or an owner's pick (ownerPick) stays as listed, and a Lab file that
+ * differs only in layout is current.
+ *
  * keys.sha256 (tracked) records the audio the code expects: one
  * "<sha256>  <set>/<file>" line per OGG, sorted by path, the format
  * `shasum -a 256 -c keys.sha256` reads in that folder. A sync rewrites it,
@@ -158,8 +163,8 @@ function readLab(): Lab | null {
     if (check) return null;
     fail(`no catalogue at ${rootPath} (set KEYS_FIREFLY_DIR)`);
   }
-  const rootText = readFileSync(rootPath, "utf8");
-  const profiles = field(readJson(rootPath), "profiles");
+  const root = readJson(rootPath);
+  const profiles = field(root, "profiles");
   if (!Array.isArray(profiles) || profiles.length === 0) {
     fail("catalogue has no profiles");
   }
@@ -231,7 +236,7 @@ function readLab(): Lab | null {
       from: null,
       sha: null,
       to: join(dest, "keys-manifest.json"),
-      text: rootText.endsWith("\n") ? rootText : `${rootText}\n`,
+      text: `${JSON.stringify(root, null, 2)}\n`,
     },
     { from: null, sha: null, to: join(dest, SUMS), text: sumsText(sums) },
     // Last: written only once every file above is in place.

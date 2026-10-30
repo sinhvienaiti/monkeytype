@@ -137,6 +137,96 @@ describe("pnpm sync-keys and keys.sha256", { timeout: 30_000 }, () => {
     expect(check.out).toContain("alpha/key-01.ogg");
   });
 
+  it("syncs an owner-picked set: a schema-2 manifest with durations, a null score kept", () => {
+    mkdirSync(join(lab, "drop"), { recursive: true });
+    const catalogue = {
+      profiles: [
+        {
+          id: "alpha",
+          name: "Alpha",
+          family: "Deep",
+          score: 7,
+          manifest: "alpha/keys-manifest.json",
+          preview: "alpha/preview.ogg",
+          order: 1,
+        },
+        {
+          id: "drop",
+          name: "Drop",
+          family: "Deep",
+          score: null,
+          ownerPick: true,
+          manifest: "drop/keys-manifest.json",
+          preview: "drop/preview.ogg",
+          order: 2,
+        },
+      ],
+    };
+    // The Audio Lab's 30/10 layout (1-space indent), which oxfmt rejects.
+    writeFileSync(
+      join(lab, "keys-manifest.json"),
+      `${JSON.stringify(catalogue, null, 1)}\n`,
+    );
+    writeFileSync(
+      join(lab, "drop/keys-manifest.json"),
+      JSON.stringify({
+        schema: "typing-keys-firefly/2",
+        id: "drop",
+        name: "Drop",
+        family: "Deep",
+        licence: "Owner licence",
+        files: [
+          { file: "space-01.ogg", set: "space", durationMs: 535 },
+          { file: "key-02.ogg", set: "key", durationMs: 450 },
+          { file: "key-01.ogg", set: "key", durationMs: 450 },
+        ],
+        preview: "preview.ogg",
+      }),
+    );
+    for (const file of ["key-01.ogg", "key-02.ogg", "space-01.ogg"]) {
+      writeFileSync(join(lab, "drop", file), `drop ${file}`);
+    }
+    writeFileSync(join(lab, "drop/preview.ogg"), "drop preview");
+
+    expect(run().status).toBe(0);
+    // Same content (null score, ownerPick), in the 2-space layout the repo's formatter keeps.
+    expect(readFileSync(join(dest, "keys-manifest.json"), "utf8")).toBe(
+      `${JSON.stringify(catalogue, null, 2)}\n`,
+    );
+    // The slim tracked copy: names in number order, keys then spaces; durations stay in the Audio Lab.
+    expect(
+      JSON.parse(readFileSync(join(dest, "drop/keys-manifest.json"), "utf8")),
+    ).toEqual({
+      id: "drop",
+      name: "Drop",
+      family: "Deep",
+      licence: "Owner licence",
+      files: ["key-01.ogg", "key-02.ogg", "space-01.ogg"],
+      preview: "preview.ogg",
+    });
+    expect(sums()).toContain(`${sha("drop key-02.ogg")}  drop/key-02.ogg`);
+    expect(sums()).toContain(`${sha("drop preview")}  drop/preview.ogg`);
+    expect(
+      JSON.parse(readFileSync(join(dest, "installed.json"), "utf8")),
+    ).toEqual({ sets: ["alpha", "drop"] });
+    expect(run(["--check"]).status).toBe(0);
+  });
+
+  it("treats a catalogue that differs from Git only in layout as current", () => {
+    run();
+    const tracked = readFileSync(join(dest, "keys-manifest.json"), "utf8");
+    const parsed = JSON.parse(tracked) as unknown;
+    writeFileSync(
+      join(lab, "keys-manifest.json"),
+      JSON.stringify(parsed, null, 4),
+    );
+    expect(run(["--check"]).status).toBe(0);
+    expect(run().out).toContain("0 file(s) written");
+    expect(readFileSync(join(dest, "keys-manifest.json"), "utf8")).toBe(
+      tracked,
+    );
+  });
+
   it("rewrites keys.sha256 when a rebuilt Audio Lab is synced, so Git shows the change", () => {
     run();
     writeLab({ ...FILES, "key-01.ogg": "rebuilt" });
