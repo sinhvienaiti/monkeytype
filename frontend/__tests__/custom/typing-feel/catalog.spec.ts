@@ -203,6 +203,39 @@ describe("keyboard catalogue", () => {
     ).toBeUndefined();
   });
 
+  it("records in the tracked keys.sha256 one sha256 per OGG the set manifests name, sorted", async () => {
+    const catalog = await loadKeyboardChoices(fetchSynced());
+    const expected: string[] = [];
+    for (const choice of catalog.options.slice(1)) {
+      const manifest = (await fetchTracked(choice.manifest ?? "")) as {
+        files: string[];
+        preview: string;
+      };
+      for (const file of [...manifest.files, manifest.preview]) {
+        expected.push(`${choice.value}/${file}`);
+      }
+    }
+    const lines = readFileSync(
+      resolve(staticDir, "sounds/keys/keys.sha256"),
+      "utf8",
+    )
+      .split("\n")
+      .filter((line) => line !== "");
+    for (const line of lines) expect(line).toMatch(/^[0-9a-f]{64} {2}\S+$/);
+    const paths = lines.map((line) => line.slice(66));
+    expect(paths).toEqual([...paths].sort());
+    expect(paths).toEqual([...expected].sort());
+    // Tracked, unlike the audio it describes.
+    const repo = resolve(staticDir, "..");
+    expect(() =>
+      execFileSync(
+        "git",
+        ["check-ignore", "-q", "static/sounds/keys/keys.sha256"],
+        { cwd: repo },
+      ),
+    ).toThrow();
+  });
+
   it("keeps installed.json out of Git while the manifests are tracked", () => {
     const repo = resolve(staticDir, "..");
     const ignored = execFileSync(
