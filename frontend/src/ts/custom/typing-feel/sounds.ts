@@ -75,8 +75,9 @@ export async function loadSavedKeyboard(
   }
   const player = gameplaySounds();
   if (packs.get(id) === "ready") {
-    player.use(id);
-    return;
+    if (player.use(id)) return;
+    // The kit releases a set when another one plays (the settings preview): load it again.
+    packs.delete(id);
   }
   let job = inflight.get(id);
   if (job === undefined) {
@@ -92,7 +93,14 @@ export async function loadSavedKeyboard(
     void job.finally(() => inflight.delete(id));
   }
   await job;
-  if (current() === id && packs.get(id) === "ready") player.use(id);
+  if (packs.get(id) !== "ready") return;
+  if (current() === id) {
+    player.use(id);
+  } else if (player.profile?.id !== id) {
+    // A newer pick won while this loaded: free its 80-odd buffers.
+    player.release(id);
+    packs.delete(id);
+  }
 }
 
 /** Catalogue, repair of a stale id (persisted), then the saved set. Safe to call again. */

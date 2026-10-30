@@ -251,6 +251,42 @@ describe("keyboard levels and ownership", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it("loads a set again when the player released it after another one played", async () => {
+    // Ready from an earlier load, then released by the kit when the settings preview switched sets.
+    markPack({ id: "clear", state: "ready", keys: 70, spaces: 8, missing: [] });
+    expect(gameplaySounds().use("clear")).toBe(false);
+    const fetchSpy = vi.fn(async () => ({
+      ok: false,
+      status: 404,
+      json: async () => null,
+    }));
+    vi.stubGlobal("fetch", fetchSpy);
+    await loadSavedKeyboard(
+      {
+        options: [
+          { value: "off", label: "Off" },
+          {
+            value: "clear",
+            label: "Clear Velvet",
+            family: "Clear",
+            manifest: "/sounds/keys/clear/keys-manifest.json",
+            preview: "/sounds/keys/clear/preview.ogg",
+          },
+        ],
+        state: "ready",
+      },
+      () => "clear",
+    );
+    vi.unstubAllGlobals();
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/sounds/keys/clear/keys-manifest.json",
+      expect.anything(),
+    );
+    // Nothing loaded this time: keys go back to Monkeytype's click, not silence.
+    expect(packState("clear")).toBe("failed");
+    expect(ownsKeySoundFor(settings({ keyboardSound: "clear" }))).toBe(false);
+  });
+
   it("owns key sounds only for a selected, loaded set", () => {
     expect(ownsKeySoundFor(settings({ keyboardSound: "warm" }))).toBe(false);
     markPack({ id: "warm", state: "ready", keys: 10, spaces: 3, missing: [] });

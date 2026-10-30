@@ -3,16 +3,17 @@
   "owner": "project owner's own code",
   "sourceRepo": "typing-game (parent repo)",
   "sourcePath": "shared/game-kit/feedback/typing-fx",
-  "sourceCommit": "1c379c30b1a7315affae20602790bf6932d8702f",
-  "lastKitChange": "7b677b5a76436176fb376785b2b6f330f422ab1c",
+  "sourceCommit": "8d130d0979d6dc7ad4bfe12300674d6059183295",
+  "lastKitChange": "8d130d0979d6dc7ad4bfe12300674d6059183295",
   "copiedAt": "2026-10-30",
+  "copiedFrom": "clean export of the parent at 8d130d09 (tmp/kit-export), not the parent working tree",
   "files": [
     {
       "file": "audio.ts",
       "source": "shared/game-kit/feedback/typing-fx/audio.ts",
-      "gitBlob": "05ee6c72448cc11b300f45bb0bba3fdd1a7eb026",
-      "sourceSha256": "1abce50f88b21d83eca1cbdf4d3450680b8f65e0716d9db7f085c793a3b0c355",
-      "vendoredSha256": "934f1dc7628f2864fb39343a9500a51ce7041246e16654c3281ba564d9bb928c",
+      "gitBlob": "37b2188cb2529e321a3327eff075f4d833502988",
+      "sourceSha256": "ca1910cddff29f7fc92d151f48269821b4e42656a7a3c9b31381ca38f326f6ef",
+      "vendoredSha256": "545b17b0d589a4bf3dead090a0fa1cd3309dc53c17584cec442156f5c9a39a87",
       "patched": true
     },
     {
@@ -69,7 +70,7 @@
       "file": "audio.ts",
       "reason": "TS4111 under noPropertyAccessFromIndexSignature",
       "from": "entry as Record<string, unknown>",
-      "to": "entry as { readonly id?: unknown; readonly name?: unknown; readonly manifest?: unknown; readonly preview?: unknown; readonly order?: unknown }"
+      "to": "entry as { readonly id?: unknown; readonly name?: unknown; readonly manifest?: unknown; readonly preview?: unknown; readonly order?: unknown; readonly family?: unknown; readonly score?: unknown }"
     },
     {
       "file": "settings.ts",

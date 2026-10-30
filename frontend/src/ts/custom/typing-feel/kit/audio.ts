@@ -1,14 +1,14 @@
 // Source: new for the kit: keyboard sound profiles on preloaded AudioBuffers (TYPING_FEEDBACK_REVIEW.md §4, §6; owner 29/10)
 /**
  * Keypress sounds from recorded files (owner 29/10: every one made in the
- * Audio Lab, no downloaded packs). A keyboard profile is `key-01 … key-10`
- * and `space-01 … space-03`, loudness-matched across profiles, listed in a
+ * Audio Lab, no downloaded packs). A keyboard profile has numbered key and
+ * space samples (including 70–100 variants), loudness-matched, listed in a
  * `keys-manifest.json` beside them; the game gives the base URL
- * (`<base>/<profile>/keys-manifest.json`). Everything is fetched and decoded
- * before play: a key never waits on a file.
+ * (`<base>/<profile>/keys-manifest.json`). Files decode in bounded batches; the first decoded samples can play
+ * while the rest load. A key never waits on a file.
  *
- * Each play takes the next variant of a shuffled round (never the same twice
- * in a row), nudges pitch and level a little, and takes a voice: at most
+ * Each play takes the next variant of a shuffled round (avoiding the last eight
+ * when enough variants exist), nudges pitch and level a little, and takes a voice: at most
  * `keyVoices` key sounds at once (the oldest is cut with a 4 ms fade), and a
  * separate `wordVoices` for the space set so a burst of keys never cuts a
  * word's sound. Letters (right, wrong or stray) play the key set; a word done
@@ -40,7 +40,7 @@ export const TYPING_SOUND_MAP: Readonly<Record<TypingSoundEvent, { set: TypingSo
   combo: { set: "space", gain: 0.88 },
 };
 
-/** Files a keyboard profile has (owner 29/10): ten keys, three spaces; fewer still plays, the Lab lists the gap. */
+/** Legacy readiness floors: ten keys, three spaces. Larger manifests load every file. */
 export const TYPING_SOUND_SET: Readonly<Record<TypingSoundSet, { min: number; want: number }>> = {
   key: { min: 6, want: 10 },
   space: { min: 1, want: 3 },
@@ -72,12 +72,12 @@ export type TypingSoundProfile = {
   readonly level?: number;
 };
 
-const FILE = /(?:^|\/)(key|space)-(\d{2})\.(?:ogg|opus|webm|m4a|mp3|wav|flac)$/i;
+const FILE = /(?:^|\/)(key|space)-(\d{2,3})\.(?:ogg|opus|webm|m4a|mp3|wav|flac)$/i;
 
 /**
  * The files a `keys-manifest.json` names, as URLs under `base` (the profile's
- * folder). Any JSON shape works: every string that ends in `key-NN.<ext>` or
- * `space-NN.<ext>` is taken (a list, `files`, objects with `file`/`path`…),
+ * folder). Any JSON shape works: every string that ends in `key-NN[N].<ext>` or
+ * `space-NN[N].<ext>` is taken (a list, `files`, objects with `file`/`path`…),
  * sorted by number, duplicates dropped.
  */
 export function keyboardFiles(manifest: unknown, base: string): Record<TypingSoundSet, string[]> {
@@ -110,42 +110,48 @@ export type KeyboardLoad = {
   missing: string[];
 };
 
-/**
- * A shuffled round of `n` variants: each plays once per round in random
- * order, and a new round never starts with the one that just played.
- */
+/** A shuffled round: equal use, with up to eight recent variants excluded across rounds. */
 export class VariantPicker {
-  private readonly order: Int16Array;
+  private readonly order: number[];
   private cursor: number;
-  private last = -1;
+  private started = false;
+  private readonly recent: number[] = [];
 
-  constructor(readonly n: number, private readonly random: () => number = Math.random) {
-    this.order = new Int16Array(Math.max(1, n));
-    for (let i = 0; i < this.order.length; i += 1) this.order[i] = i;
+  constructor(n: number, private readonly random: () => number = Math.random) {
+    this.order = Array.from({ length: Math.max(1, n) }, (_, i) => i);
     this.cursor = this.order.length;
   }
 
+  get n(): number { return this.order.length; }
+
+  /** Newly decoded samples join the unplayed part without resetting recent history. */
+  grow(n: number): void {
+    for (let i = this.order.length; i < n; i += 1) this.order.push(i);
+    if (!this.started) this.cursor = this.order.length;
+  }
+
   next(): number {
+    this.started = true;
     const n = this.order.length;
-    if (n === 1) return 0;
+    if (n === 1) { this.recent.splice(0, this.recent.length, 0); return 0; }
     if (this.cursor >= n) {
       for (let i = n - 1; i > 0; i -= 1) {
         const j = Math.floor(this.random() * (i + 1));
-        const t = this.order[i]!;
-        this.order[i] = this.order[j]!;
-        this.order[j] = t;
-      }
-      if (this.order[0] === this.last) {
-        const j = 1 + Math.floor(this.random() * (n - 1));
-        const t = this.order[0]!;
-        this.order[0] = this.order[j]!;
-        this.order[j] = t;
+        [this.order[i], this.order[j]] = [this.order[j]!, this.order[i]!];
       }
       this.cursor = 0;
     }
-    this.last = this.order[this.cursor]!;
-    this.cursor += 1;
-    return this.last;
+    // Each round still uses every sample exactly once. Only its first few
+    // positions can conflict with the preceding round's recent history.
+    const excluded = this.recent.slice(-Math.min(8, n - 1));
+    if (excluded.includes(this.order[this.cursor]!)) {
+      const next = this.order.findIndex((value, i) => i > this.cursor && !excluded.includes(value));
+      if (next >= 0) [this.order[this.cursor], this.order[next]] = [this.order[next]!, this.order[this.cursor]!];
+    }
+    const value = this.order[this.cursor++]!;
+    this.recent.push(value);
+    while (this.recent.length > 8) this.recent.shift();
+    return value;
   }
 }
 
@@ -210,6 +216,8 @@ type Loaded = { profile: TypingSoundProfile; buffers: Partial<Record<TypingSound
 export type SoundStandIn = (event: TypingSoundEvent, step: number, gain: number) => void;
 
 const STEAL_FADE_S = 0.004;
+/** Bounds concurrent fetch/decode work; rendering gets a turn between batches. */
+export const KEYBOARD_DECODE_BATCH_SIZE = 16;
 
 export class TypingSounds implements TypingFxSink {
   private ctx: AudioContext | null = null;
@@ -271,39 +279,64 @@ export class TypingSounds implements TypingFxSink {
     if (this.out !== null) this.out.gain.value = this.volume;
   }
 
-  /**
-   * Fetches and decodes every file of `profile` before play. Missing or
-   * broken files are listed, the rest load.
-   */
-  async load(profile: TypingSoundProfile, fetchBytes: (url: string) => Promise<ArrayBuffer> = defaultFetch, activate = true): Promise<{ loaded: number; missing: string[] }> {
+  /** Decode at most one batch concurrently, publishing samples as each completes. */
+  async load(profile: TypingSoundProfile, fetchBytes: (url: string) => Promise<ArrayBuffer> = defaultFetch, activate = true, signal?: AbortSignal): Promise<{ loaded: number; missing: string[] }> {
+    if (signal?.aborted) return { loaded: 0, missing: [] };
+    this.release(profile.id);
     const entry: Loaded = { profile, buffers: {}, pickers: {} };
+    this.loaded.set(profile.id, entry);
+    if (activate) this.use(profile.id);
+    const live = (): boolean => !signal?.aborted && this.loaded.get(profile.id) === entry;
+    const cancel = (): void => { if (this.loaded.get(profile.id) === entry) this.release(profile.id); };
+    signal?.addEventListener("abort", cancel, { once: true });
     const missing: string[] = [];
     let loaded = 0;
-    if (profile.source !== "synth") {
-      const ctx = this.resume();
-      for (const set of TYPING_SOUND_SETS) {
-        const urls = profile.files[set] ?? [];
-        const buffers: AudioBuffer[] = [];
-        await Promise.all(
-          urls.map(async (url, index) => {
+    try {
+      if (profile.source !== "synth") {
+        const ctx = this.resume();
+        const jobs = TYPING_SOUND_SETS.flatMap((set) => (profile.files[set] ?? []).map((url) => ({ set, url })));
+        for (let start = 0; start < jobs.length && live(); start += KEYBOARD_DECODE_BATCH_SIZE) {
+          await Promise.all(jobs.slice(start, start + KEYBOARD_DECODE_BATCH_SIZE).map(async ({ set, url }) => {
             try {
-              buffers[index] = await ctx.decodeAudioData(await fetchBytes(url));
+              const bytes = await fetchBytes(url);
+              if (!live()) return;
+              const buffer = await ctx.decodeAudioData(bytes);
+              if (!live()) return;
+              const buffers = entry.buffers[set] ?? (entry.buffers[set] = []);
+              buffers.push(buffer);
+              const picker = entry.pickers[set];
+              if (picker) picker.grow(buffers.length);
+              else entry.pickers[set] = new VariantPicker(buffers.length, this.random);
               loaded += 1;
-            } catch {
-              missing.push(url);
-            }
-          }),
-        );
-        const kept = buffers.filter((buffer): buffer is AudioBuffer => buffer !== undefined);
-        if (kept.length > 0) {
-          entry.buffers[set] = kept;
-          entry.pickers[set] = new VariantPicker(kept.length, this.random);
+            } catch { if (live()) missing.push(url); }
+          }));
+          // A macrotask gives rendering/input a turn even with cached fetches.
+          if (start + KEYBOARD_DECODE_BATCH_SIZE < jobs.length && live()) await new Promise<void>((resolve) => setTimeout(resolve, 0));
         }
       }
-    }
-    this.loaded.set(profile.id, entry);
-    if (activate && (this.current?.profile.id === profile.id || this.current === null)) this.current = entry;
+    } finally { signal?.removeEventListener("abort", cancel); }
     return { loaded, missing };
+  }
+
+  /** Release a pack and any voices retaining its buffers; late decodes cannot repopulate it. */
+  release(id: string): void {
+    const entry = this.loaded.get(id);
+    if (!entry) return;
+    this.loaded.delete(id);
+    if (this.current === entry) this.current = null;
+    const buffers = new Set(Object.values(entry.buffers).flat());
+    for (const [sources, pool] of [[this.keySources, this.keyPool], [this.wordSources, this.wordPool]] as const) {
+      sources.forEach((source, i) => {
+        if (!source || !source.buffer || !buffers.has(source.buffer)) return;
+        try { source.stop(); } catch { /* Already ended. */ }
+        source.disconnect();
+        source.buffer = null;
+        sources[i] = null;
+        pool.ends[i] = -Infinity;
+      });
+    }
+    entry.buffers = {};
+    entry.pickers = {};
   }
 
   /**
@@ -317,7 +350,7 @@ export class TypingSounds implements TypingFxSink {
   }
 
   /** Loads the explicit manifest URL from a catalogue (its directory owns the sample files). */
-  async loadKeyboardManifest(url: string, id: string, name = id, fetchJson: (url: string) => Promise<unknown> = defaultJson, fetchBytes: (url: string) => Promise<ArrayBuffer> = defaultFetch, activate = false): Promise<KeyboardLoad> {
+  async loadKeyboardManifest(url: string, id: string, name = id, fetchJson: (url: string) => Promise<unknown> = defaultJson, fetchBytes: (url: string) => Promise<ArrayBuffer> = defaultFetch, activate = false, signal?: AbortSignal): Promise<KeyboardLoad> {
     const folder = url.slice(0, url.lastIndexOf("/") + 1);
     let manifest: unknown = null;
     try {
@@ -325,18 +358,20 @@ export class TypingSounds implements TypingFxSink {
     } catch {
       manifest = null;
     }
-    const files = manifest === null ? { key: [], space: [] } : keyboardFiles(manifest, folder);
+    const files = manifest === null || signal?.aborted ? { key: [], space: [] } : keyboardFiles(manifest, folder);
     if (files.key.length === 0 && files.space.length === 0) return { id, state: "pending", keys: 0, spaces: 0, missing: [] };
-    const result = await this.load({ id, name, source: "audio-lab", licence: "project-owned (Audio Lab)", files }, fetchBytes, activate);
+    const result = await this.load({ id, name, source: "audio-lab", licence: "project-owned (Audio Lab)", files }, fetchBytes, activate, signal);
     const keys = this.loaded.get(id)?.buffers.key?.length ?? 0;
     const spaces = this.loaded.get(id)?.buffers.space?.length ?? 0;
-    const full = keys >= TYPING_SOUND_SET.key.want && spaces >= TYPING_SOUND_SET.space.want;
+    const full = keys === files.key.length && spaces === files.space.length && keys >= TYPING_SOUND_SET.key.want && spaces >= TYPING_SOUND_SET.space.want;
     return { id, state: keys === 0 ? "pending" : full ? "ready" : "partial", keys, spaces, missing: result.missing };
   }
 
   /** Switches to a loaded profile ("off" or unknown: silent). */
   use(id: string): boolean {
-    this.current = this.loaded.get(id) ?? null;
+    const next = this.loaded.get(id) ?? null;
+    if (next && this.current && this.current !== next) this.release(this.current.profile.id);
+    this.current = next;
     return this.current !== null;
   }
 
@@ -394,6 +429,11 @@ export class TypingSounds implements TypingFxSink {
     voice.setValueAtTime(gain, t);
     const source = new AudioBufferSourceNode(ctx, { buffer, playbackRate: rate });
     source.connect(gains[slot]!);
+    source.onended = () => {
+      source.disconnect();
+      source.buffer = null;
+      if (sources[slot] === source) sources[slot] = null;
+    };
     source.start(t);
     sources[slot] = source;
     this.stats.played += 1;
@@ -434,6 +474,7 @@ export class TypingSounds implements TypingFxSink {
   }
 
   dispose(): void {
+    for (const id of this.loaded.keys()) this.release(id);
     for (const source of [...this.keySources, ...this.wordSources]) {
       try {
         source?.stop();
@@ -473,6 +514,8 @@ export type KeyboardSoundChoice = {
   readonly label: string;
   readonly manifest?: string;
   readonly preview?: string;
+  readonly family?: string;
+  readonly score?: number;
   readonly disabled?: boolean;
   readonly note?: string;
 };
@@ -499,10 +542,14 @@ export async function loadKeyboardCatalog(base: string, options: {
     const ordered: { choice: KeyboardSoundChoice; order: number }[] = [];
     for (const entry of (raw as { profiles: unknown[] }).profiles) {
       if (!entry || typeof entry !== "object") continue;
-      const row = entry as { readonly id?: unknown; readonly name?: unknown; readonly manifest?: unknown; readonly preview?: unknown; readonly order?: unknown };
+      const row = entry as { readonly id?: unknown; readonly name?: unknown; readonly manifest?: unknown; readonly preview?: unknown; readonly order?: unknown; readonly family?: unknown; readonly score?: unknown };
       if (typeof row.id !== "string" || !/^[a-z0-9][a-z0-9-]{0,31}$/.test(row.id) || seen.has(row.id) || typeof row.name !== "string" || !row.name.trim() || typeof row.manifest !== "string" || typeof row.preview !== "string" || typeof row.order !== "number" || !Number.isFinite(row.order)) continue;
       try {
-        const choice = { value: row.id, label: row.name, manifest: resolve(row.manifest), preview: resolve(row.preview) };
+        const choice: KeyboardSoundChoice = {
+          value: row.id, label: row.name, manifest: resolve(row.manifest), preview: resolve(row.preview),
+          ...(typeof row.family === "string" && row.family.trim() ? { family: row.family.trim() } : {}),
+          ...(typeof row.score === "number" && Number.isFinite(row.score) ? { score: row.score } : {}),
+        };
         seen.add(row.id);
         ordered.push({ choice, order: row.order });
       } catch { /* A malformed entry cannot prevent the other packs loading. */ }
@@ -514,9 +561,9 @@ export async function loadKeyboardCatalog(base: string, options: {
   }
   const merged: KeyboardSoundChoice[] = [{ value: "off", label: "Off" }];
   const seen = new Set(["off"]);
-  // Game-specific choices (e.g. Relay) are appended and may override a catalogue entry.
+  // Game-specific choices follow Off and may override a catalogue entry.
   const extras = options.extra ?? [];
-  for (const choice of [...choices.filter((c) => !extras.some((extra) => extra.value === c.value)), ...extras]) {
+  for (const choice of [...extras, ...choices]) {
     if (seen.has(choice.value)) continue;
     seen.add(choice.value);
     merged.push(choice);
@@ -543,7 +590,7 @@ export function keyboardPreviewGain(levels: KeyboardPreviewLevels): number {
 export class KeyboardSoundPreview {
   private readonly sounds: TypingSounds;
   private readonly buffers = new Map<string, Promise<AudioBuffer>>();
-  private readonly packs = new Map<string, Promise<KeyboardLoad>>();
+  private pack: { key: string; abort: AbortController; result: Promise<KeyboardLoad> } | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private generation = 0;
   private selection = 0;
@@ -641,27 +688,38 @@ export class KeyboardSoundPreview {
   }
 
   /** The caller persists the id synchronously; samples load in parallel with exactly one preview. */
-  select(choice: KeyboardSoundChoice): void {
+  select(choice: KeyboardSoundChoice, preview = true): void {
     if (this.disposed || choice.disabled) return;
     const selection = ++this.selection;
-    this.sounds.use("off");
-    this.preview(choice, 0);
+    if (preview) this.preview(choice, 0);
+    else this.stop();
+    const key = choice.value + "\n" + (choice.manifest ?? "");
+    if (this.pack?.key !== key) {
+      this.pack?.abort.abort();
+      this.pack = null;
+      const old = this.sounds.profile;
+      if (old && (old.id !== choice.value || choice.manifest)) this.sounds.release(old.id);
+      this.sounds.use("off");
+    }
     if (choice.value === "off") return;
     if (!choice.manifest) {
       this.sounds.use(choice.value);
       this.options.onUse?.(choice);
       return;
     }
-    const key = choice.value + "\n" + choice.manifest;
-    if (!this.packs.has(key)) {
-      this.packs.set(key, this.sounds.loadKeyboardManifest(choice.manifest, choice.value, choice.label, this.options.fetchJson, this.options.fetchBytes));
+    if (!this.pack) {
+      const abort = new AbortController();
+      // Activate at publication time, so the first decoded samples can sound.
+      const result = this.sounds.loadKeyboardManifest(choice.manifest, choice.value, choice.label, this.options.fetchJson, this.options.fetchBytes, true, abort.signal);
+      this.pack = { key, abort, result };
     }
-    void this.packs.get(key)!.then((result) => {
-      if (result.state !== "ready") this.packs.delete(key);
-      if (this.disposed || selection !== this.selection) return;
+    const pack = this.pack;
+    void pack.result.then((result) => {
+      if (this.disposed || selection !== this.selection || pack !== this.pack) return;
       this.sounds.use(result.state === "pending" ? "off" : choice.value);
       this.options.onLoad?.(result);
-    }).catch(() => { this.packs.delete(key); });
+      if (result.state !== "ready") this.pack = null;
+    }).catch(() => { if (this.pack === pack) this.pack = null; });
   }
 
   destroy(): void {
@@ -669,7 +727,8 @@ export class KeyboardSoundPreview {
     this.disposed = true;
     this.selection += 1;
     this.buffers.clear();
-    this.packs.clear();
+    this.pack?.abort.abort();
+    this.pack = null;
     if (!this.options.sounds) {
       // Let the 30 ms fade finish before closing our context.
       setTimeout(() => this.sounds.dispose(), KEYBOARD_PREVIEW_FADE_SECONDS * 1000);
