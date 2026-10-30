@@ -13,8 +13,12 @@ import {
 import { getTypingFeel, setTypingFeel, type TypingFeelSettings } from "./store";
 
 let sounds: TypingSounds | null = null;
-/** Sets the gameplay player holds: "failed" brings Monkeytype's own click back. */
-/** "missing": the catalogue did not list it (files not synced, offline); retried on the next sync. */
+/**
+ * Sets the gameplay player holds. "failed": a load found no playable file
+ * (a network blip, a broken file); Monkeytype's click plays and the next
+ * sync or a click on the set retries. "missing": not listed or not installed
+ * (sync-keys never ran, offline); the modal and startup retry.
+ */
 export type PackState = "ready" | "failed" | "missing";
 const packs = new Map<string, PackState>();
 const inflight = new Map<string, Promise<void>>();
@@ -64,7 +68,7 @@ export async function loadSavedKeyboard(
 ): Promise<void> {
   const id = current();
   const choice = findChoice(catalog, id);
-  if (choice?.manifest === undefined) {
+  if (choice?.manifest === undefined || choice.disabled === true) {
     // Marked so keys do not refetch the catalogue; the modal and init retry.
     if (id !== "off") packs.set(id, "missing");
     return;
@@ -180,7 +184,8 @@ export class KeySoundRouter {
   scorer(info: ScorerSound): void {
     if (!this.take() || !this.deps.owns()) return;
     const sink = this.deps.sink();
-    if (info.commit) sink.complete(info.perfect, info.streak);
+    // A wrong space (short or misspelt word) still moves on: it is an error, never a word.
+    if (info.correct && info.commit) sink.complete(info.perfect, info.streak);
     else if (info.correct) sink.key(info.charIndex);
     // Monkeytype's error sound plays for errors when it is on: never both.
     else if (!this.deps.errorSound()) sink.wrong();

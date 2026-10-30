@@ -126,9 +126,9 @@ export function init(): void {
 
 /** The words input's keydown, before Monkeytype handles it. */
 export function noteKeydown(event: KeyboardEvent): void {
-  current();
-  if (!soundOn) return;
   try {
+    current();
+    if (!soundOn) return;
     router.keydown(event);
     const id = settings?.keyboardSound ?? "off";
     if (packState(id) === undefined) sync();
@@ -139,17 +139,22 @@ export function noteKeydown(event: KeyboardEvent): void {
 
 /** A selected set is loaded: it replaces Monkeytype's click (not its error sound). */
 export function ownsKeySound(): boolean {
-  current();
-  return soundOn && settings !== null && ownsKeySoundFor(settings);
+  try {
+    current();
+    return soundOn && settings !== null && ownsKeySoundFor(settings);
+  } catch (error) {
+    console.error("typing feel: key sound", error);
+    return false;
+  }
 }
 
 /** Right after the scorer logged an insert; only observes. */
 export function onScorerInput(input: ScorerInput): void {
-  current();
-  if (!soundOn && !fxOn) return;
   try {
+    current();
+    if (!soundOn && !fxOn) return;
     if (input.commit && !input.automatic) {
-      streak = input.perfect ? streak + 1 : 0;
+      streak = input.perfect && input.correct ? streak + 1 : 0;
     }
     if (soundOn) {
       router.scorer({
@@ -169,9 +174,9 @@ export function onScorerInput(input: ScorerInput): void {
 }
 
 export function onDelete(): void {
-  current();
-  if (!soundOn) return;
   try {
+    current();
+    if (!soundOn) return;
     router.deleted();
   } catch (error) {
     console.error("typing feel: delete", error);
@@ -179,11 +184,11 @@ export function onDelete(): void {
 }
 
 export function start(): void {
-  current();
   streak = 0;
   router.idle = false;
-  if (!fxOn) return;
   try {
+    current();
+    if (!fxOn) return;
     layer().start();
   } catch (error) {
     console.error("typing feel: start", error);

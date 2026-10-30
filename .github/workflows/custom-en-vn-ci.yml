@@ -39,6 +39,10 @@ jobs:
       - name: Lint frontend
         run: pnpm lint-fast-fe && pnpm lint-fe
 
+      - name: Type-check frontend
+        # oxlint skips the vendored typing-feel kit; tsc still checks it.
+        run: pnpm --filter @monkeytype/frontend ts-check
+
       - name: Lint changed styles
         run: pnpm stylelint frontend/src/styles/test.scss
 

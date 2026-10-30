@@ -17,7 +17,11 @@ import { Button } from "../../components/common/Button";
 import { Separator } from "../../components/common/Separator";
 import { SettingHelpLabel } from "../../components/ui/SettingHelpLabel";
 import { Config, getConfig } from "../../config/store";
-import { loadKeyboardChoices, restoreKeyboardChoice } from "./catalog";
+import {
+  loadKeyboardChoices,
+  NOT_INSTALLED,
+  restoreKeyboardChoice,
+} from "./catalog";
 import { KeyboardSoundList } from "./KeyboardSoundList";
 import { KeyboardSoundPreview } from "./kit/audio";
 import { TYPING_FX_INTENSITIES, TYPING_FX_STYLES } from "./kit/settings";
@@ -34,7 +38,7 @@ import {
   type TypingFeelSettings as Settings,
 } from "./store";
 
-const NOT_INSTALLED = "sound files not installed";
+const LOAD_FAILED = "could not load, select to retry";
 const OFF: KeyboardSoundChoice = { value: "off", label: "Off" };
 
 /** Key sounds and letter effects, saved the moment a control changes. */
@@ -51,9 +55,11 @@ export function TypingFeelSettings(): JSXElement {
     sounds: gameplaySounds(),
     onLoad: (result) => {
       markPack(result);
-      if (result.state === "pending") {
-        setFailed((ids) => [...ids, result.id]);
-      }
+      setFailed((ids) =>
+        result.state === "pending"
+          ? [...ids.filter((id) => id !== result.id), result.id]
+          : ids.filter((id) => id !== result.id),
+      );
     },
   });
 
@@ -63,14 +69,16 @@ export function TypingFeelSettings(): JSXElement {
     }
   };
 
+  // Not installed: disabled by the catalogue. A set that failed to load stays selectable to retry.
   const options = createMemo((): readonly KeyboardSoundChoice[] => {
     const loaded = catalog();
     if (loaded === undefined) return [OFF];
     const gone = failed();
     return loaded.options.map((choice) =>
       choice.value !== "off" &&
+      choice.disabled !== true &&
       (gone.includes(choice.value) || packState(choice.value) === "failed")
-        ? { ...choice, disabled: true, note: NOT_INSTALLED }
+        ? { ...choice, note: LOAD_FAILED }
         : choice,
     );
   });

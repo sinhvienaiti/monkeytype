@@ -141,5 +141,7 @@ frontend/.env.sentry-build-plugin
 # Firefly keyboard sets: audio comes from ~/AudioLab via `pnpm sync-keys`, never Git (owner rule)
 frontend/static/sounds/keys/**/*.ogg
 frontend/static/sounds/keys/**/*.wav
+# Written by `pnpm sync-keys` once the audio is copied: its absence means not installed
+frontend/static/sounds/keys/installed.json
 # Browser and render captures (owner rule 28/10)
 /tmp/

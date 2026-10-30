@@ -151,6 +151,23 @@ describe("one sound per physical key", () => {
     expect(sink.space).not.toHaveBeenCalled();
   });
 
+  it("leaves a wrong space (a short or misspelt word) to Monkeytype's error sound", () => {
+    const { router, sink } = setup({ errorSound: true });
+    router.keydown(keydown(" "));
+    router.scorer({ ...scorer, correct: false, commit: true });
+    vi.runAllTimers();
+    expect(sink.plays).toEqual([]);
+  });
+
+  it("plays the wrong cue, never a word, for a wrong space with error sounds off", () => {
+    const { router, sink } = setup({ errorSound: false });
+    router.keydown(keydown(" "));
+    router.scorer({ ...scorer, correct: false, commit: true, streak: 4 });
+    vi.runAllTimers();
+    expect(sink.plays).toEqual(["wrong"]);
+    expect(sink.complete).not.toHaveBeenCalled();
+  });
+
   it("plays the quieter stray for a delete", () => {
     const { router, sink } = setup();
     router.keydown(keydown("Backspace"));
@@ -208,6 +225,30 @@ describe("keyboard levels and ownership", () => {
     await loadSavedKeyboard({ options: [], state: "missing" }, () => "deep");
     expect(packState("deep")).toBe("missing");
     expect(ownsKeySoundFor(settings({ keyboardSound: "deep" }))).toBe(false);
+  });
+
+  it("marks a listed set that is not installed without fetching it", async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    await loadSavedKeyboard(
+      {
+        options: [
+          { value: "off", label: "Off" },
+          {
+            value: "solid",
+            label: "Solid",
+            manifest: "/sounds/keys/solid/keys-manifest.json",
+            disabled: true,
+            note: "sound files not installed",
+          },
+        ],
+        state: "ready",
+      },
+      () => "solid",
+    );
+    vi.unstubAllGlobals();
+    expect(packState("solid")).toBe("missing");
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("owns key sounds only for a selected, loaded set", () => {

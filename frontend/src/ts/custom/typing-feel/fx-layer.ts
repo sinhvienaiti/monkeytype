@@ -36,7 +36,9 @@ import {
  * splat ever covers a letter) and glyph poses (the hot glow, the stamp's
  * falling copy, a wrong key's twitch) above it. Monkeytype's own <letter>
  * nodes are only read, never changed: it rebuilds them every frame and
- * measures the caret on them.
+ * measures the caret on them. When Monkeytype moves the text (a tape
+ * scroll, a line jump), live effects move with it: the last word an effect
+ * was read on is the anchor, checked every frame and on each #words change.
  */
 
 export type FxTheme = {
@@ -101,6 +103,19 @@ type Glyph = {
 
 type Box = { left: number; top: number; width: number; height: number };
 
+/** A word element and its start edge in canvas px when last read. */
+type Anchor = { el: Element; x: number; y: number };
+
+/** A rune trace word layer as last given to FxCanvas. */
+type Trace = { text: string; xs: Float32Array; len: number; base: number };
+
+const emptyTrace = (): Trace => ({
+  text: "",
+  xs: new Float32Array(MAX_LETTERS),
+  len: 0,
+  base: 0,
+});
+
 type WordCache = {
   index: number;
   set: number;
@@ -159,6 +174,12 @@ export class FxLayer {
   private readonly ctx: SpawnCtx;
   private readonly wctx: WordCtx;
   private aim: Glyph | null = null;
+  private anchor: Anchor | null = null;
+  /** Right-to-left text: a word's start edge is its right side. */
+  private rtl = false;
+  private readonly traces: [Trace, Trace] = [emptyTrace(), emptyTrace()];
+  private observer: MutationObserver | null = null;
+  private observed: Element | null = null;
   private listening = false;
   private clipA: [number, number][] = [];
   private clipB: [number, number][] = [];
@@ -243,14 +264,21 @@ export class FxLayer {
   /** Restart or finish: every effect goes at once. */
   reset(): void {
     this.streak = 0;
-    this.word = null;
-    this.lastKeyOwner = -1;
-    this.pool.clear();
-    this.glyphs.length = 0;
+    this.drop();
     if (this.frame !== 0) this.deps.cancelFrame(this.frame);
     this.frame = 0;
     if (this.fx !== null) this.fx.draw(this.pool, this.deps.now(), this.still);
     this.clearFront();
+  }
+
+  /** Every live effect and the letters it was read on. */
+  private drop(): void {
+    this.word = null;
+    this.anchor = null;
+    this.lastKeyOwner = -1;
+    this.pool.clear();
+    this.glyphs.length = 0;
+    for (const trace of this.traces) trace.len = 0;
   }
 
   destroy(): void {
@@ -262,6 +290,8 @@ export class FxLayer {
     this.fx = null;
     this.frontCtx = null;
     this.box = null;
+    this.observer?.disconnect();
+    this.observed = null;
     if (this.listening) {
       const view = this.deps.doc.defaultView;
       view?.removeEventListener("resize", this.onMove);
@@ -278,10 +308,13 @@ export class FxLayer {
     if (this.deps.slow()) return false;
     this.streak = e.streak;
     if (!this.ensure()) return false;
+    // Effects already live follow the text first: new ones are read where it is now.
+    this.track();
     const now = this.deps.now();
     this.refreshPalette();
-    if (e.commit) return this.complete(e, now);
-    return e.correct ? this.key(e, now) : this.wrong(e, now);
+    // A wrong space (short or misspelt word) moves on too: it gets the wrong pose, never a word release.
+    if (!e.correct) return this.wrong(e, now);
+    return e.commit ? this.complete(e, now) : this.key(e, now);
   }
 
   // ── Canvas and layout ──────────────────────────────────────────────────
@@ -343,6 +376,7 @@ export class FxLayer {
     const wrapper = doc.getElementById("wordsWrapper");
     const words = doc.getElementById("words");
     if (wrapper === null || words === null) return false;
+    this.watch(words);
     const w = wrapper.getBoundingClientRect();
     const x = words.getBoundingClientRect();
     if (w.height <= 0 || x.width <= 0) return false;
@@ -380,9 +414,113 @@ export class FxLayer {
       this.front.style.width = `${width}px`;
       this.front.style.height = `${height}px`;
     }
-    // The rune trace's letters are in canvas px: set them again.
-    if (this.word !== null) this.readWord(this.word.index, this.word.el);
+    // Live effects are in canvas px: the track() that follows every place() shifts them.
     return true;
+  }
+
+  /**
+   * Monkeytype moves the text in its own frame, after ours (scrollTape sets
+   * #words' margin, a line jump removes the top line): a style or child
+   * change on #words moves live effects before that frame paints.
+   */
+  private watch(words: Element): void {
+    if (this.observed === words) return;
+    const Observer = this.deps.doc.defaultView?.MutationObserver;
+    if (Observer === undefined) return;
+    this.observer ??= new Observer(this.onMutate);
+    this.observer.disconnect();
+    this.observer.observe(words, {
+      attributes: true,
+      attributeFilter: ["style"],
+      childList: true,
+    });
+    this.observed = words;
+  }
+
+  private readonly onMutate = (): void => {
+    if (this.glyphs.length === 0 && this.pool.count === 0) return;
+    try {
+      if (!this.track()) return;
+      const now = this.deps.now();
+      this.fx?.draw(this.pool, now, this.still);
+      this.drawFront(now);
+    } catch (error) {
+      console.error("typing feel effects stopped", error);
+      this.reset();
+    }
+  };
+
+  /** A word's start edge (left, or right in right-to-left text) and top, in canvas px. */
+  private edge(el: Element, box: Box): [number, number] {
+    const r = el.getBoundingClientRect();
+    return [(this.rtl ? r.right : r.left) - box.left, r.top - box.top];
+  }
+
+  private anchorOn(el: Element, box: Box): void {
+    const [x, y] = this.edge(el, box);
+    this.anchor = { el, x, y };
+  }
+
+  /**
+   * Moves every live effect by how far its anchor word moved since it was
+   * last read (a tape scroll, a line jump, a resize, the canvas box itself);
+   * true when something moved. A word Monkeytype removed takes them away.
+   */
+  private track(): boolean {
+    const a = this.anchor;
+    const box = this.box;
+    if (a === null || box === null) return false;
+    if (!a.el.isConnected) {
+      this.drop();
+      return true;
+    }
+    const [x, y] = this.edge(a.el, box);
+    const dx = x - a.x;
+    const dy = y - a.y;
+    if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) return false;
+    a.x = x;
+    a.y = y;
+    this.shift(dx, dy);
+    return true;
+  }
+
+  private shift(dx: number, dy: number): void {
+    for (const g of this.glyphs) {
+      g.x += dx;
+      g.y += dy;
+      g.base += dy;
+    }
+    const pool = this.pool;
+    for (let i = 0; i < pool.count; i += 1) {
+      pool.x[i] = (pool.x[i] ?? 0) + dx;
+      pool.y[i] = (pool.y[i] ?? 0) + dy;
+    }
+    const cache = this.word;
+    if (cache !== null) {
+      for (let i = 0; i < cache.len; i += 1) {
+        cache.xs[i] = (cache.xs[i] ?? 0) + dx;
+        cache.ys[i] = (cache.ys[i] ?? 0) + dy;
+      }
+    }
+    this.traces.forEach((trace, set) => {
+      if (trace.len === 0) return;
+      for (let i = 0; i < trace.len; i += 1) {
+        trace.xs[i] = (trace.xs[i] ?? 0) + dx;
+      }
+      trace.base += dy;
+      this.pushTrace(set);
+    });
+  }
+
+  private pushTrace(set: number): void {
+    const trace = this.traces[set & 1] as Trace;
+    this.fx?.setGlyphs(
+      set,
+      trace.text,
+      trace.xs.subarray(0, trace.len),
+      trace.base,
+      this.font,
+    );
   }
 
   private readFont(letter: Element | null): void {
@@ -395,6 +533,7 @@ export class FxLayer {
     if (!Number.isFinite(px) || px <= 0) return;
     this.fontStale = false;
     this.fontPx = px;
+    this.rtl = style.direction === "rtl";
     this.font = `${style.fontStyle || "normal"} ${style.fontWeight || "400"} ${px}px ${style.fontFamily || "monospace"}`;
     this.baseShift = 0.32 * px;
     const ctx = this.frontCtx;
@@ -490,13 +629,12 @@ export class FxLayer {
     }
     this.word = cache;
     if (len > 0) {
-      this.fx?.setGlyphs(
-        cache.set,
-        cache.chars.join(""),
-        cache.xs.subarray(0, len),
-        (cache.ys[0] ?? 0) + this.baseShift,
-        this.font,
-      );
+      const trace = this.traces[cache.set & 1] as Trace;
+      trace.text = cache.chars.join("");
+      trace.xs.set(cache.xs.subarray(0, len));
+      trace.len = len;
+      trace.base = (cache.ys[0] ?? 0) + this.baseShift;
+      this.pushTrace(cache.set);
     }
     return cache;
   }
@@ -506,6 +644,7 @@ export class FxLayer {
     const el = this.wordEl(wordIndex);
     const box = this.box;
     if (el === null || box === null) return null;
+    this.anchorOn(el, box);
     let cache = this.word;
     if (cache?.index !== wordIndex || cache.el !== el) {
       cache = this.readWord(wordIndex, el);
@@ -611,6 +750,7 @@ export class FxLayer {
     const letters = el.querySelectorAll("letter");
     const len = Math.min(MAX_LETTERS, letters.length);
     if (len === 0) return false;
+    this.anchorOn(el, box);
     this.stats.words += 1;
     const prio = wordPriority(e.perfect, e.streak);
     const gold = prio >= PRIORITY.perfect;
@@ -834,6 +974,7 @@ export class FxLayer {
   /** One frame at `now`: phases, particle expiry, the back canvas, then the poses in front. */
   render(now: number): void {
     if (this.placeDirty) this.place();
+    this.track();
     for (let i = this.glyphs.length - 1; i >= 0; i -= 1) {
       const g = this.glyphs[i] as Glyph;
       if (!this.step(g, now)) this.glyphs.splice(i, 1);

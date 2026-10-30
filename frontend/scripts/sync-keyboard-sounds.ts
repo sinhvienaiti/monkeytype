@@ -1,7 +1,9 @@
 /**
  * Copies the owner's Firefly keyboard sets from the Audio Lab into
  * static/sounds/keys/. Audio never goes into Git (owner rule): only the small
- * JSON manifests are tracked.
+ * JSON manifests are tracked. installed.json (ignored) is written last and
+ * lists the sets copied: the game lists a set only when it is there, so a
+ * clone or a build without this sync shows "sound files not installed".
  *
  * Usage (in frontend): pnpm sync-keys [--check]
  *   KEYS_FIREFLY_DIR overrides the source (default ~/AudioLab/review/staging/keys-firefly).
@@ -128,6 +130,12 @@ plan.push({
   from: null,
   to: join(dest, "keys-manifest.json"),
   text: rootText.endsWith("\n") ? rootText : `${rootText}\n`,
+});
+// Last: written only once every file above is in place.
+plan.push({
+  from: null,
+  to: join(dest, "installed.json"),
+  text: `${JSON.stringify({ sets: [...seen] }, null, 2)}\n`,
 });
 
 function current(item: Item): boolean {

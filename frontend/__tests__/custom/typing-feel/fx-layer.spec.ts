@@ -65,19 +65,27 @@ function buildWords(): void {
     const word = document.createElement("div");
     word.className = "word";
     word.dataset["wordindex"] = String(w);
-    Array.from(text).forEach((ch, i) => {
+    Array.from(text).forEach((ch) => {
       const letter = document.createElement("letter");
       letter.textContent = ch;
       letter.style.fontSize = "20px";
-      setRect(letter, {
-        left: 220 + w * 80 + i * 12,
-        top: 320,
-        width: 12,
-        height: 24,
-      });
       word.append(letter);
     });
     words.append(word);
+  });
+  moveText(0, 0);
+}
+
+/** Monkeytype moving the text (tape margin, line jump): every word and letter shifts, the boxes stay. */
+function moveText(dx: number, dy: number): void {
+  document.querySelectorAll("#words .word").forEach((word, w) => {
+    const left = 220 + w * 80 + dx;
+    const top = 320 + dy;
+    const letters = word.querySelectorAll("letter");
+    setRect(word, { left, top, width: letters.length * 12, height: 24 });
+    letters.forEach((letter, i) => {
+      setRect(letter, { left: left + i * 12, top, width: 12, height: 24 });
+    });
   });
 }
 
@@ -122,6 +130,11 @@ const key = (patch: Partial<FxInput> = {}): FxInput => ({
 
 const poolOf = (layer: FxLayer): ParticlePool =>
   (layer as unknown as { pool: ParticlePool }).pool;
+
+/** kind: 1 key, 2 wrong, 3 light on a neighbour, 4 word flash. */
+type GlyphView = { kind: number; x: number; y: number; base: number };
+const glyphsOf = (layer: FxLayer): GlyphView[] =>
+  (layer as unknown as { glyphs: GlyphView[] }).glyphs;
 
 // The unit harness stubs document.querySelector; these tests need the real one.
 Reflect.deleteProperty(document, "querySelector");
@@ -201,6 +214,86 @@ describe("typing feel letter effects", () => {
     // word 0: 220 … 256 → centre 238 → canvas 86.
     expect(pool.x[0]).toBeCloseTo(86);
     expect(layer.stats.words).toBe(1);
+  });
+
+  it("gives a wrong space the wrong pose, never a word release", () => {
+    const layer = makeLayer();
+    layer.configure("smash", "high");
+    layer.input(key({ charIndex: 2, data: "t" }));
+    const keyParticles = poolOf(layer).count;
+    // "ca " for "cat": the space lands on the missed letter and moves on.
+    expect(
+      layer.input(
+        key({ charIndex: 2, data: " ", commit: true, correct: false }),
+      ),
+    ).toBe(true);
+    expect(layer.stats.words).toBe(0);
+    expect(layer.stats.wrongs).toBe(1);
+    // The last key keeps its particles (a release would replace them), no letter flashes.
+    expect(poolOf(layer).count).toBeGreaterThanOrEqual(keyParticles);
+    const kinds = glyphsOf(layer).map((g) => g.kind);
+    expect(kinds.filter((k) => k === 1)).toHaveLength(1);
+    expect(kinds.filter((k) => k === 2)).toHaveLength(1);
+    expect(kinds).not.toContain(4);
+  });
+
+  it("keeps live effects on their letters when the tape scrolls", () => {
+    const layer = makeLayer();
+    layer.configure("flare", "normal");
+    layer.input(key({ charIndex: 1 }));
+    const pool = poolOf(layer);
+    const glyph = glyphsOf(layer).find((g) => g.kind === 1);
+    expect(pool.x[0]).toBeCloseTo(86);
+    expect(glyph?.x).toBeCloseTo(86);
+    // Tape "letter" mode: #words slides one letter left after each key.
+    moveText(-12, 0);
+    now += 16;
+    frames.shift()?.();
+    expect(pool.x[0]).toBeCloseTo(74);
+    expect(glyph?.x).toBeCloseTo(74);
+    // A new key is read where the text is now, the old one stays on its letter.
+    layer.input(key({ charIndex: 2, data: "t" }));
+    const keys = glyphsOf(layer).filter((g) => g.kind === 1);
+    expect(keys.map((g) => g.x)).toEqual([74, 86]);
+  });
+
+  it("moves a word release up with a line jump", () => {
+    const layer = makeLayer();
+    layer.configure("smash", "high");
+    layer.input(key({ charIndex: 3, data: " ", commit: true, perfect: true }));
+    const flash = glyphsOf(layer)[0];
+    const y = flash?.y ?? 0;
+    expect(y).toBeCloseTo(80);
+    moveText(0, -24);
+    now += 16;
+    frames.shift()?.();
+    expect(flash?.y).toBeCloseTo(56);
+    expect(flash?.base).toBeCloseTo((flash?.y ?? 0) + 8);
+    expect(poolOf(layer).y[0]).toBeCloseTo(56);
+  });
+
+  it("follows a #words change before Monkeytype's frame paints", async () => {
+    const layer = makeLayer();
+    layer.configure("flare", "normal");
+    layer.input(key({ charIndex: 1 }));
+    moveText(-12, 0);
+    document.getElementById("words")?.style.setProperty("margin-left", "-12px");
+    await new Promise((done) => setTimeout(done, 0));
+    // No frame ran: the observer moved it.
+    expect(poolOf(layer).x[0]).toBeCloseTo(74);
+    expect(glyphsOf(layer).find((g) => g.kind === 1)?.x).toBeCloseTo(74);
+  });
+
+  it("drops effects whose word Monkeytype removed", () => {
+    const layer = makeLayer();
+    layer.configure("flare", "normal");
+    layer.input(key({ charIndex: 1 }));
+    expect(poolOf(layer).count).toBeGreaterThan(0);
+    document.querySelector("#words .word")?.remove();
+    now += 16;
+    frames.shift()?.();
+    expect(poolOf(layer).count).toBe(0);
+    expect(layer.liveGlyphs).toBe(0);
   });
 
   it("skips IME replacements, automatic, stopped, blind and slow input", () => {
