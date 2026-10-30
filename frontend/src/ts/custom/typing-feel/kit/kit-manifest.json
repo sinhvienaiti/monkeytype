@@ -3,17 +3,17 @@
   "owner": "project owner's own code",
   "sourceRepo": "typing-game (parent repo)",
   "sourcePath": "shared/game-kit/feedback/typing-fx",
-  "sourceCommit": "8d130d0979d6dc7ad4bfe12300674d6059183295",
-  "lastKitChange": "8d130d0979d6dc7ad4bfe12300674d6059183295",
-  "copiedAt": "2026-10-30",
-  "copiedFrom": "clean export of the parent at 8d130d09 (tmp/kit-export), not the parent working tree",
+  "sourceCommit": "590864fbf47e904de468bffe75b20c84c72c0c47",
+  "lastKitChange": "590864fbf47e904de468bffe75b20c84c72c0c47",
+  "copiedAt": "2026-10-31",
+  "copiedFrom": "clean export of the parent at 590864fb (git show of each file), not the parent working tree",
   "files": [
     {
       "file": "audio.ts",
       "source": "shared/game-kit/feedback/typing-fx/audio.ts",
-      "gitBlob": "37b2188cb2529e321a3327eff075f4d833502988",
-      "sourceSha256": "ca1910cddff29f7fc92d151f48269821b4e42656a7a3c9b31381ca38f326f6ef",
-      "vendoredSha256": "545b17b0d589a4bf3dead090a0fa1cd3309dc53c17584cec442156f5c9a39a87",
+      "gitBlob": "2c49fd7678bf75e30eb0de48c62052b95d834816",
+      "sourceSha256": "df5f5ed5873b38100cf079ffd379f1ef835ca61a85edbe868019bbd3f21c33c4",
+      "vendoredSha256": "235b4fefc55bdc8a679020ac25c32de4732b00eb0afed6b35ebb67acbf2d229f",
       "patched": true
     },
     {
@@ -59,9 +59,9 @@
     {
       "file": "draw.ts",
       "source": "shared/game-kit/feedback/typing-fx/draw.ts",
-      "gitBlob": "8622cd5d222580087fa2baaac51e3a5084f41208",
-      "sourceSha256": "9438c53222e62a38ad1999082ac3c755bbdf61e055a089dabe92c0aadf49e036",
-      "vendoredSha256": "9438c53222e62a38ad1999082ac3c755bbdf61e055a089dabe92c0aadf49e036",
+      "gitBlob": "4fb1e42b1e9883de5075114091b9f645502789f1",
+      "sourceSha256": "7b7b1e9a0f22a1f2bd2f13350854f97100df7bff0179c1ddc137c76d46168efe",
+      "vendoredSha256": "7b7b1e9a0f22a1f2bd2f13350854f97100df7bff0179c1ddc137c76d46168efe",
       "patched": false
     }
   ],
@@ -71,6 +71,18 @@
       "reason": "TS4111 under noPropertyAccessFromIndexSignature",
       "from": "entry as Record<string, unknown>",
       "to": "entry as { readonly id?: unknown; readonly name?: unknown; readonly manifest?: unknown; readonly preview?: unknown; readonly order?: unknown; readonly family?: unknown; readonly score?: unknown }"
+    },
+    {
+      "file": "audio.ts",
+      "reason": "TS4111 under noPropertyAccessFromIndexSignature (catalogueEffects, new in 590864fb)",
+      "from": "const row = raw as Record<string, unknown>;",
+      "to": "const row = raw as { readonly style?: unknown; readonly intensity?: unknown; readonly size?: unknown; readonly volume?: unknown };"
+    },
+    {
+      "file": "audio.ts",
+      "reason": "TS4111 under noPropertyAccessFromIndexSignature (catalogueInfo, new in 590864fb)",
+      "from": "function catalogueInfo(raw: Record<string, unknown>, ",
+      "to": "function catalogueInfo(raw: { readonly revision?: unknown; readonly default?: unknown; readonly effects?: unknown }, "
     },
     {
       "file": "settings.ts",

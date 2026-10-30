@@ -103,3 +103,58 @@ describe("typing feel settings", () => {
     expect(getTypingFeel().letterEffect).toBe("stamp");
   });
 });
+
+describe("a player without a save (§4.5)", () => {
+  it("follows the catalogue default unsaved, until any change saves the sound they had", async () => {
+    const store = await load();
+    const heard: string[] = [];
+    store.onTypingFeelChange((s) => heard.push(s.keyboardSound));
+    expect(store.savedKeyboardSound()).toBeNull();
+    store.followKeyboardDefault("hail-stone");
+    expect(store.getTypingFeel().keyboardSound).toBe("hail-stone");
+    expect(heard).toEqual(["hail-stone"]);
+    expect(store.hasTypingFeelSave()).toBe(false);
+    expect(localStorage.getItem(storageKey)).toBeNull();
+
+    expect(
+      store.setTypingFeel({ ...store.getTypingFeel(), letterEffect: "flare" }),
+    ).toBe(true);
+    expect(store.savedKeyboardSound()).toBe("hail-stone");
+    // A later catalogue default no longer moves them.
+    store.followKeyboardDefault("deep");
+    expect(store.getTypingFeel().keyboardSound).toBe("hail-stone");
+    expect(heard).toEqual(["hail-stone", "hail-stone"]);
+  });
+
+  it("never lets a followed default override a save", async () => {
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify({
+        keyboardSound: "warm",
+        keyboardVolume: 100,
+        letterEffect: "stamp",
+        effectStrength: "normal",
+      }),
+    );
+    const store = await load();
+    store.followKeyboardDefault("hail-stone");
+    expect(store.getTypingFeel().keyboardSound).toBe("warm");
+    expect(store.savedKeyboardSound()).toBe("warm");
+  });
+
+  it("writes a first save even when it equals the store's defaults", async () => {
+    const store = await load();
+    store.followKeyboardDefault("hail-stone");
+    // The player picks Bright Clack, the store's own default.
+    expect(
+      store.setTypingFeel({
+        ...store.getTypingFeel(),
+        keyboardSound: "bright-clack",
+      }),
+    ).toBe(true);
+    expect(
+      JSON.parse(localStorage.getItem(storageKey) ?? "null"),
+    ).toMatchObject({ keyboardSound: "bright-clack" });
+    expect(store.getTypingFeel().keyboardSound).toBe("bright-clack");
+  });
+});

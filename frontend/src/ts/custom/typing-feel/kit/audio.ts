@@ -20,6 +20,7 @@
  */
 import type { TypingFxSink } from "./driver";
 import { isMilestone } from "./intensity";
+import { TYPING_FX_INTENSITIES, TYPING_FX_SIZES, TYPING_FX_STYLES, type TypingFxIntensity, type TypingFxSettings, type TypingFxSize, type TypingFxStyle } from "./settings";
 
 /** The two recorded sets of a keyboard profile. */
 export const TYPING_SOUND_SETS = ["key", "space"] as const;
@@ -218,6 +219,24 @@ export type SoundStandIn = (event: TypingSoundEvent, step: number, gain: number)
 const STEAL_FADE_S = 0.004;
 /** Bounds concurrent fetch/decode work; rendering gets a turn between batches. */
 export const KEYBOARD_DECODE_BATCH_SIZE = 16;
+/** Space files the first batch takes (12 keys + 4 spaces at 16), so a finished word sounds as a word from the first batch on. */
+export const KEYBOARD_FIRST_BATCH_SPACES = 4;
+
+/**
+ * Decode order (TYPING_FEEL_SERVICE.md §4.6): the first batch holds up to
+ * KEYBOARD_FIRST_BATCH_SPACES spaces and keys in the rest of it; a set short of
+ * one kind gives its slots to the other, so the batch stays full (a keys-only
+ * set decodes as before). Later batches take the remaining keys, then the
+ * remaining spaces, each in number order.
+ */
+function decodeOrder(files: TypingSoundProfile["files"]): { set: TypingSoundSet; url: string }[] {
+  const keys = (files.key ?? []).map((url) => ({ set: "key" as const, url }));
+  const spaces = (files.space ?? []).map((url) => ({ set: "space" as const, url }));
+  const reserved = Math.min(spaces.length, KEYBOARD_FIRST_BATCH_SPACES, KEYBOARD_DECODE_BATCH_SIZE);
+  const firstKeys = Math.min(keys.length, KEYBOARD_DECODE_BATCH_SIZE - reserved);
+  const firstSpaces = Math.min(spaces.length, KEYBOARD_DECODE_BATCH_SIZE - firstKeys);
+  return [...keys.slice(0, firstKeys), ...spaces.slice(0, firstSpaces), ...keys.slice(firstKeys), ...spaces.slice(firstSpaces)];
+}
 
 export class TypingSounds implements TypingFxSink {
   private ctx: AudioContext | null = null;
@@ -294,7 +313,7 @@ export class TypingSounds implements TypingFxSink {
     try {
       if (profile.source !== "synth") {
         const ctx = this.resume();
-        const jobs = TYPING_SOUND_SETS.flatMap((set) => (profile.files[set] ?? []).map((url) => ({ set, url })));
+        const jobs = decodeOrder(profile.files);
         for (let start = 0; start < jobs.length && live(); start += KEYBOARD_DECODE_BATCH_SIZE) {
           await Promise.all(jobs.slice(start, start + KEYBOARD_DECODE_BATCH_SIZE).map(async ({ set, url }) => {
             try {
@@ -519,15 +538,55 @@ export type KeyboardSoundChoice = {
   readonly disabled?: boolean;
   readonly note?: string;
 };
-export type KeyboardCatalog = { readonly options: readonly KeyboardSoundChoice[]; readonly state: "ready" | "missing" | "invalid" };
+export type KeyboardCatalog = {
+  readonly options: readonly KeyboardSoundChoice[];
+  readonly state: "ready" | "missing" | "invalid";
+  /** catalogue-3 `revision` (the Published revision id); only on a ready catalogue. */
+  readonly revision?: string;
+  /** catalogue-3 `default`: only when it names a set this catalogue lists and the kit kept (never Off or a game's own sound). */
+  readonly defaultId?: string;
+  /** catalogue-3 `effects`: only the valid fields (a known style, intensity and size, a volume 0…1); never a sound id. */
+  readonly effects?: Partial<TypingFxSettings>;
+};
 
-/** Read only the root catalogue. Samples and previews stay lazy. First duplicate id wins. */
-export async function loadKeyboardCatalog(base: string, options: {
+const KEYBOARD_ID = /^[a-z0-9][a-z0-9-]{0,31}$/;
+
+/** The catalogue's effect defaults, field by field: an unknown or out-of-range value is dropped, not clamped. */
+function catalogueEffects(raw: unknown): Partial<TypingFxSettings> | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const row = raw as { readonly style?: unknown; readonly intensity?: unknown; readonly size?: unknown; readonly volume?: unknown };
+  const known = <T extends string>(value: unknown, list: readonly T[]): value is T => typeof value === "string" && (list as readonly string[]).includes(value);
+  const effects: Partial<TypingFxSettings> = {};
+  if (known<TypingFxStyle>(row.style, TYPING_FX_STYLES)) effects.style = row.style;
+  if (known<TypingFxIntensity>(row.intensity, TYPING_FX_INTENSITIES)) effects.intensity = row.intensity;
+  if (known<TypingFxSize>(row.size, TYPING_FX_SIZES)) effects.size = row.size;
+  if (typeof row.volume === "number" && Number.isFinite(row.volume) && row.volume >= 0 && row.volume <= 1) effects.volume = row.volume;
+  return Object.keys(effects).length > 0 ? effects : undefined;
+}
+
+/** The catalogue-3 fields around the profiles; catalogue-2 has none of them, so it yields {}. */
+function catalogueInfo(raw: { readonly revision?: unknown; readonly default?: unknown; readonly effects?: unknown }, ids: ReadonlySet<string>): Pick<KeyboardCatalog, "revision" | "defaultId" | "effects"> {
+  const revision = typeof raw.revision === "string" ? raw.revision.trim() : "";
+  const printable = [...revision].every((char) => char.charCodeAt(0) >= 0x20 && char.charCodeAt(0) !== 0x7f);
+  const effects = catalogueEffects(raw.effects);
+  return {
+    // A revision is a short printable id; anything else is dropped.
+    ...(revision && revision.length <= 128 && printable ? { revision } : {}),
+    ...(typeof raw.default === "string" && ids.has(raw.default) ? { defaultId: raw.default } : {}),
+    ...(effects ? { effects } : {}),
+  };
+}
+
+/**
+ * Read only the root catalogue. Samples and previews stay lazy. First duplicate id wins.
+ * A null base (no Typing Feel origin, see typingFeelKeysBase) fetches nothing: "missing", with the fallback.
+ */
+export async function loadKeyboardCatalog(base: string | null, options: {
   readonly extra?: readonly KeyboardSoundChoice[];
   readonly fallback?: readonly KeyboardSoundChoice[];
   readonly fetchJson?: (url: string) => Promise<unknown>;
 } = {}): Promise<KeyboardCatalog> {
-  const root = base.endsWith("/") ? base : base + "/";
+  const root = base === null || base === undefined ? null : base.endsWith("/") ? base : base + "/";
   const resolve = (relative: string): string => {
     // Catalogue paths are relative to its root; refuse absolute/traversing paths.
     if (!relative || relative.startsWith("/") || relative.includes(":") || relative.includes("\\") || relative.split("/").some((part) => part === ".." || part === ".") || /[?#%]/.test(relative)) throw new Error("Invalid catalogue path");
@@ -535,7 +594,9 @@ export async function loadKeyboardCatalog(base: string, options: {
   };
   let state: KeyboardCatalog["state"] = "ready";
   let choices: KeyboardSoundChoice[] = [];
+  let info: Pick<KeyboardCatalog, "revision" | "defaultId" | "effects"> = {};
   try {
+    if (root === null) throw new Error("No catalogue");
     const raw = await (options.fetchJson ?? defaultJson)(root + "keys-manifest.json");
     if (!raw || typeof raw !== "object" || !Array.isArray((raw as { profiles?: unknown }).profiles)) throw new Error("Invalid catalogue");
     const seen = new Set(["off"]);
@@ -543,7 +604,7 @@ export async function loadKeyboardCatalog(base: string, options: {
     for (const entry of (raw as { profiles: unknown[] }).profiles) {
       if (!entry || typeof entry !== "object") continue;
       const row = entry as { readonly id?: unknown; readonly name?: unknown; readonly manifest?: unknown; readonly preview?: unknown; readonly order?: unknown; readonly family?: unknown; readonly score?: unknown };
-      if (typeof row.id !== "string" || !/^[a-z0-9][a-z0-9-]{0,31}$/.test(row.id) || seen.has(row.id) || typeof row.name !== "string" || !row.name.trim() || typeof row.manifest !== "string" || typeof row.preview !== "string" || typeof row.order !== "number" || !Number.isFinite(row.order)) continue;
+      if (typeof row.id !== "string" || !KEYBOARD_ID.test(row.id) || seen.has(row.id) || typeof row.name !== "string" || !row.name.trim() || typeof row.manifest !== "string" || typeof row.preview !== "string" || typeof row.order !== "number" || !Number.isFinite(row.order)) continue;
       try {
         const choice: KeyboardSoundChoice = {
           value: row.id, label: row.name, manifest: resolve(row.manifest), preview: resolve(row.preview),
@@ -555,9 +616,14 @@ export async function loadKeyboardCatalog(base: string, options: {
       } catch { /* A malformed entry cannot prevent the other packs loading. */ }
     }
     choices = ordered.sort((a, b) => a.order - b.order).map((row) => row.choice);
+    // No usable set (an empty list, or every row dropped above): "ready" would let
+    // settleKeyboardChoice repair every save to the built-in sound, so it is invalid.
+    if (choices.length === 0) throw new Error("Invalid catalogue");
+    info = catalogueInfo(raw as Record<string, unknown>, new Set(choices.map((choice) => choice.value)));
   } catch (error) {
     state = error instanceof Error && error.message === "Invalid catalogue" ? "invalid" : "missing";
     choices = [...(options.fallback ?? KEYBOARD_PROFILES.map((p) => ({ value: p.id, label: p.name })))];
+    info = {};
   }
   const merged: KeyboardSoundChoice[] = [{ value: "off", label: "Off" }];
   const seen = new Set(["off"]);
@@ -568,7 +634,123 @@ export async function loadKeyboardCatalog(base: string, options: {
     seen.add(choice.value);
     merged.push(choice);
   }
-  return { options: merged, state };
+  return { options: merged, state, ...info };
+}
+
+/** How long a Typing Feel catalogue fetch may take before the game plays on without it (§5.3). */
+export const KEYBOARD_CATALOG_TIMEOUT_MS = 3000;
+/** setTimeout's largest delay: browsers and Node fire a longer one almost at once. */
+const MAX_TIMER_MS = 2_147_483_647;
+
+/**
+ * A fetchJson for loadKeyboardCatalog(base, { fetchJson }) that gives up after
+ * `timeoutMs` (default 3000; a non-positive, non-finite or above-setTimeout
+ * value takes the default). It rejects on the timeout (aborting the request,
+ * even one whose fetch ignores the signal), on a non-OK status, and on a body
+ * that is not JSON (an SPA's index.html with status 200). The timer is cleared
+ * however it ends. `cache` defaults to "no-cache" (the catalogue revalidates);
+ * pass "default" to bound a set manifest's fetch, whose versioned URL never changes.
+ */
+export function timedJson(timeoutMs: number = KEYBOARD_CATALOG_TIMEOUT_MS, options: { readonly cache?: RequestCache } = {}): (url: string) => Promise<unknown> {
+  const limit = Number.isFinite(timeoutMs) && timeoutMs > 0 && timeoutMs <= MAX_TIMER_MS ? timeoutMs : KEYBOARD_CATALOG_TIMEOUT_MS;
+  const cache = options.cache ?? "no-cache";
+  return (url: string): Promise<unknown> => {
+    const abort = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    // Only rejects once the timer fires; Promise.race below always handles it.
+    const expired = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        reject(new Error(`${url}: no answer in ${limit} ms`));
+        abort.abort();
+      }, limit);
+    });
+    const read = (async (): Promise<unknown> => {
+      const response = await fetch(url, { cache, signal: abort.signal });
+      if (!response.ok) throw new Error(url + ": " + response.status);
+      if (/html/i.test(response.headers?.get("content-type") ?? "")) throw new Error(url + ": HTML, not JSON");
+      const text = await response.text();
+      try {
+        return JSON.parse(text) as unknown;
+      } catch {
+        throw new Error(url + ": not JSON");
+      }
+    })();
+    return Promise.race([read, expired]).finally(() => clearTimeout(timer));
+  };
+}
+
+export type KeyboardSettlement = { readonly id: string; readonly options: readonly KeyboardSoundChoice[]; readonly repaired: boolean };
+
+/**
+ * The saved keyboard sound against the catalogue (Wordwoven's rule for every
+ * game, TYPING_FEEL_SERVICE.md §4.6). `builtIn` (the game's own sound) is
+ * always among the options: put after Off when the catalogue came without it.
+ * The default below is the catalogue's defaultId, then `fallbackDefault` (the
+ * game's own default), each only when it is an enabled option; then the first
+ * enabled catalogue set (an option with a manifest); then `builtIn`.
+ * - No saved id (null or undefined: the save has no keyboard field, so read it
+ *   before the game's own default fills it in): the default; repaired: false,
+ *   so the player follows the catalogue's default until they change a setting
+ *   (§3.10, §4.5). Without a ready catalogue that is normally `builtIn`.
+ * - A saved string that is not an option and can never name a set ("", "Bad Id"):
+ *   the default, repaired: true, even when the catalogue is not ready.
+ * - Catalogue not ready ("missing" or "invalid"): the saved id stays. An id the
+ *   options lack is listed as a disabled "Saved sound · unavailable" choice, so
+ *   one failed fetch never overwrites the player's set. repaired: false.
+ * - Ready, and the saved id is an enabled option: it stays. repaired: false.
+ * - Ready, and it is not: the default. repaired: true, so the game saves it.
+ */
+export function settleKeyboardChoice(savedId: string | null | undefined, catalog: KeyboardCatalog, builtIn: KeyboardSoundChoice, fallbackDefault?: string): KeyboardSettlement {
+  let options = catalog.options;
+  if (!options.some((choice) => choice.value === builtIn.value)) {
+    const at = options[0]?.value === "off" ? 1 : 0;
+    options = [...options.slice(0, at), builtIn, ...options.slice(at)];
+  }
+  const usable = (id: string | null | undefined): id is string => typeof id === "string" && options.some((choice) => choice.value === id && !choice.disabled);
+  const fallback = (): string => [catalog.defaultId, fallbackDefault].find(usable) ?? options.find((choice) => choice.manifest !== undefined && !choice.disabled)?.value ?? builtIn.value;
+  if (typeof savedId !== "string") return { id: fallback(), options, repaired: false };
+  const listed = options.some((choice) => choice.value === savedId);
+  if (!listed && !KEYBOARD_ID.test(savedId)) return { id: fallback(), options, repaired: true };
+  if (catalog.state !== "ready") {
+    if (!listed) options = [...options, { value: savedId, label: "Saved sound", note: "unavailable", disabled: true }];
+    return { id: savedId, options, repaired: false };
+  }
+  if (usable(savedId)) return { id: savedId, options, repaired: false };
+  return { id: fallback(), options, repaired: true };
+}
+
+/**
+ * The keyboard row's options while the catalogue loads (§5.1 step 5): Off, the
+ * game's own sound and, when the save names another sound, that id as a
+ * disabled "Loading…" choice. A QuickSettings panel built at once with these
+ * keeps the saved id (it repairs a keyboard id its options lack, through
+ * onChange); once the catalogue is in, pass settleKeyboardChoice(...).options
+ * to QuickSettings.setChoiceOptions("keyboard", …).
+ */
+export function pendingKeyboardChoices(savedId: string | null | undefined, builtIn: KeyboardSoundChoice): KeyboardSoundChoice[] {
+  const options: KeyboardSoundChoice[] = [{ value: "off", label: "Off" }];
+  if (builtIn.value !== "off") options.push(builtIn);
+  // An empty note: the picker adds "pending" to a disabled choice without one.
+  if (typeof savedId === "string" && KEYBOARD_ID.test(savedId) && !options.some((choice) => choice.value === savedId)) options.push({ value: savedId, label: "Loading…", note: "", disabled: true });
+  return options;
+}
+
+/**
+ * The Typing Feel keys base from the build's origin (VITE_TYPING_FEEL_ORIGIN):
+ * `<origin>/v1/keys/`. Undefined, empty, not an http(s) URL, or one with
+ * credentials, a query or a fragment: null (Typing Feel off, the game plays on).
+ */
+export function typingFeelKeysBase(origin: string | undefined): string | null {
+  const text = typeof origin === "string" ? origin.trim() : "";
+  if (!text || /[\s?#]/.test(text)) return null;
+  let url: URL;
+  try {
+    url = new URL(text);
+  } catch {
+    return null;
+  }
+  if ((url.protocol !== "http:" && url.protocol !== "https:") || !url.host || url.username || url.password) return null;
+  return url.origin + url.pathname.replace(/\/+$/, "") + "/v1/keys/";
 }
 
 export const KEYBOARD_PREVIEW_DELAY_MS = 150;

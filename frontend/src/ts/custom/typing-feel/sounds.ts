@@ -1,23 +1,33 @@
 import { Config } from "../../config/store";
 import {
+  fetchSample,
+  fetchSetManifest,
   findChoice,
   loadKeyboardChoices,
-  restoreKeyboardChoice,
+  settleSaved,
 } from "./catalog";
 import {
   keyboardPreviewGain,
   TypingSounds,
   type KeyboardCatalog,
   type KeyboardLoad,
+  type KeyboardSettlement,
 } from "./kit/audio";
-import { getTypingFeel, setTypingFeel, type TypingFeelSettings } from "./store";
+import {
+  followKeyboardDefault,
+  getTypingFeel,
+  savedKeyboardSound,
+  setTypingFeel,
+  type TypingFeelSettings,
+} from "./store";
 
 let sounds: TypingSounds | null = null;
 /**
  * Sets the gameplay player holds. "failed": a load found no playable file
- * (a network blip, a broken file); Monkeytype's click plays and the next
- * sync or a click on the set retries. "missing": not listed or not installed
- * (sync-keys never ran, offline); the modal and startup retry.
+ * (a network blip, a broken file, a hung host); Monkeytype's click plays and
+ * the next sync or a click on the set retries. "missing": not in the
+ * catalogue, Typing Feel unreachable or not set up (no TYPING_FEEL_URL); the
+ * modal and startup retry.
  */
 export type PackState = "ready" | "failed" | "missing";
 const packs = new Map<string, PackState>();
@@ -84,7 +94,15 @@ export async function loadSavedKeyboard(
     const manifest = choice.manifest;
     job = (async () => {
       try {
-        markPack(await player.loadKeyboardManifest(manifest, id, choice.label));
+        markPack(
+          await player.loadKeyboardManifest(
+            manifest,
+            id,
+            choice.label,
+            fetchSetManifest,
+            fetchSample,
+          ),
+        );
       } catch {
         packs.set(id, "failed");
       }
@@ -103,16 +121,35 @@ export async function loadSavedKeyboard(
   }
 }
 
-/** Catalogue, repair of a stale id (persisted), then the saved set. Safe to call again. */
+/**
+ * The stored keyboard sound against a catalogue (parent repo
+ * docs/games/TYPING_FEEL_SERVICE.md §4.5, §5.1 steps 4–5). A saved id stays
+ * unless a ready catalogue repairs it, and only then is it saved. A player
+ * without a save follows a ready catalogue's default, unsaved; without one
+ * they keep the store's default (Off and Monkeytype's click show in the list).
+ */
+export function settleStoredKeyboard(
+  catalog: KeyboardCatalog,
+): KeyboardSettlement {
+  const saved = savedKeyboardSound();
+  const settled = settleSaved(saved, catalog);
+  if (saved === null) {
+    if (catalog.state === "ready") followKeyboardDefault(settled.id);
+  } else if (settled.repaired && settled.id !== saved) {
+    setTypingFeel({ ...getTypingFeel(), keyboardSound: settled.id });
+  }
+  return settled;
+}
+
+/**
+ * Catalogue, the stored id settled against it, then that set. A host that
+ * is down keeps the saved id. Safe to call again.
+ */
 export async function syncSavedKeyboard(): Promise<void> {
   if (getTypingFeel().keyboardSound === "off") return;
   const catalog = await loadKeyboardChoices();
-  const saved = getTypingFeel();
-  const fixed = restoreKeyboardChoice(saved.keyboardSound, catalog);
-  if (fixed !== saved.keyboardSound) {
-    setTypingFeel({ ...saved, keyboardSound: fixed });
-  }
-  if (fixed === "off") return;
+  settleStoredKeyboard(catalog);
+  // A set the catalogue lacks is marked missing there, so keys stop asking.
   await loadSavedKeyboard(catalog, () => getTypingFeel().keyboardSound);
 }
 

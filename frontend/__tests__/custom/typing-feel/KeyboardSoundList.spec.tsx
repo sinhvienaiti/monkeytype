@@ -9,25 +9,28 @@ import {
   type TypingSounds,
 } from "../../../src/ts/custom/typing-feel/kit/audio";
 
+/** Set folders on the sample feel host. */
+const FEEL = "https://feel.test/v1/keys/sets/";
+
 const choices: KeyboardSoundChoice[] = [
   { value: "off", label: "Off" },
   {
     value: "deep",
     label: "Deep",
-    manifest: "/sounds/keys/deep/keys-manifest.json",
-    preview: "/sounds/keys/deep/preview.ogg",
+    manifest: `${FEEL}deep/0123456789ab/keys-manifest.json`,
+    preview: `${FEEL}deep/0123456789ab/preview.ogg`,
   },
   {
     value: "warm",
     label: "Warm",
     disabled: true,
-    note: "sound files not installed",
+    note: "unavailable",
   },
   {
     value: "bright-clack",
     label: "Bright Clack",
-    manifest: "/sounds/keys/bright-clack/keys-manifest.json",
-    preview: "/sounds/keys/bright-clack/preview.ogg",
+    manifest: `${FEEL}bright-clack/0123456789ab/keys-manifest.json`,
+    preview: `${FEEL}bright-clack/0123456789ab/preview.ogg`,
   },
 ];
 
@@ -68,7 +71,7 @@ describe("keyboard sound list", () => {
     expect(option("Bright Clack")).toHaveAttribute("tabindex", "0");
     expect(option("Deep")).toHaveAttribute("tabindex", "-1");
     expect(option("Warm")).toBeDisabled();
-    expect(option("Warm")).toHaveTextContent("sound files not installed");
+    expect(option("Warm")).toHaveTextContent("unavailable");
   });
 
   it("previews on a mouse hover, not a touch, and stops on leave", () => {
@@ -157,14 +160,12 @@ const grouped: KeyboardSoundChoice[] = [
     value: value ?? "",
     label: label ?? "",
     family: family ?? "",
-    manifest: `/sounds/keys/${value}/keys-manifest.json`,
-    preview: `/sounds/keys/${value}/preview.ogg`,
+    manifest: `${FEEL}${value}/0123456789ab/keys-manifest.json`,
+    preview: `${FEEL}${value}/0123456789ab/preview.ogg`,
   })),
 ].map((c) =>
-  // The first Warm set is not installed: a family whose head is disabled.
-  c.value === "warm"
-    ? { ...c, disabled: true, note: "sound files not installed" }
-    : c,
+  // The first Warm set is disabled: a family whose head cannot be picked.
+  c.value === "warm" ? { ...c, disabled: true, note: "unavailable" } : c,
 );
 
 function mountGrouped(value = "bright-clack"): {
@@ -234,7 +235,7 @@ describe("keyboard sound list grouped by family", () => {
       null,
       null,
       "true", // Warm heading
-      "true", // Warm Velvet, not installed
+      "true", // Warm Velvet, disabled
       null,
       "true", // Solid heading
       null,
@@ -434,7 +435,7 @@ describe("keyboard sound list grouped by family", () => {
       expect(
         option("Solid Velvet").getBoundingClientRect().bottom,
       ).toBeLessThanOrEqual(VIEW_TOP + VIEW_HEIGHT);
-      // Warm's first set is not installed: its heading still comes with Warm Amber.
+      // Warm's first set is disabled: its heading still comes with Warm Amber.
       fireEvent.keyDown(option("Solid Velvet"), { key: "PageUp" });
       expect(document.activeElement).toBe(option("Warm Amber"));
       expect(
@@ -620,7 +621,9 @@ describe("keyboard sound list with the kit's preview", () => {
     const option = mountWithPreview();
     fireEvent.pointerEnter(option("Deep"), { pointerType: "mouse" });
     await vi.advanceTimersByTimeAsync(150);
-    expect(fetchBytes).toHaveBeenCalledWith("/sounds/keys/deep/preview.ogg");
+    expect(fetchBytes).toHaveBeenCalledWith(
+      `${FEEL}deep/0123456789ab/preview.ogg`,
+    );
     expect(sources).toHaveLength(1);
     expect(sources[0]?.start).toHaveBeenCalledWith(5, 0, 1);
     expect(sources[0]?.stop).toHaveBeenCalledWith(6);

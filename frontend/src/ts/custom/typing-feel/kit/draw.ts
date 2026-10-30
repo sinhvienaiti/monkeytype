@@ -102,9 +102,19 @@ export class FxCanvas {
     this.painted = true;
   }
 
+  /** Glow sprites per palette: a game that switches palettes (Last Line's guns) builds each set once. */
+  private readonly spriteSets = new Map<string, HTMLCanvasElement[]>();
+
   setPalette(p: TypingFxPalette): void {
     this.tones = toneColors(p);
-    this.sprites = this.tones.map((color) => softDisc(color));
+    const key = this.tones.join();
+    let set = this.spriteSets.get(key);
+    if (set === undefined) {
+      set = this.tones.map((color) => softDisc(color));
+      if (this.spriteSets.size >= 12) this.spriteSets.clear();
+      this.spriteSets.set(key, set);
+    }
+    this.sprites = set;
   }
 
   /** A game theme's painted sprites; {} goes back to the procedural shapes. */

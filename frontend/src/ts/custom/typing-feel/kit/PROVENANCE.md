@@ -4,34 +4,45 @@ The project owner's own code, copied from the parent `typing-game` repo.
 Nothing here imports across repos.
 
 - Source: `shared/game-kit/feedback/typing-fx/` in the parent repo at commit
-  `8d130d09` (Codex 219: many-variant sets with no repeat in 8 strokes,
-  progressive decode in batches of 16, release of the old set on switch,
-  `family` and `score` in the catalogue). Copied from a clean export of that
-  commit, never from the parent's working tree. Before: `1c379c30`
-  (folder at `7b677b5a`); only `audio.ts` changed since.
+  `590864fb` (G2 of the parent's `docs/games/TYPING_FEEL_SERVICE.md`: the
+  Typing Feel data step, `typingFeelKeysBase`, `timedJson`,
+  `settleKeyboardChoice`, `pendingKeyboardChoices`, catalogue `revision`,
+  `defaultId` and `effects`, a first decode batch of 12 keys and 4 spaces;
+  `draw.ts` builds glow sprites once per palette, from `0a9a40a2`). Copied
+  from a clean export of that commit (`git show`), never from the parent's
+  working tree. Before: `8d130d09`; only `audio.ts` and `draw.ts` changed
+  since.
 - Files: `audio.ts`, `driver.ts`, `intensity.ts`, `settings.ts`, `styles.ts`,
-  `pool.ts`, `draw.ts` (`audio.ts` imports only `driver` and `intensity`).
+  `pool.ts`, `draw.ts` (`audio.ts` imports only `driver`, `intensity` and
+  `settings`).
   Left out: `strip.ts`, `css.ts`, `index.ts` and the `ui/quick-settings`
   files, including the family-grouped `keyboard-choices.ts` (the fork has
   its own Solid picker, grouped the same way, and canvas adapter in `../`).
 - Hashes: `kit-manifest.json` lists the git blob, the sha256 of each source
   blob and the sha256 of each vendored file.
-- Tests: the kit's 898 vitest tests stay in the parent (`shared/game-kit`).
+- Tests: the kit's vitest tests stay in the parent (`shared/game-kit`).
   The fork tests its own adapter in `__tests__/custom/typing-feel/`.
 
 ## Patches
 
-Two type-only edits, needed by the fork's `noPropertyAccessFromIndexSignature`
+Type-only edits, needed by the fork's `noPropertyAccessFromIndexSignature`
 (TS4111). Runtime behaviour is unchanged.
 
 1. `audio.ts` (`loadKeyboardCatalog`): `entry as Record<string, unknown>`
    becomes `entry as { readonly id?: unknown; readonly name?: unknown;
    readonly manifest?: unknown; readonly preview?: unknown; readonly order?:
    unknown; readonly family?: unknown; readonly score?: unknown }`.
-2. `settings.ts` (`sanitizeTypingFx`): `raw as Record<string, unknown>`
+2. `audio.ts` (`catalogueEffects`): `raw as Record<string, unknown>` becomes
+   `raw as { readonly style?: unknown; readonly intensity?: unknown;
+   readonly size?: unknown; readonly volume?: unknown }`.
+3. `audio.ts` (`catalogueInfo`): the parameter `raw: Record<string, unknown>`
+   becomes `raw: { readonly revision?: unknown; readonly default?: unknown;
+   readonly effects?: unknown }` (its caller still passes a
+   `Record<string, unknown>`, which fits).
+4. `settings.ts` (`sanitizeTypingFx`): `raw as Record<string, unknown>`
    becomes `raw as Partial<Record<keyof TypingFxSettings, unknown>>`.
 
-Follow-up: move both into `shared/game-kit` once the kit work in flight
+Follow-up: move these into `shared/game-kit` once the kit work in flight
 there is committed, rerun its tests, then re-copy byte-identical.
 
 ## Rules
@@ -47,102 +58,29 @@ there is committed, rerun its tests, then re-copy byte-identical.
 
 ## Sounds
 
-The keyboard sets the kit plays are not in Git. `pnpm sync-keys` (scripts/sync-keyboard-sounds.ts) copies them
-from `~/AudioLab/review/staging/keys-firefly` into `static/sounds/keys/` and
-writes `installed.json` (ignored) last. The catalogue and set manifests are
-tracked, so the game lists a set only when `installed.json` names it: without
-a sync only Off shows, with "sound files not installed".
+The keyboard sets are not in this repo. Since 31/10/2026 (owner decision 14,
+step B6 of `TYPING_FEEL_SERVICE.md`) Monkeytype reads them at run time from
+Typing Feel, the parent repo's shared host, through this kit
+(`../catalog.ts`): the catalogue, each set's manifest and its samples. The
+copies this repo used to track, and the script that filled them, are gone.
 
-Since 30/10/2026 (owner): 34 sets in seven families (Deep, Warm, Rounded,
-Solid, Crisp, Clear, Bright Clack), about 15 MB of OGG (22 MB on disk), no
-WAV. 32 are built and scored sets (mono, 70-80 key and 8 space variants
-each, plus a 1 s `preview.ogg`). Two are the owner's own picks, each closing
-its family:
+`TYPING_FEEL_URL` (build time) names the host; without it Typing Feel is off
+and Monkeytype's own click plays. How to set it, what happens when the host
+is down, and the company Mac's offline copy (`pnpm feel:mirror`):
+`docs/CUSTOM_TYPING_FEEL.md` at the repo root.
 
-- Raindrop Tile (`raindrop-tile`, family Crisp, right after Crisp Silk),
-  version A, natural processing (full tails and droplets, no EQ, levels
-  evened 60%): 17 keys up to 450 ms and 8 spaces up to 535 ms, 0.2 MB.
-- Hail Stone (`hail-stone`, family Solid, right after Solid Amber), the
-  Firefly take of small hailstones on thick stone, take v4, the same natural
-  processing: 25 keys up to 450 ms and 8 spaces up to 535 ms, 0.3 MB.
-
-Both are stereo 48 kHz OGG Vorbis with a 1 s preview. Their catalogue rows
-have `score: null` and `ownerPick: true` (the 218 metric's tail term
-penalises the long tails the owner wants); the kit lists them without a
-score, and nothing invents one. Their set manifests are schema
-`typing-keys-firefly/2` (`files` as `{file, set, durationMs}`).
-The sync reads each set's own `keys-manifest.json` for its sample list (a
-set without one falls back to key-01..10 and space-01..03) and writes a
-slim tracked copy (id, name, family, licence, files, preview); the root
-catalogue is written with the same fields as 2-space JSON (the repo's oxfmt
-layout), whatever indent the Audio Lab uses. The first seven ids stay, and
-Bright Clack (`bright-clack`) stays the default.
+New sets, renames and the default are made in the parent repo (Typing Feel,
+later its Admin page); Monkeytype needs no change, the list groups by
+`family` as the catalogue orders it. The tests use a sample of the r1
+catalogue (`__tests__/custom/typing-feel/fixtures/typing-feel-catalogue.json`).
 
 Long tails: the kit's player keeps 6 key voices and 2 word voices and cuts
 only the oldest sounding one (4 ms fade). With Raindrop Tile a key voice is
 cut only when 6 more strokes start inside its tail, so even at 20 keys/s
 the cut comes 300 ms in, where its keys sit at or below -76 dB (25 ms RMS
 under the sample's peak); a space is cut only after 2 more words, about
-500 ms in at 240 wpm, where its spaces sit below -75 dB. The tail is not
-audibly clipped, so the voice counts stay.
-
-Hail Stone is different: a sample holds several hailstone hits, some peaking
-as late as 270 ms, so its late audio is a later hit, not a fading tail. A key
-voice is cut only when 6 more strokes start within the sample (above about
-13 keys/s, 160 wpm), a space only when 2 more words start within it (above
-about 224 wpm); below that nothing is cut. At 20 keys/s the cut at 300 ms
-shortens a later hit in 3 of the 25 keys (25 ms RMS up to -15 dB under the
-peak); at 240 wpm the cut at 500 ms does so in 1 of the 8 spaces (-16 dB).
-The 4 ms fade keeps it from clicking, and 6 newer keys are sounding over it.
+500 ms in at 240 wpm, where its spaces sit below -75 dB. Hail Stone holds
+several hailstone hits per sample, some as late as 270 ms: at 20 keys/s the
+cut at 300 ms shortens a later hit in 3 of its 25 keys, under 6 newer keys.
 The voice counts stay; the kit is shared, so a change there is the shared
-kit's call. The files themselves end faded (last millisecond at or below
--48 dB under the peak). The 1 s preview cap matches the sets' 1 s
-`preview.ogg`. Stereo samples play as decoded.
-The old seven-set staging is kept at `~/AudioLab/review/staging/keys-firefly-v1`
-(`KEYS_FIREFLY_DIR` picks a source).
-Licence: Adobe Firefly Generate Sound Effects, generated by the project owner
-(Adobe model).
-
-Which OGG versions the code expects: the sync also writes
-`static/sounds/keys/keys.sha256` (tracked), one `<sha256>  <set>/<file>`
-line per OGG, sorted by path (`shasum -a 256 -c keys.sha256` reads it in
-that folder). New takes therefore show as a Git change to that file.
-`pnpm sync-keys --check` copies nothing and fails when a local OGG is
-missing or not the version `keys.sha256` records, and, when the Audio Lab is
-on the machine, when its takes or JSON differ from what Git holds. Without
-the Audio Lab it checks the local audio against `keys.sha256` only.
-
-Another machine: a pull brings effects but no key sounds. Copy the cut sets
-(owner's zip or the Drive folder) to `~/AudioLab/review/staging/keys-firefly`,
-then in `frontend` run `pnpm sync-keys` and `pnpm sync-keys --check` (expect
-2744 OGG matching `keys.sha256`).
-
-### Making more sets later
-
-The full guide is the parent repo's
-`docs/games/audio/KEYS_FIREFLY_HANDOFF.md`, §4 (rebuild) and §5 (more sets).
-In short:
-
-1. Takes: the owner's Firefly WAV takes (408 files, `~/Downloads/typing-mp3/`).
-   More sets from the same takes: lower `MIN_DISTANCE` or change `score_set`
-   in the parent's `tools/audio-lab/keys/firefly_v2.py` (Codex 218). Sets
-   that sound truly different need new Firefly takes (prompts in §5).
-2. Build: `bash tools/audio-lab/run.sh keys firefly build-v2` in the parent
-   repo writes `tmp/keys-firefly/staging-v2/keys-firefly/`; copy it to
-   `~/AudioLab/review/staging/keys-firefly/`.
-3. What the sync needs from the build: a root `keys-manifest.json` whose
-   `profiles` each carry `id` (a-z, 0-9 and `-`, at most 32, never `off`),
-   `name` (English), `family`, `score` (`null` with `ownerPick: true` for a
-   set the owner picked by ear), `manifest` (`<id>/keys-manifest.json`),
-   `preview` (`<id>/preview.ogg`) and `order`; and per set a folder `<id>/`
-   with its own `keys-manifest.json` (`files`: `key-NN`/`key-NNN` and
-   `space-NN` OGG names, no duplicates, at least one key), the samples it
-   names and a 1 s `preview.ogg`. OGG only.
-4. In `frontend`: `pnpm sync-keys`, then `pnpm sync-keys --check`. Commit
-   the JSON manifests and `keys.sha256` only, never the OGG.
-5. Tests: `__tests__/custom/typing-feel/catalog.spec.ts` lists the 34 ids in
-   the owner's order (`FAMILIES`) and wants 70-80 keys and exactly 8 spaces
-   per scored set; an owner pick (`OWNER_PICKS`) has its own name and key
-   count and no score. A new set, a removed one or another sample count
-   fails there until that test is updated with the owner's new list. The game code needs
-   no change: the list reads the catalogue and groups by `family`.
+kit's call.

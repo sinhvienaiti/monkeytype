@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { __testing } from "../../../src/ts/config/testing";
 import {
@@ -8,12 +8,24 @@ import {
   KeySoundRouter,
   loadSavedKeyboard,
   markPack,
+  syncSavedKeyboard,
   ownsKeySoundFor,
   packState,
   type KeydownLike,
   type KeySoundSink,
 } from "../../../src/ts/custom/typing-feel/sounds";
-import type { TypingFeelSettings } from "../../../src/ts/custom/typing-feel/store";
+import {
+  getTypingFeel,
+  setTypingFeel,
+  type TypingFeelSettings,
+} from "../../../src/ts/custom/typing-feel/store";
+import {
+  BASE,
+  CATALOGUE_URL,
+  FEEL_URL,
+  feelFetch,
+  sampleCatalogue,
+} from "./feel-fixture";
 
 const settings = (
   patch: Partial<TypingFeelSettings> = {},
@@ -227,7 +239,7 @@ describe("keyboard levels and ownership", () => {
     expect(ownsKeySoundFor(settings({ keyboardSound: "deep" }))).toBe(false);
   });
 
-  it("marks a listed set that is not installed without fetching it", async () => {
+  it("marks a disabled set without fetching it", async () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
     await loadSavedKeyboard(
@@ -237,9 +249,9 @@ describe("keyboard levels and ownership", () => {
           {
             value: "solid",
             label: "Solid",
-            manifest: "/sounds/keys/solid/keys-manifest.json",
+            manifest: `${BASE}sets/solid/0123456789ab/keys-manifest.json`,
             disabled: true,
-            note: "sound files not installed",
+            note: "unavailable",
           },
         ],
         state: "ready",
@@ -269,8 +281,8 @@ describe("keyboard levels and ownership", () => {
             value: "clear",
             label: "Clear Velvet",
             family: "Clear",
-            manifest: "/sounds/keys/clear/keys-manifest.json",
-            preview: "/sounds/keys/clear/preview.ogg",
+            manifest: `${BASE}sets/clear/0123456789ab/keys-manifest.json`,
+            preview: `${BASE}sets/clear/0123456789ab/preview.ogg`,
           },
         ],
         state: "ready",
@@ -278,9 +290,10 @@ describe("keyboard levels and ownership", () => {
       () => "clear",
     );
     vi.unstubAllGlobals();
+    // Set manifests are immutable: the HTTP cache may answer, the wait is bounded.
     expect(fetchSpy).toHaveBeenCalledWith(
-      "/sounds/keys/clear/keys-manifest.json",
-      expect.anything(),
+      `${BASE}sets/clear/0123456789ab/keys-manifest.json`,
+      expect.objectContaining({ cache: "default" }),
     );
     // Nothing loaded this time: keys go back to Monkeytype's click, not silence.
     expect(packState("clear")).toBe("failed");
@@ -300,5 +313,142 @@ describe("keyboard levels and ownership", () => {
       missing: [],
     });
     expect(ownsKeySoundFor(settings({ keyboardSound: "crisp" }))).toBe(false);
+  });
+});
+
+describe("the saved set without Typing Feel", () => {
+  it("keeps the saved id and lets Monkeytype's click play when TYPING_FEEL_URL is not set", async () => {
+    localStorage.clear();
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    expect(setTypingFeel(settings({ keyboardSound: "raindrop-tile" }))).toBe(
+      true,
+    );
+    await syncSavedKeyboard();
+    vi.unstubAllGlobals();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(getTypingFeel().keyboardSound).toBe("raindrop-tile");
+    expect(packState("raindrop-tile")).toBe("missing");
+    expect(ownsKeySoundFor(settings({ keyboardSound: "raindrop-tile" }))).toBe(
+      false,
+    );
+  });
+
+  it("leaves a player without a save unsaved, and marks the default missing so keys stop asking", async () => {
+    localStorage.clear();
+    vi.resetModules();
+    const fresh = await import("../../../src/ts/custom/typing-feel/sounds");
+    const store = await import("../../../src/ts/custom/typing-feel/store");
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    await fresh.syncSavedKeyboard();
+    vi.unstubAllGlobals();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(localStorage.getItem("personalTypingFeelSettings")).toBeNull();
+    expect(store.getTypingFeel().keyboardSound).toBe("bright-clack");
+    expect(fresh.packState("bright-clack")).toBe("missing");
+  });
+});
+
+describe("the saved set with TYPING_FEEL_URL set", () => {
+  afterEach(() => {
+    vi.doUnmock("virtual:env-config");
+    vi.resetModules();
+    vi.unstubAllGlobals();
+    localStorage.clear();
+  });
+
+  async function withFeel(): Promise<{
+    sounds: typeof import("../../../src/ts/custom/typing-feel/sounds");
+    store: typeof import("../../../src/ts/custom/typing-feel/store");
+  }> {
+    localStorage.clear();
+    vi.resetModules();
+    vi.doMock("virtual:env-config", () => ({
+      envConfig: { typingFeelUrl: FEEL_URL },
+    }));
+    return {
+      sounds: await import("../../../src/ts/custom/typing-feel/sounds"),
+      store: await import("../../../src/ts/custom/typing-feel/store"),
+    };
+  }
+
+  it("keeps the saved id when the host is down; Monkeytype's click plays", async () => {
+    const { sounds, store } = await withFeel();
+    const fetchSpy = vi.fn(feelFetch({ down: true }));
+    vi.stubGlobal("fetch", fetchSpy);
+    store.setTypingFeel(settings({ keyboardSound: "hail-stone" }));
+    await sounds.syncSavedKeyboard();
+    expect(fetchSpy).toHaveBeenCalledWith(
+      CATALOGUE_URL,
+      expect.objectContaining({ cache: "no-cache" }),
+    );
+    expect(store.getTypingFeel().keyboardSound).toBe("hail-stone");
+    expect(sounds.packState("hail-stone")).toBe("missing");
+    expect(
+      sounds.ownsKeySoundFor(settings({ keyboardSound: "hail-stone" })),
+    ).toBe(false);
+  });
+
+  it("lets a player without a save follow the catalogue's default, unsaved, samples bounded", async () => {
+    const { sounds, store } = await withFeel();
+    const kit = await import("../../../src/ts/custom/typing-feel/kit/audio");
+    const catalog = await import("../../../src/ts/custom/typing-feel/catalog");
+    const load = vi.spyOn(kit.TypingSounds.prototype, "loadKeyboardManifest");
+    const catalogue = { ...sampleCatalogue(), default: "hail-stone" };
+    const fetchSpy = vi.fn(feelFetch({ catalogue }));
+    vi.stubGlobal("fetch", fetchSpy);
+    await sounds.syncSavedKeyboard();
+    expect(store.getTypingFeel().keyboardSound).toBe("hail-stone");
+    expect(localStorage.getItem("personalTypingFeelSettings")).toBeNull();
+    const row = catalogue.profiles.find((p) => p.id === "hail-stone");
+    expect(fetchSpy).toHaveBeenCalledWith(
+      `${BASE}${row?.manifest}`,
+      expect.objectContaining({ cache: "default" }),
+    );
+    // Samples go through the bounded fetch, so a hung host gives up.
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(load.mock.calls[0]?.[0]).toBe(`${BASE}${row?.manifest}`);
+    expect(load.mock.calls[0]?.[3]).toBe(catalog.fetchSetManifest);
+    expect(load.mock.calls[0]?.[4]).toBe(catalog.fetchSample);
+    load.mockRestore();
+    // Nothing decodes here (no audio in the test DOM): Monkeytype's click plays.
+    expect(sounds.packState("hail-stone")).toBe("failed");
+  });
+
+  it("keeps a saved set when the catalogue's default is another one", async () => {
+    const { sounds, store } = await withFeel();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        feelFetch({
+          catalogue: { ...sampleCatalogue(), default: "hail-stone" },
+        }),
+      ),
+    );
+    store.setTypingFeel(settings({ keyboardSound: "bright-clack" }));
+    await sounds.syncSavedKeyboard();
+    expect(store.getTypingFeel().keyboardSound).toBe("bright-clack");
+    expect(
+      JSON.parse(localStorage.getItem("personalTypingFeelSettings") ?? "null"),
+    ).toMatchObject({ keyboardSound: "bright-clack" });
+  });
+
+  it("repairs a retired id to the catalogue default and loads it from the feel host", async () => {
+    const { sounds, store } = await withFeel();
+    const fetchSpy = vi.fn(feelFetch());
+    vi.stubGlobal("fetch", fetchSpy);
+    store.setTypingFeel(settings({ keyboardSound: "creamy" }));
+    await sounds.syncSavedKeyboard();
+    expect(store.getTypingFeel().keyboardSound).toBe("bright-clack");
+    const row = sampleCatalogue().profiles.find((p) => p.id === "bright-clack");
+    expect(fetchSpy).toHaveBeenCalledWith(
+      `${BASE}${row?.manifest}`,
+      expect.objectContaining({ cache: "default" }),
+    );
+    // Every request went to the feel host.
+    for (const [url] of fetchSpy.mock.calls) {
+      expect(url.startsWith(`${FEEL_URL}/v1/keys/`)).toBe(true);
+    }
   });
 });

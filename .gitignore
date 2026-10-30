@@ -138,10 +138,9 @@ frontend/.env.sentry-build-plugin
 # Local Adobe Commerce study notes, never published (owner, 22/10/2026)
 /adobe_commerce_lessons_1_180_package/
 
-# Firefly keyboard sets: audio comes from ~/AudioLab via `pnpm sync-keys`, never Git (owner rule)
-frontend/static/sounds/keys/**/*.ogg
-frontend/static/sounds/keys/**/*.wav
-# Written by `pnpm sync-keys` once the audio is copied: its absence means not installed
-frontend/static/sounds/keys/installed.json
+# Typing Feel copy for a machine without the feel host (`pnpm feel:mirror`,
+# company Mac): served same-origin, never Git (owner rule: no media in Git)
+/frontend/static/typing-feel/
+/frontend/static/.typing-feel-*/
 # Browser and render captures (owner rule 28/10)
 /tmp/

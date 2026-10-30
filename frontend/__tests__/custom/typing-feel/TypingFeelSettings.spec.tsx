@@ -1,40 +1,40 @@
 import { cleanup, fireEvent, render, waitFor } from "@solidjs/testing-library";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import {
+  FEEL_URL,
+  feelFetch,
+  sampleCatalogue,
+  type FeelHost,
+} from "./feel-fixture";
 
 vi.mock("../../../src/ts/config/store", () => ({
   Config: { soundVolume: 0.5 },
   getConfig: { soundVolume: 0.5 },
 }));
 
-const staticDir = resolve(__dirname, "../../../static");
-/** Every set the tracked catalogue lists, as after a full `pnpm sync-keys`. */
-const ALL_SYNCED = (
-  JSON.parse(
-    readFileSync(resolve(staticDir, "sounds/keys/keys-manifest.json"), "utf8"),
-  ) as { profiles: { id: string }[] }
-).profiles.map((p) => p.id);
+/** The build's TYPING_FEEL_URL (undefined: not set, as in CI) and the feel host's answers. */
+function serve(
+  url: string | undefined,
+  host: FeelHost = {},
+): ReturnType<typeof vi.fn> {
+  vi.doMock("virtual:env-config", () => ({
+    envConfig: { typingFeelUrl: url },
+  }));
+  const fetchSpy = vi.fn(feelFetch(host));
+  vi.stubGlobal("fetch", fetchSpy);
+  return fetchSpy;
+}
 
-/** fetch for the site: tracked manifests always (bar `broken`), installed.json only after a sync. */
-function serve(installed: readonly string[] | null, broken = ""): void {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (url: string) => {
-      if (broken !== "" && url.includes(`/${broken}/`)) {
-        return { ok: false, status: 503, json: async () => null };
-      }
-      if (url.endsWith("/installed.json")) {
-        return installed === null
-          ? { ok: false, status: 404, json: async () => null }
-          : { ok: true, status: 200, json: async () => ({ sets: installed }) };
-      }
-      if (url.endsWith(".json")) {
-        const path = resolve(staticDir, url.replace(/^\//, ""));
-        const body = JSON.parse(readFileSync(path, "utf8")) as unknown;
-        return { ok: true, status: 200, json: async () => body };
-      }
-      return { ok: false, status: 404, json: async () => null };
+/** The player's save before the settings open. */
+function saved(keyboardSound: string): void {
+  localStorage.setItem(
+    "personalTypingFeelSettings",
+    JSON.stringify({
+      keyboardSound,
+      keyboardVolume: 100,
+      letterEffect: "stamp",
+      effectStrength: "normal",
     }),
   );
 }
@@ -45,10 +45,14 @@ async function mount(): Promise<ReturnType<typeof render>> {
   return render(() => <TypingFeelSettings />);
 }
 
+async function storedSound(): Promise<string> {
+  const { getTypingFeel } =
+    await import("../../../src/ts/custom/typing-feel/store");
+  return getTypingFeel().keyboardSound;
+}
+
 const labels = (view: ReturnType<typeof render>): string[] =>
-  view
-    .getAllByRole("option")
-    .map((o) => o.textContent?.replace(/sound files.*$/, "") ?? "");
+  view.getAllByRole("option").map((o) => o.textContent ?? "");
 
 beforeEach(() => {
   localStorage.clear();
@@ -57,61 +61,104 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.doUnmock("virtual:env-config");
   vi.unstubAllGlobals();
 });
 
 describe("typing feel settings", () => {
-  it("lists only Off with the note when sync-keys never ran", async () => {
-    serve(null);
+  it("without TYPING_FEEL_URL: no fetch, Off and the saved set kept as unavailable, no note", async () => {
+    const fetchSpy = serve(undefined);
+    saved("raindrop-tile");
     const view = await mount();
     await waitFor(() =>
-      expect(view.getByText("sound files not installed").tagName).toBe("DIV"),
+      expect(labels(view)).toEqual(["Off", "Saved soundunavailable"]),
     );
-    expect(labels(view)).toEqual(["Off"]);
+    const kept = view.getByRole<HTMLButtonElement>("option", {
+      name: /^Saved sound/,
+    });
+    expect(kept.disabled).toBe(true);
+    expect(kept.getAttribute("aria-selected")).toBe("true");
+    expect(view.queryByText("keyboard sounds unavailable")).toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(await storedSound()).toBe("raindrop-tile");
   });
 
-  it("lists the synced sets, disables one not copied, and saves a pick", async () => {
-    serve(["deep", "warm", "bright-clack"]);
+  it("without TYPING_FEEL_URL and no save: Off only, marked, no 'Saved sound' row, nothing saved", async () => {
+    const fetchSpy = serve(undefined);
+    const view = await mount();
+    await waitFor(() =>
+      expect(
+        view
+          .getByRole("option", { name: /^Off/ })
+          .getAttribute("aria-selected"),
+      ).toBe("true"),
+    );
+    expect(labels(view)).toEqual(["Off"]);
+    expect(view.queryByText("keyboard sounds unavailable")).toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(localStorage.getItem("personalTypingFeelSettings")).toBeNull();
+  });
+
+  it("a player without a save gets the catalogue's default, unsaved until they pick", async () => {
+    serve(FEEL_URL, {
+      catalogue: { ...sampleCatalogue(), default: "hail-stone" },
+    });
     const view = await mount();
     await waitFor(() => expect(view.getAllByRole("option")).toHaveLength(35));
-    // Per-set notes only: the whole-list note is for nothing synced.
-    const notes = view.queryAllByText("sound files not installed");
-    expect(notes.every((n) => n.closest("[role=option]") !== null)).toBe(true);
     const option = (name: string): HTMLButtonElement =>
       view.getByRole<HTMLButtonElement>("option", {
         name: new RegExp(`^${name}`),
       });
-    expect(option("Crisp Velvet").disabled).toBe(true);
-    expect(option("Crisp Velvet").textContent).toContain(
-      "sound files not installed",
-    );
-    expect(option("Bright Clack Velvet").getAttribute("aria-selected")).toBe(
-      "true",
-    );
-
-    fireEvent.click(option("Warm Velvet"));
-    const { getTypingFeel } =
-      await import("../../../src/ts/custom/typing-feel/store");
-    expect(getTypingFeel().keyboardSound).toBe("warm");
-    expect(option("Warm Velvet").getAttribute("aria-selected")).toBe("true");
-  });
-
-  it("keeps a set that failed to load selectable, with a retry note", async () => {
-    serve(["deep", "warm"], "warm");
-    const view = await mount();
-    await waitFor(() => expect(view.getAllByRole("option")).toHaveLength(35));
-    const warm = (): HTMLButtonElement =>
-      view.getByRole<HTMLButtonElement>("option", { name: /^Warm Velvet/ });
-    fireEvent.click(warm());
     await waitFor(() =>
-      expect(warm().textContent).toContain("could not load, select to retry"),
+      expect(option("Hail Stone").getAttribute("aria-selected")).toBe("true"),
     );
-    expect(warm().disabled).toBe(false);
-    expect(warm().textContent).not.toContain("not installed");
+    expect(await storedSound()).toBe("hail-stone");
+    expect(localStorage.getItem("personalTypingFeelSettings")).toBeNull();
+    fireEvent.click(option("Bright Clack Velvet"));
+    expect(await storedSound()).toBe("bright-clack");
+    expect(
+      JSON.parse(localStorage.getItem("personalTypingFeelSettings") ?? "null"),
+    ).toMatchObject({ keyboardSound: "bright-clack" });
   });
 
-  it("groups the 34 sets under seven family headings in a bounded list", async () => {
-    serve(ALL_SYNCED);
+  it("host down: the saved set kept, 'keyboard sounds unavailable' under the list, nothing saved", async () => {
+    serve(FEEL_URL, { down: true });
+    saved("hail-stone");
+    const view = await mount();
+    await waitFor(() =>
+      expect(view.getByText("keyboard sounds unavailable").tagName).toBe("DIV"),
+    );
+    expect(labels(view)).toEqual(["Off", "Saved soundunavailable"]);
+    expect(await storedSound()).toBe("hail-stone");
+    expect(localStorage.getItem("personalTypingFeelSettings")).toContain(
+      '"hail-stone"',
+    );
+  });
+
+  it("shows the saved set as Loading… until the catalogue answers", async () => {
+    vi.doMock("virtual:env-config", () => ({
+      envConfig: { typingFeelUrl: FEEL_URL },
+    }));
+    let answer: (value: unknown) => void = () => undefined;
+    const live = feelFetch();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async (url: string) =>
+          new Promise((resolve) => {
+            answer = (): void => resolve(live(url));
+          }),
+      ),
+    );
+    saved("warm");
+    const view = await mount();
+    await waitFor(() => expect(labels(view)).toEqual(["Off", "Loading…"]));
+    answer(undefined);
+    await waitFor(() => expect(view.getAllByRole("option")).toHaveLength(35));
+  });
+
+  it("ready: the 34 sets under seven family headings in a bounded list; a pick saves", async () => {
+    const fetchSpy = serve(FEEL_URL);
     const view = await mount();
     await waitFor(() => expect(view.getAllByRole("option")).toHaveLength(35));
     const groups = view.getAllByRole("group");
@@ -119,7 +166,6 @@ describe("typing feel settings", () => {
     expect(
       groups.map((g) => g.querySelectorAll("[role=option]").length),
     ).toEqual([3, 6, 1, 3, 7, 4, 10]);
-    expect(view.getByRole("group", { name: "Bright Clack" })).toBeTruthy();
     // The owner's picks close their family, under their own name.
     for (const [family, pick] of [
       ["Solid", "Hail Stone"],
@@ -132,7 +178,6 @@ describe("typing feel settings", () => {
           ?.textContent?.startsWith(pick),
       ).toBe(true);
     }
-    // Off sits above the families, in no group.
     expect(
       view.getByRole("option", { name: /^Off/ }).closest("[role=group]"),
     ).toBeNull();
@@ -141,10 +186,47 @@ describe("typing feel settings", () => {
       .closest<HTMLElement>("[data-keyboard-scroll]");
     expect(box?.className).toContain("overflow-y-auto");
     expect(box?.className).toMatch(/max-h-/);
+    expect(view.queryByText("keyboard sounds unavailable")).toBeNull();
+
+    const option = (name: string): HTMLButtonElement =>
+      view.getByRole<HTMLButtonElement>("option", {
+        name: new RegExp(`^${name}`),
+      });
+    expect(option("Bright Clack Velvet").getAttribute("aria-selected")).toBe(
+      "true",
+    );
+    fireEvent.click(option("Warm Velvet"));
+    expect(await storedSound()).toBe("warm");
+    expect(option("Warm Velvet").getAttribute("aria-selected")).toBe("true");
+    // Everything came from the feel origin.
+    for (const [url] of fetchSpy.mock.calls) {
+      expect(String(url).startsWith(`${FEEL_URL}/v1/keys/`)).toBe(true);
+    }
+  });
+
+  it("repairs a retired id to the catalogue's default once it is in", async () => {
+    serve(FEEL_URL);
+    saved("creamy");
+    const view = await mount();
+    await waitFor(() => expect(view.getAllByRole("option")).toHaveLength(35));
+    await waitFor(async () => expect(await storedSound()).toBe("bright-clack"));
+  });
+
+  it("keeps a set that failed to load selectable, with a retry note", async () => {
+    serve(FEEL_URL, { broken: ["warm"] });
+    const view = await mount();
+    await waitFor(() => expect(view.getAllByRole("option")).toHaveLength(35));
+    const warm = (): HTMLButtonElement =>
+      view.getByRole<HTMLButtonElement>("option", { name: /^Warm Velvet/ });
+    fireEvent.click(warm());
+    await waitFor(() =>
+      expect(warm().textContent).toContain("could not load, select to retry"),
+    );
+    expect(warm().disabled).toBe(false);
   });
 
   it("disables the volume with the sound off and letter effects with strength off", async () => {
-    serve(["deep"]);
+    serve(FEEL_URL);
     const view = await mount();
     await waitFor(() => expect(view.getAllByRole("option")).toHaveLength(35));
     const volume = view.getByLabelText<HTMLInputElement>("keyboard volume");

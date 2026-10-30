@@ -18,32 +18,38 @@ import { Separator } from "../../components/common/Separator";
 import { SettingHelpLabel } from "../../components/ui/SettingHelpLabel";
 import { Config, getConfig } from "../../config/store";
 import {
+  configuredBase,
+  fetchSample,
+  fetchSetManifest,
   loadKeyboardChoices,
-  NOT_INSTALLED,
-  restoreKeyboardChoice,
+  OFF_CHOICE,
+  settleSaved,
+  UNAVAILABLE,
 } from "./catalog";
 import { KeyboardSoundList } from "./KeyboardSoundList";
-import { KeyboardSoundPreview } from "./kit/audio";
+import { KeyboardSoundPreview, pendingKeyboardChoices } from "./kit/audio";
 import { TYPING_FX_INTENSITIES, TYPING_FX_STYLES } from "./kit/settings";
 import {
   applyKeyboardLevels,
   gameplaySounds,
   markPack,
   packState,
+  settleStoredKeyboard,
   syncSavedKeyboard,
 } from "./sounds";
 import {
   getTypingFeel,
+  hasTypingFeelSave,
   setTypingFeel,
   type TypingFeelSettings as Settings,
 } from "./store";
 
 const LOAD_FAILED = "could not load, select to retry";
-const OFF: KeyboardSoundChoice = { value: "off", label: "Off" };
 
 /** Key sounds and letter effects, saved the moment a control changes. */
 export function TypingFeelSettings(): JSXElement {
   const [settings, setSettings] = createSignal<Settings>(getTypingFeel());
+  const [hasSave, setHasSave] = createSignal(hasTypingFeelSave());
   const [failed, setFailed] = createSignal<readonly string[]>([]);
   const [catalog] = createResource(async () => loadKeyboardChoices());
 
@@ -53,6 +59,8 @@ export function TypingFeelSettings(): JSXElement {
       keyboard: settings().keyboardVolume / 100,
     }),
     sounds: gameplaySounds(),
+    fetchJson: fetchSetManifest,
+    fetchBytes: fetchSample,
     onLoad: (result) => {
       markPack(result);
       setFailed((ids) =>
@@ -66,15 +74,32 @@ export function TypingFeelSettings(): JSXElement {
   const save = (patch: Partial<Settings>): void => {
     if (setTypingFeel({ ...settings(), ...patch })) {
       setSettings(getTypingFeel());
+      setHasSave(hasTypingFeelSave());
     }
   };
 
-  // Not installed: disabled by the catalogue. A set that failed to load stays selectable to retry.
-  const options = createMemo((): readonly KeyboardSoundChoice[] => {
+  // The save's keyboard sound, or null for a player without a save, who
+  // follows the catalogue's default (§4.5, §5.1 step 4).
+  const stored = (): string | null =>
+    hasSave() ? settings().keyboardSound : null;
+  const settlement = createMemo(() => {
     const loaded = catalog();
-    if (loaded === undefined) return [OFF];
+    return loaded === undefined ? undefined : settleSaved(stored(), loaded);
+  });
+  /** The sound the list marks: the settled one once the catalogue is in. */
+  const shown = (): string => settlement()?.id ?? settings().keyboardSound;
+
+  // Built at once: Off and the saved id ("Loading…") until the catalogue is
+  // in, then the kit's settled list, where a saved id the catalogue lacks
+  // while it is unavailable stays as "Saved sound · unavailable". A set that
+  // failed to load stays selectable to retry.
+  const options = createMemo((): readonly KeyboardSoundChoice[] => {
+    const settled = settlement();
+    if (settled === undefined) {
+      return pendingKeyboardChoices(stored(), OFF_CHOICE);
+    }
     const gone = failed();
-    return loaded.options.map((choice) =>
+    return settled.options.map((choice) =>
       choice.value !== "off" &&
       choice.disabled !== true &&
       (gone.includes(choice.value) || packState(choice.value) === "failed")
@@ -83,18 +108,24 @@ export function TypingFeelSettings(): JSXElement {
     );
   });
 
-  const missing = (): boolean => {
+  // Typing Feel is set up but did not answer; without TYPING_FEEL_URL the
+  // list just has Off (and the saved id) and no note (§5.3).
+  const unavailable = (): boolean => {
     const state = catalog()?.state;
-    return state !== undefined && state !== "ready";
+    return (
+      state !== undefined && state !== "ready" && configuredBase() !== null
+    );
   };
 
-  // A stale or legacy id becomes Bright Clack once the catalogue is in.
+  // A retired or legacy id becomes the catalogue's default once it is in,
+  // and a player without a save follows that default (neither when the
+  // catalogue did not load).
   createEffect(
     on(catalog, (loaded) => {
       if (loaded === undefined) return;
-      const id = settings().keyboardSound;
-      const fixed = restoreKeyboardChoice(id, loaded);
-      if (fixed !== id) save({ keyboardSound: fixed });
+      settleStoredKeyboard(loaded);
+      setSettings(getTypingFeel());
+      setHasSave(hasTypingFeelSave());
     }),
   );
 
@@ -125,7 +156,7 @@ export function TypingFeelSettings(): JSXElement {
     applyKeyboardLevels(settings());
   };
 
-  const soundOff = (): boolean => settings().keyboardSound === "off";
+  const soundOff = (): boolean => shown() === "off";
   const effectsOff = (): boolean => settings().effectStrength === "off";
 
   return (
@@ -137,13 +168,13 @@ export function TypingFeelSettings(): JSXElement {
         />
         <KeyboardSoundList
           options={options()}
-          value={settings().keyboardSound}
+          value={shown()}
           onSelect={select}
           onPreview={(choice, delay) => preview.preview(choice, delay)}
           onStop={() => preview.stop()}
         />
-        <Show when={missing()}>
-          <div class="text-[0.68rem] text-sub">{NOT_INSTALLED}</div>
+        <Show when={unavailable()}>
+          <div class="text-[0.68rem] text-sub">{UNAVAILABLE}</div>
         </Show>
         <div class="text-[0.68rem] text-sub">
           master level: Monkeytype sound volume{" "}

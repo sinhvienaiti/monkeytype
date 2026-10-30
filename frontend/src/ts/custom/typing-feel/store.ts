@@ -56,8 +56,10 @@ export function migrateTypingFeel(
   };
 }
 
+const STORAGE_KEY = "personalTypingFeelSettings";
+
 const storage = new LocalStorageWithSchema({
-  key: "personalTypingFeelSettings",
+  key: STORAGE_KEY,
   schema: TypingFeelSchema,
   fallback: { ...defaultTypingFeel },
   migrate: migrateTypingFeel,
@@ -66,22 +68,78 @@ const storage = new LocalStorageWithSchema({
 type Listener = (settings: TypingFeelSettings) => void;
 const listeners = new Set<Listener>();
 
+/**
+ * The keyboard sound a player without a save follows: the ready Typing Feel
+ * catalogue's `default` (parent repo docs/games/TYPING_FEEL_SERVICE.md §4.5).
+ * Null until such a catalogue is in; never saved on its own.
+ */
+let followedDefault: string | null = null;
+
+/** Whether this browser holds a typing feel save, read raw: the store's defaults never count. */
+export function hasTypingFeelSave(): boolean {
+  try {
+    return window.localStorage.getItem(STORAGE_KEY) !== null;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The saved keyboard sound, or null when this browser has no save yet
+ * (§5.1 step 4: read before the store's default fills it in), so a new
+ * player follows the catalogue's default instead of Bright Clack.
+ */
+export function savedKeyboardSound(): string | null {
+  return hasTypingFeelSave() ? storage.get().keyboardSound : null;
+}
+
+/** The save, or the defaults with the followed catalogue default for a player without one. */
 export function getTypingFeel(): TypingFeelSettings {
-  return storage.get();
+  const settings = storage.get();
+  if (followedDefault !== null && !hasTypingFeelSave()) {
+    settings.keyboardSound = followedDefault;
+  }
+  return settings;
+}
+
+function notify(settings: TypingFeelSettings): void {
+  for (const listener of listeners) {
+    try {
+      listener(settings);
+    } catch (error) {
+      console.error("typing feel listener failed", error);
+    }
+  }
+}
+
+/**
+ * A player without a save follows `id`, the ready catalogue's default, until
+ * they change a setting (that first change saves the sound they had, §3.10).
+ * Not saved; listeners hear it when it changes what such a player plays.
+ */
+export function followKeyboardDefault(id: string): void {
+  if (!KEYBOARD_SOUND_ID.test(id) || id === followedDefault) return;
+  const before = getTypingFeel().keyboardSound;
+  followedDefault = id;
+  const after = getTypingFeel();
+  if (after.keyboardSound !== before) notify(after);
 }
 
 /** Saves at once; listeners (the runtime's cached flags) hear every saved change. */
 export function setTypingFeel(settings: TypingFeelSettings): boolean {
   const saved = storage.set(settings);
   if (!saved) return false;
-  const current = storage.get();
-  for (const listener of listeners) {
+  if (!hasTypingFeelSave()) {
+    // The schema store skips a write equal to what it holds, its defaults
+    // for a player without a save. That first save must land anyway, or a
+    // player who picked the default sound would go on following the catalogue.
     try {
-      listener(current);
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(storage.get()));
     } catch (error) {
-      console.error("typing feel listener failed", error);
+      console.error("typing feel: first save failed", error);
     }
   }
+  notify(getTypingFeel());
   return true;
 }
 

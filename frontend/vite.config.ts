@@ -19,6 +19,7 @@ import { minifyJson } from "./vite-plugins/minify-json";
 import { versionFile } from "./vite-plugins/version-file";
 import { oxlintChecker } from "./vite-plugins/oxlint-checker";
 import { injectPreload } from "./vite-plugins/inject-preload";
+import { typingFeelMirror } from "./vite-plugins/typing-feel-mirror";
 import Inspect from "vite-plugin-inspect";
 import { ViteMinifyPlugin } from "vite-plugin-minify";
 import { VitePWA } from "vite-plugin-pwa";
@@ -111,6 +112,7 @@ function getPlugins({
   ];
 
   const devPlugins: PluginOption[] = [
+    typingFeelMirror(),
     oxlintChecker({
       debounceDelay: 125,
       typeAware: true,
@@ -354,6 +356,8 @@ export default defineConfig(({ mode }): UserConfig => {
     .map((host) => host.trim())
     .filter((host) => host !== "");
 
+  // With no DEV_HOST, listen on every interface only when a backend URL is set.
+  const devListenAll = env["BACKEND_URL"] !== undefined;
   const devHmrHost = env["DEV_HMR_HOST"];
   const devHmrProtocol =
     env["DEV_HMR_PROTOCOL"] === "wss" || env["DEV_HMR_PROTOCOL"] === "ws"
@@ -376,7 +380,7 @@ export default defineConfig(({ mode }): UserConfig => {
     server: {
       open: env["SERVER_OPEN"] !== "false",
       port: 3000,
-      host: env["DEV_HOST"] ?? (env["BACKEND_URL"] !== undefined),
+      host: env["DEV_HOST"] ?? devListenAll,
       allowedHosts:
         devAllowedHosts !== undefined && devAllowedHosts.length > 0
           ? devAllowedHosts
@@ -396,14 +400,15 @@ export default defineConfig(({ mode }): UserConfig => {
       },
     },
     resolve: {
-      alias: isProduction && !isLocalStatic
-        ? [
-            {
-              find: /\/constants\/firebase-config$/,
-              replacement: "/constants/firebase-config-live",
-            },
-          ]
-        : [],
+      alias:
+        isProduction && !isLocalStatic
+          ? [
+              {
+                find: /\/constants\/firebase-config$/,
+                replacement: "/constants/firebase-config-live",
+              },
+            ]
+          : [],
     },
     clearScreen: false,
     root: "src",
