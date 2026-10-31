@@ -8,6 +8,12 @@ import { z } from "zod";
 import { Config } from "../config/store";
 import { setConfig } from "../config/setters";
 import * as TestWords from "./test-words";
+import {
+  applyLearningAppearance,
+  handleActiveWord,
+} from "../custom/en-vn-translation";
+import { getLearningRecallTargetInfo } from "../learning/learning-memory";
+import { getSettings as getEnVnTranslationSettings } from "../custom/en-vn-translation/store";
 import { getCurrentInput } from "./events/data";
 import { getLiveCachedAccuracy } from "./events/live-cache";
 import * as CustomText from "./custom-text";
@@ -30,6 +36,7 @@ import {
   requestDebouncedAnimationFrame,
 } from "../utils/debounced-animation-frame";
 import * as SoundController from "../controllers/sound-controller";
+import * as TypingFeel from "../custom/typing-feel/runtime";
 import * as Numbers from "@monkeytype/util/numbers";
 import { highlight } from "../events/keymap";
 import * as Focus from "../test/focus";
@@ -37,9 +44,15 @@ import {
   blurInputElement,
   focusInputElement,
   getInputElement,
+  getInputElementValue,
   isInputElementFocused,
 } from "../input/input-element";
 import * as MonkeyPower from "../elements/monkey-power";
+import {
+  normalizeCommittedText,
+  shouldUseVietnameseIme,
+} from "../input/helpers/util";
+import { isVietnameseImePreviewCharacter } from "../input/vietnamese-ime/preview";
 import * as SlowTimer from "../legacy-states/slow-timer";
 import * as AdController from "../controllers/ad-controller";
 import * as Joining from "./break-joining";
@@ -181,6 +194,7 @@ export function updateActiveElement(
     newActiveWord.removeClass("error");
     newActiveWord.removeClass("typed");
     Joining.set(newActiveWord, false);
+    handleActiveWord(getActiveWordIndex());
 
     activeWordTop = newActiveWord.getOffsetTop();
     activeWordHeight = newActiveWord.getOffsetHeight();
@@ -389,9 +403,31 @@ async function updateHintsPosition(): Promise<void> {
   }
 }
 
-function buildWordHTML(word: string, wordIndex: number): string {
+function recallStructuralClass(
+  character: string | undefined,
+  recallTarget: boolean,
+): string {
+  if (
+    !recallTarget ||
+    character === undefined ||
+    /[\p{L}\p{N}]/u.test(character)
+  ) {
+    return "";
+  }
+
+  return " en-vn-recall-structural";
+}
+
+function buildWordHTML(
+  word: string,
+  wordIndex: number,
+  recallTarget = false,
+  recallStart = false,
+): string {
   let newlineafter = false;
-  let retval = `<div class='word' data-wordindex='${wordIndex}'>`;
+  const recallClass = recallTarget ? " en-vn-recall-target" : "";
+  const recallStartClass = recallStart ? " en-vn-recall-start" : "";
+  let retval = `<div class='word${recallClass}${recallStartClass}' data-wordindex='${wordIndex}'>`;
 
   const funbox = findSingleActiveFunboxWithFunction("getWordHtml");
   const chars = Strings.splitIntoCharacters(word);
@@ -404,7 +440,8 @@ function buildWordHTML(word: string, wordIndex: number): string {
       newlineafter = true;
       retval += `<letter class='nlChar'><i class="fas fa-level-down-alt fa-rotate-90 fa-fw"></i></letter>`;
     } else {
-      retval += `<letter>${char}</letter>`;
+      const structuralClass = recallStructuralClass(char, recallTarget);
+      retval += `<letter class='${structuralClass.trim()}'>${char}</letter>`;
     }
   }
   retval += "</div>";
@@ -415,9 +452,30 @@ function buildWordHTML(word: string, wordIndex: number): string {
   return retval;
 }
 
+function getRecallTargetInfo(): {
+  targets: Set<number>;
+  starts: Set<number>;
+} {
+  const settings = getEnVnTranslationSettings();
+  if (
+    Config.mode !== "custom" ||
+    !settings.enabled ||
+    !(
+      settings.learningMode === "learn" ||
+      settings.learningMode === "recall" ||
+      settings.learningMode === "listen"
+    )
+  ) {
+    return { targets: new Set(), starts: new Set() };
+  }
+
+  return getLearningRecallTargetInfo();
+}
+
 function updateWordWrapperClasses(): void {
   // outoffocus applies transition, need to remove it
   setTestFocusState("focused");
+  applyLearningAppearance();
 
   if (Config.tapeMode !== "off") {
     wordsEl.addClass("tape");
@@ -515,11 +573,17 @@ function showWords(): void {
   if (Config.mode === "zen") {
     appendEmptyWordElement(0);
   } else {
+    const recallInfo = getRecallTargetInfo();
     let wordsHTML = "";
     for (let i = 0; i < TestWords.words.length; i++) {
       const word = TestWords.words.get(i);
       if (word === undefined) continue; // won't happen, but ts complains
-      wordsHTML += buildWordHTML(word.display, i);
+      wordsHTML += buildWordHTML(
+        word.display,
+        i,
+        recallInfo.targets.has(i),
+        recallInfo.starts.has(i),
+      );
     }
     wordsEl.setHtml(wordsHTML);
   }
@@ -701,13 +765,21 @@ export function addWord(
   word: string,
   wordIndex = TestWords.words.length - 1,
 ): void {
+  const recallInfo = getRecallTargetInfo();
+  const recallTarget = recallInfo.targets.has(wordIndex);
+  const recallStart = recallInfo.starts.has(wordIndex);
+
   // if the current active word is the last word, we need to NOT use raf
   // because other ui parts depend on the word existing
   if (getActiveWordIndex() === wordIndex - 1) {
-    wordsEl.appendHtml(buildWordHTML(word, wordIndex));
+    wordsEl.appendHtml(
+      buildWordHTML(word, wordIndex, recallTarget, recallStart),
+    );
   } else {
     requestAnimationFrame(async () => {
-      wordsEl.appendHtml(buildWordHTML(word, wordIndex));
+      wordsEl.appendHtml(
+        buildWordHTML(word, wordIndex, recallTarget, recallStart),
+      );
     });
   }
 
@@ -767,6 +839,7 @@ export async function updateWordLetters({
       let ret = "";
       const wordAtIndex = getWordElement(wordIndex);
       if (!wordAtIndex) return;
+      const recallTarget = wordAtIndex.hasClass("en-vn-recall-target");
       const hintIndices: number[][] = [];
 
       let newlineafter = false;
@@ -795,7 +868,16 @@ export async function updateWordLetters({
         const inputChars = Strings.splitIntoCharacters(input);
         const currentWordChars = Strings.splitIntoCharacters(currentWord ?? "");
         for (let i = 0; i < inputChars.length; i++) {
-          const charCorrect = currentWordChars[i] === inputChars[i];
+          const exactCharCorrect = currentWordChars[i] === inputChars[i];
+          const imeProvisional =
+            !exactCharCorrect &&
+            currentWordChars[i] !== undefined &&
+            inputChars[i] !== undefined &&
+            isVietnameseImePreviewCharacter(
+              inputChars[i] as string,
+              currentWordChars[i] as string,
+            );
+          const charCorrect = exactCharCorrect || imeProvisional;
 
           let currentLetter = currentWordChars[i] as string;
           let tabChar = "";
@@ -813,8 +895,15 @@ export async function updateWordLetters({
             currentLetter = `<i class="fas fa-level-down-alt fa-rotate-90 fa-fw"></i>`;
           }
 
-          if (charCorrect) {
-            ret += `<letter class="correct ${tabChar}${nlChar}">${currentLetter}</letter>`;
+          const structuralClass = recallStructuralClass(
+            currentWordChars[i],
+            recallTarget,
+          );
+
+          if (imeProvisional) {
+            ret += `<letter class="dead ${tabChar}${nlChar}${structuralClass}">${displayTypedChar(inputChars[i])}</letter>`;
+          } else if (charCorrect) {
+            ret += `<letter class="correct ${tabChar}${nlChar}${structuralClass}">${currentLetter}</letter>`;
           } else if (currentLetter === undefined) {
             const letter = displayTypedChar(inputChars[i]);
             ret += `<letter class="incorrect extra ${tabChar}${nlChar}">${letter}</letter>`;
@@ -828,7 +917,7 @@ export async function updateWordLetters({
               charString = displayTypedChar(inputChars[i] ?? currentLetter);
             }
 
-            ret += `<letter class="incorrect ${tabChar}${nlChar}">${charString}</letter>`;
+            ret += `<letter class="incorrect ${tabChar}${nlChar}${structuralClass}">${charString}</letter>`;
             if (
               Config.indicateTypos === "below" ||
               Config.indicateTypos === "both"
@@ -873,7 +962,11 @@ export async function updateWordLetters({
           } else if (currentLetter === "\n") {
             ret += `<letter class='nlChar'><i class="fas fa-level-down-alt fa-rotate-90 fa-fw"></i></letter>`;
           } else {
-            ret += `<letter>${currentLetter}</letter>`;
+            const structuralClass = recallStructuralClass(
+              currentLetter,
+              recallTarget,
+            );
+            ret += `<letter class="${structuralClass.trim()}">${currentLetter}</letter>`;
           }
         }
       }
@@ -1657,18 +1750,21 @@ function afterAnyTestInput(
   type: "textInput" | "delete" | "compositionUpdate",
   correctInput: boolean | null,
 ): void {
+  // A selected typing feel set replaces the click (never the error sound).
+  const ownClick = !TypingFeel.ownsKeySound();
   if (type === "textInput" || type === "compositionUpdate") {
     if (
       correctInput === true ||
       Config.playSoundOnError === "off" ||
       Config.blindMode
     ) {
-      void SoundController.playClick();
+      if (ownClick) void SoundController.playClick();
     } else {
       void SoundController.playError();
     }
   } else if (type === "delete") {
-    void SoundController.playClick();
+    TypingFeel.onDelete();
+    if (ownClick) void SoundController.playClick();
   }
 
   const acc = Numbers.roundTo2(getLiveCachedAccuracy());
@@ -1711,10 +1807,16 @@ export function afterTestTextInput(
 }
 
 export function afterTestCompositionUpdate(): void {
+  const vietnameseIme = shouldUseVietnameseIme();
   void updateWordLetters({
-    input: getCurrentInput(),
+    // UniKey/EVKey can rewrite an already committed vowel during composition.
+    // The textarea contains the correct live shape; rendering scorer prefix +
+    // compositionData would place that vowel at the next character instead.
+    input: vietnameseIme
+      ? normalizeCommittedText(getInputElementValue().inputValue)
+      : getCurrentInput(),
     wordIndex: getActiveWordIndex(),
-    compositionData: CompositionState.getData(),
+    compositionData: vietnameseIme ? "" : CompositionState.getData(),
   });
   // correct needs to be true to get the normal click sound
   afterAnyTestInput("compositionUpdate", true);
@@ -1801,6 +1903,7 @@ export async function afterTestWordChange(
 
 export function onTestStart(): void {
   Focus.set(true);
+  TypingFeel.start();
   setCurrentLiveStats({
     wpm: 0,
     acc: 100,
@@ -1852,6 +1955,7 @@ export function onTestRestart(source: "testPage" | "resultPage"): void {
   focusWords(true);
   ResultWordHighlight.destroy();
   MonkeyPower.reset();
+  TypingFeel.reset();
   MemoryFunboxTimer.reset();
   Caret.resetPosition();
   TestInitFailed.hide();
@@ -1882,6 +1986,7 @@ export function onTestRestart(source: "testPage" | "resultPage"): void {
 
 export function onTestFinish(): void {
   Caret.hide();
+  TypingFeel.finish();
   setTestFocusState("focused");
   if (Config.playSoundOnClick === "16") {
     void SoundController.playFartReverb();

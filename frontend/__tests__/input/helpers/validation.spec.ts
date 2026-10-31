@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
 import {
+  hasUnresolvedInputError,
   isCharCorrect,
   shouldGoToNextWord,
 } from "../../../src/ts/input/helpers/validation";
@@ -22,6 +23,50 @@ vi.mock("../../../src/ts/utils/strings", async () => {
     ...actual,
     areCharactersVisuallyEqual: vi.fn(),
   };
+});
+
+describe("hasUnresolvedInputError", () => {
+  it.each([
+    ["", "Modern", false],
+    ["M", "Modern", false],
+    ["Mo", "Modern", false],
+    ["Ma", "Modern", true],
+    ["Modernx", "Modern", true],
+  ])("input %s against %s -> %s", (input, target, expected) => {
+    expect(hasUnresolvedInputError(input, target)).toBe(expected);
+  });
+
+  it("treats committed Vietnamese mismatch as a real unresolved error", () => {
+    replaceConfig({
+      language: "vietnamese_5k",
+      inputLanguage: "vietnamese",
+      vietnameseImeMode: "native",
+    });
+    expect(hasUnresolvedInputError("rang", "rằng ")).toBe(true);
+  });
+
+  it.each([
+    ["la,", "là, "],
+    ["la ", "là "],
+    ["a1", "á1 "],
+  ])(
+    "keeps committed Vietnamese mismatches unresolved at a boundary: %s",
+    (input, target) => {
+      replaceConfig({
+        language: "vietnamese_5k",
+        inputLanguage: "vietnamese",
+      });
+      expect(hasUnresolvedInputError(input, target)).toBe(true);
+    },
+  );
+
+  it("does not change English unresolved-input behavior", () => {
+    replaceConfig({
+      language: "english",
+      inputLanguage: "auto",
+    });
+    expect(hasUnresolvedInputError("ra,", "raw ")).toBe(true);
+  });
 });
 
 describe("isCharCorrect", () => {

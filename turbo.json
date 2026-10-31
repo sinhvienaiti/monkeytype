@@ -50,12 +50,28 @@
     },
     "@monkeytype/frontend#build": {
       "dependsOn": ["^build"],
-      "env": ["BACKEND_URL", "RECAPTCHA_SITE_KEY", "SENTRY"],
+      "env": [
+        "BACKEND_URL",
+        "RECAPTCHA_SITE_KEY",
+        "SENTRY",
+        "LOCAL_STATIC",
+        "TYPING_FEEL_URL"
+      ],
       "outputs": ["dist/**"]
     },
     "@monkeytype/frontend#dev": {
       "dependsOn": ["^build"],
-      "env": ["BACKEND_URL", "RECAPTCHA_SITE_KEY", "SERVER_OPEN"],
+      "env": [
+        "BACKEND_URL",
+        "RECAPTCHA_SITE_KEY",
+        "SERVER_OPEN",
+        "DEV_HOST",
+        "DEV_ALLOWED_HOSTS",
+        "DEV_HMR_HOST",
+        "DEV_HMR_PROTOCOL",
+        "DEV_HMR_CLIENT_PORT",
+        "TYPING_FEEL_URL"
+      ],
       "persistent": true
     },
     "@monkeytype/backend#dev": {

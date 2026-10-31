@@ -5,6 +5,8 @@ export type EnvConfig = {
   recaptchaSiteKey: string;
   quickLoginEmail: string | undefined;
   quickLoginPassword: string | undefined;
+  /** Typing Feel root (TYPING_FEEL_URL); undefined: Typing Feel off. */
+  typingFeelUrl: string | undefined;
 };
 
 declare module "virtual:env-config" {

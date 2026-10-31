@@ -14,7 +14,8 @@
     "build",
     "logs",
     "coverage",
-    "*.md"
+    "*.md",
+    "frontend/src/ts/custom/typing-feel/kit"
   ],
   "overrides": [
     {

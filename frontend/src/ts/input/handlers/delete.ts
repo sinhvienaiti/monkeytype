@@ -1,12 +1,52 @@
 import * as TestUI from "../../test/test-ui";
 import * as TestWords from "../../test/test-words";
-import { getInputElementValue, setInputElementValue } from "../input-element";
+import {
+  getInputElementValue,
+  moveInputElementCaretToTheEnd,
+  setInputElementValue,
+} from "../input-element";
 
 import { Config } from "../../config/store";
 import { goToPreviousWord } from "../helpers/word-navigation";
 import { DeleteInputType } from "../helpers/input-type";
-import { getCurrentInput, logTestEvent } from "../../test/events/data";
-import { getActiveWordIndex } from "../../states/test";
+import {
+  forgiveAccuracyErrorsForWord,
+  getCurrentInput,
+  logTestEvent,
+} from "../../test/events/data";
+import {
+  getActiveWordIndex,
+  setCompositionText,
+} from "../../states/test";
+import * as CompositionState from "../../legacy-states/composition";
+import {
+  setActivePhysicalKeyCode,
+  setLastInsertCompositionTextData,
+} from "../state";
+import {
+  normalizeCommittedText,
+  shouldUseVietnameseIme,
+} from "../helpers/util";
+import { invalidateVietnameseImeSession } from "../vietnamese-ime/state";
+
+function resetVietnameseImeAfterDelete(): void {
+  if (!shouldUseVietnameseIme()) return;
+
+  // Backspace is an explicit editing boundary. UniKey/EVKey may otherwise
+  // keep composition data that belongs to the pre-delete DOM and replay it on
+  // the next key/compositionend.
+  CompositionState.invalidate();
+  setLastInsertCompositionTextData("");
+  invalidateVietnameseImeSession();
+  setActivePhysicalKeyCode(null);
+  setCompositionText("");
+
+  // The event log/scorer is authoritative after deletion/navigation. Rebuild
+  // the hidden textarea from it so the next IME event starts from the exact
+  // same prefix instead of a browser-side stale composition value.
+  setInputElementValue(normalizeCommittedText(getCurrentInput()));
+  moveInputElementCaretToTheEnd();
+}
 
 export function onDelete(inputType: DeleteInputType, now: number): void {
   const { realInputValue } = getInputElementValue();
@@ -20,6 +60,20 @@ export function onDelete(inputType: DeleteInputType, now: number): void {
   const allTabsCorrect = TestWords.words
     .getCurrent()
     ?.textWithCommit.startsWith(inputAfterDelete);
+
+  // A physical Backspace can cancel only the browser's active IME preview.
+  // In that case committed DOM text is unchanged. Reset stale IME state, but
+  // do not emit a scorer delete event for a character that was never deleted.
+  if (
+    realInputValue !== "" &&
+    shouldUseVietnameseIme() &&
+    normalizeCommittedText(inputAfterDelete) ===
+      normalizeCommittedText(inputBeforeDelete)
+  ) {
+    resetVietnameseImeAfterDelete();
+    TestUI.afterTestDelete();
+    return;
+  }
 
   //special check for code languages
   if (
@@ -49,6 +103,7 @@ export function onDelete(inputType: DeleteInputType, now: number): void {
       inputValue: postNavInputValue,
     });
 
+    resetVietnameseImeAfterDelete();
     TestUI.afterTestDelete();
     return;
   }
@@ -76,7 +131,16 @@ export function onDelete(inputType: DeleteInputType, now: number): void {
       charIndex: inputBeforeDelete.length,
       inputValue: inputAfterDelete,
     });
+
+    if (
+      Config.forgiveCorrectedErrors &&
+      Config.stopOnError === "word" &&
+      inputAfterDelete === TestWords.words.getCurrent()?.text
+    ) {
+      forgiveAccuracyErrorsForWord(activeWordIndexBeforeDelete);
+    }
   }
 
+  resetVietnameseImeAfterDelete();
   TestUI.afterTestDelete();
 }

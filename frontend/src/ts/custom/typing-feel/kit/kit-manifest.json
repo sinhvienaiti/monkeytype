@@ -1,0 +1,94 @@
+{
+  "name": "typing-fx (vendored)",
+  "owner": "project owner's own code",
+  "sourceRepo": "typing-game (parent repo)",
+  "sourcePath": "shared/game-kit/feedback/typing-fx",
+  "sourceCommit": "590864fbf47e904de468bffe75b20c84c72c0c47",
+  "lastKitChange": "590864fbf47e904de468bffe75b20c84c72c0c47",
+  "copiedAt": "2026-10-31",
+  "copiedFrom": "clean export of the parent at 590864fb (git show of each file), not the parent working tree",
+  "files": [
+    {
+      "file": "audio.ts",
+      "source": "shared/game-kit/feedback/typing-fx/audio.ts",
+      "gitBlob": "2c49fd7678bf75e30eb0de48c62052b95d834816",
+      "sourceSha256": "df5f5ed5873b38100cf079ffd379f1ef835ca61a85edbe868019bbd3f21c33c4",
+      "vendoredSha256": "235b4fefc55bdc8a679020ac25c32de4732b00eb0afed6b35ebb67acbf2d229f",
+      "patched": true
+    },
+    {
+      "file": "driver.ts",
+      "source": "shared/game-kit/feedback/typing-fx/driver.ts",
+      "gitBlob": "341b2cf5ef3938a7189c7e2199cc6956baca66a8",
+      "sourceSha256": "d16f8199e36bc8f765c78307ea92e29b01ba29b87eb79b3f712b15de84bd325e",
+      "vendoredSha256": "d16f8199e36bc8f765c78307ea92e29b01ba29b87eb79b3f712b15de84bd325e",
+      "patched": false
+    },
+    {
+      "file": "intensity.ts",
+      "source": "shared/game-kit/feedback/typing-fx/intensity.ts",
+      "gitBlob": "a497e26d13c856db25a2167a799b60ee27df4ec5",
+      "sourceSha256": "0f53cf407b2e5b5ab72abd5dd515d3077347522706e8401fd4a95f7728486929",
+      "vendoredSha256": "0f53cf407b2e5b5ab72abd5dd515d3077347522706e8401fd4a95f7728486929",
+      "patched": false
+    },
+    {
+      "file": "settings.ts",
+      "source": "shared/game-kit/feedback/typing-fx/settings.ts",
+      "gitBlob": "bdd8f9872f3b7f03786113944e65a02654066a21",
+      "sourceSha256": "398f82e6eec820f258a43efff67db6cbaecdfbfd36528127833abddfb80f20f1",
+      "vendoredSha256": "c58ac06df4cc5cb1ea8eb2ce0b4d73564056c7388c97d9e6f47e1614259c625b",
+      "patched": true
+    },
+    {
+      "file": "styles.ts",
+      "source": "shared/game-kit/feedback/typing-fx/styles.ts",
+      "gitBlob": "f26ea4112d0ccc57e779369d75139c8569513c1c",
+      "sourceSha256": "157228a7096cf212c9235a4338d06d6feb1e46d6ea720d6481677899e831e9f3",
+      "vendoredSha256": "157228a7096cf212c9235a4338d06d6feb1e46d6ea720d6481677899e831e9f3",
+      "patched": false
+    },
+    {
+      "file": "pool.ts",
+      "source": "shared/game-kit/feedback/typing-fx/pool.ts",
+      "gitBlob": "5b5c4bd94c17d95a48af25dc508f5b6e039e1c81",
+      "sourceSha256": "d6bcf8c52d98310ea433637122f7c859af17931d869d7ee903ed22b596871770",
+      "vendoredSha256": "d6bcf8c52d98310ea433637122f7c859af17931d869d7ee903ed22b596871770",
+      "patched": false
+    },
+    {
+      "file": "draw.ts",
+      "source": "shared/game-kit/feedback/typing-fx/draw.ts",
+      "gitBlob": "4fb1e42b1e9883de5075114091b9f645502789f1",
+      "sourceSha256": "7b7b1e9a0f22a1f2bd2f13350854f97100df7bff0179c1ddc137c76d46168efe",
+      "vendoredSha256": "7b7b1e9a0f22a1f2bd2f13350854f97100df7bff0179c1ddc137c76d46168efe",
+      "patched": false
+    }
+  ],
+  "patches": [
+    {
+      "file": "audio.ts",
+      "reason": "TS4111 under noPropertyAccessFromIndexSignature",
+      "from": "entry as Record<string, unknown>",
+      "to": "entry as { readonly id?: unknown; readonly name?: unknown; readonly manifest?: unknown; readonly preview?: unknown; readonly order?: unknown; readonly family?: unknown; readonly score?: unknown }"
+    },
+    {
+      "file": "audio.ts",
+      "reason": "TS4111 under noPropertyAccessFromIndexSignature (catalogueEffects, new in 590864fb)",
+      "from": "const row = raw as Record<string, unknown>;",
+      "to": "const row = raw as { readonly style?: unknown; readonly intensity?: unknown; readonly size?: unknown; readonly volume?: unknown };"
+    },
+    {
+      "file": "audio.ts",
+      "reason": "TS4111 under noPropertyAccessFromIndexSignature (catalogueInfo, new in 590864fb)",
+      "from": "function catalogueInfo(raw: Record<string, unknown>, ",
+      "to": "function catalogueInfo(raw: { readonly revision?: unknown; readonly default?: unknown; readonly effects?: unknown }, "
+    },
+    {
+      "file": "settings.ts",
+      "reason": "TS4111 under noPropertyAccessFromIndexSignature",
+      "from": "raw as Record<string, unknown>",
+      "to": "raw as Partial<Record<keyof TypingFxSettings, unknown>>"
+    }
+  ]
+}

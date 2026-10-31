@@ -129,6 +129,7 @@ function input(
     inputType: string;
     isCompositionEnding: boolean;
     inputStopped: boolean;
+    accuracyIgnored: true;
     commitsWord: true;
     inputValue: string;
   }> = {},
@@ -940,6 +941,21 @@ describe("stats.ts", () => {
       expect(acc.correct).toBe(1);
       expect(acc.incorrect).toBe(1);
       expect(acc.percentage).toBe(50);
+    });
+
+    it("ignores forgiven input errors", () => {
+      logTestEvent(
+        "input",
+        1100,
+        input({ correct: false, inputStopped: true, accuracyIgnored: true }),
+      );
+      logTestEvent("input", 1200, input({ correct: true }));
+
+      expect(getAccuracy(buildEventLog())).toEqual({
+        correct: 1,
+        incorrect: 0,
+        percentage: 100,
+      });
     });
   });
 

@@ -134,3 +134,13 @@ frontend/.env.sentry-build-plugin
 .claude/worktrees
 1024MiB
 .pnpm-store
+
+# Local Adobe Commerce study notes, never published (owner, 22/10/2026)
+/adobe_commerce_lessons_1_180_package/
+
+# Typing Feel copy for a machine without the feel host (`pnpm feel:mirror`,
+# company Mac): served same-origin, never Git (owner rule: no media in Git)
+/frontend/static/typing-feel/
+/frontend/static/.typing-feel-*/
+# Browser and render captures (owner rule 28/10)
+/tmp/

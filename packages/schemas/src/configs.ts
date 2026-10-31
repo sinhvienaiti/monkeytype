@@ -57,6 +57,12 @@ export type IndicateTypos = z.infer<typeof IndicateTyposSchema>;
 export const CompositionDisplaySchema = z.enum(["off", "below", "replace"]);
 export type CompositionDisplay = z.infer<typeof CompositionDisplaySchema>;
 
+export const InputLanguageSchema = z.enum(["auto", "english", "vietnamese"]);
+export type InputLanguage = z.infer<typeof InputLanguageSchema>;
+
+export const VietnameseImeModeSchema = z.enum(["off", "native"]);
+export type VietnameseImeMode = z.infer<typeof VietnameseImeModeSchema>;
+
 export const TimerStyleSchema = z.enum([
   "off",
   "bar",
@@ -437,10 +443,15 @@ export const ConfigSchema = z
     strictSpace: z.boolean(),
     oppositeShiftMode: OppositeShiftModeSchema,
     stopOnError: StopOnErrorSchema,
+    stopOnErrorKeepFirstError: z.boolean(),
+    ignoreRepeatedBlockedErrors: z.boolean(),
+    forgiveCorrectedErrors: z.boolean(),
     deleteOnError: DeleteOnErrorSchema,
     confidenceMode: ConfidenceModeSchema,
     quickEnd: z.boolean(),
     indicateTypos: IndicateTyposSchema,
+    inputLanguage: InputLanguageSchema.default("auto"),
+    vietnameseImeMode: VietnameseImeModeSchema.default("off"),
     compositionDisplay: CompositionDisplaySchema,
     hideExtraLetters: z.boolean(),
     lazyMode: z.boolean(),

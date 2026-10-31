@@ -1,14 +1,18 @@
 import { onDelete } from "../handlers/delete";
 import { onInsertText } from "../handlers/insert-text";
 import { isSupportedInputType } from "../helpers/input-type";
-import { getInputElement } from "../input-element";
+import { getInputElement, getInputElementValue } from "../input-element";
 import {
+  clearBackspaceIntent,
+  getActivePhysicalKeyCode,
   getLastInsertCompositionTextData,
+  hasRecentBackspaceIntent,
   setLastInsertCompositionTextData,
 } from "../state";
 import * as TestUI from "../../test/test-ui";
 import { onBeforeInsertText } from "../handlers/before-insert-text";
 import { onBeforeDelete } from "../handlers/before-delete";
+import { queueVietnameseImeSeparator } from "../vietnamese-ime/state";
 import * as TestWords from "../../test/test-words";
 import * as CompositionState from "../../legacy-states/composition";
 import {
@@ -18,10 +22,19 @@ import {
 } from "../../states/test";
 import { getCurrentInput } from "../../test/events/data";
 import { areAllWordsGenerated } from "../../test/words-generator";
+import { recordImeDebugEvent } from "../ime-debug";
+import {
+  normalizeCommittedText,
+  normalizeTargetText,
+  shouldDeferVietnameseCompositionSeparator,
+  shouldIgnoreVietnameseImeDelete,
+  shouldUseVietnameseIme,
+} from "../helpers/util";
 
 const inputEl = getInputElement();
 
 inputEl.addEventListener("beforeinput", async (event) => {
+  recordImeDebugEvent("beforeinput", "before", event);
   if (!(event instanceof InputEvent)) {
     //beforeinput is typed as inputevent but input is not?
     //@ts-expect-error just doing this as a sanity check
@@ -38,6 +51,7 @@ inputEl.addEventListener("beforeinput", async (event) => {
 
   if (!isSupportedInputType(event.inputType)) {
     event.preventDefault();
+    recordImeDebugEvent("beforeinput", "after", event);
     return;
   }
 
@@ -53,15 +67,31 @@ inputEl.addEventListener("beforeinput", async (event) => {
       data = "\n";
     }
 
-    const preventDefault = onBeforeInsertText(data);
-    if (preventDefault) {
-      event.preventDefault();
+    const deferVietnameseSeparator =
+      shouldDeferVietnameseCompositionSeparator(
+        data,
+        CompositionState.getComposing(),
+      );
+
+    if (!deferVietnameseSeparator) {
+      const preventDefault = onBeforeInsertText(data);
+      if (preventDefault) {
+        event.preventDefault();
+      }
     }
   } else if (
     inputType === "deleteWordBackward" ||
     inputType === "deleteContentBackward"
   ) {
-    onBeforeDelete(event);
+    const internalImeDelete = shouldIgnoreVietnameseImeDelete({
+      inputType,
+      isComposing: event.isComposing,
+      activeKeyCode: getActivePhysicalKeyCode(),
+      hasBackspaceIntent: hasRecentBackspaceIntent(event.timeStamp),
+    });
+    if (!internalImeDelete) {
+      onBeforeDelete(event);
+    }
   } else if (
     inputType === "insertCompositionText" ||
     inputType === "insertFromComposition"
@@ -73,9 +103,12 @@ inputEl.addEventListener("beforeinput", async (event) => {
   } else {
     throw new Error(`Unhandled beforeinput type: ${inputType}`);
   }
+
+  recordImeDebugEvent("beforeinput", "after", event);
 });
 
 inputEl.addEventListener("input", async (event) => {
+  recordImeDebugEvent("input", "before", event);
   if (!(event instanceof InputEvent)) {
     //since the listener is on an input element, this should never trigger
     //but its here to narrow the type of "event"
@@ -115,24 +148,50 @@ inputEl.addEventListener("input", async (event) => {
       data = "\n";
     }
 
-    await onInsertText({
-      data,
-      now,
-    });
+    const deferVietnameseSeparator =
+      shouldDeferVietnameseCompositionSeparator(
+        data,
+        CompositionState.getComposing(),
+      );
+
+    if (deferVietnameseSeparator) {
+      // Chrome/UniKey can emit the committing Space as insertText before
+      // compositionend. Scoring it now would evaluate an incomplete scorer
+      // prefix and can discard the still-uncommitted composition text.
+      queueVietnameseImeSeparator(data);
+    } else {
+      await onInsertText({
+        data,
+        now,
+      });
+    }
   } else if (
     inputType === "deleteWordBackward" ||
     inputType === "deleteContentBackward"
   ) {
-    onDelete(inputType, now);
+    const internalImeDelete = shouldIgnoreVietnameseImeDelete({
+      inputType,
+      isComposing: event.isComposing,
+      activeKeyCode: getActivePhysicalKeyCode(),
+      hasBackspaceIntent: hasRecentBackspaceIntent(event.timeStamp),
+    });
+    if (!internalImeDelete) {
+      onDelete(inputType, now);
+      clearBackspaceIntent();
+    }
   } else if (
     inputType === "insertCompositionText" ||
     inputType === "insertFromComposition"
   ) {
     const allWordsTyped = getActiveWordIndex() >= TestWords.words.length - 1;
-    const inputPlusComposition =
-      getCurrentInput() + (CompositionState.getData() ?? "");
+    const inputPlusComposition = normalizeCommittedText(
+      shouldUseVietnameseIme()
+        ? getInputElementValue().inputValue
+        : getCurrentInput() + (CompositionState.getData() ?? ""),
+    );
     const inputPlusCompositionIsCorrect =
-      TestWords.words.getCurrent()?.textWithCommit === inputPlusComposition;
+      normalizeTargetText(TestWords.words.getCurrent()?.textWithCommit ?? "") ===
+      inputPlusComposition;
 
     // composition quick end
     // if the user typed the entire word correctly but is still in composition
@@ -156,4 +215,6 @@ inputEl.addEventListener("input", async (event) => {
   } else {
     throw new Error(`Unhandled input type: ${inputType}`);
   }
+
+  recordImeDebugEvent("input", "after", event);
 });
